@@ -17,12 +17,21 @@ mod utils;
 use std::sync::Arc;
 
 use clap::{command, Parser, Subcommand};
-use solana_sdk::signature::{read_keypair_file, Keypair};
+use solana_client::{
+    client_error::reqwest::Url, connection_cache::ConnectionCache,
+    nonblocking::rpc_client::RpcClient,
+};
+use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    signature::{read_keypair_file, Keypair},
+};
 
 struct Miner {
     pub keypair_filepath: Option<String>,
     pub priority_fee: u64,
-    pub cluster: String,
+    pub(crate) rpc_client: Arc<RpcClient>,
+    pub(crate) connection_cache: ConnectionCache,
+    pub(crate) websocket_url: String,
 }
 
 #[derive(Parser, Debug)]
@@ -50,6 +59,14 @@ struct Args {
         default_value = "0"
     )]
     priority_fee: u64,
+
+    #[arg(
+        long,
+        value_name = "USE_QUIC",
+        help = "Use quic or udp",
+        default_value = "true"
+    )]
+    use_quic: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -159,10 +176,29 @@ struct UpdateDifficultyArgs {}
 
 #[tokio::main]
 async fn main() {
-    // Initialize miner.
     let args = Args::parse();
-    let cluster = args.rpc;
-    let miner = Arc::new(Miner::new(cluster.clone(), args.priority_fee, args.keypair));
+
+    let websocket_url = compute_websocket_url(&args.rpc);
+
+    let connection_cache = if args.use_quic {
+        ConnectionCache::new_quic("connection_cache_cli_program_v4_quic", 1)
+    } else {
+        ConnectionCache::with_udp("connection_cache_ore_cli_udp", 1)
+    };
+
+    let rpc_client = Arc::new(RpcClient::new_with_commitment(
+        args.rpc,
+        CommitmentConfig::confirmed(),
+    ));
+
+    // Initialize miner.
+    let miner = Arc::new(Miner::new(
+        args.keypair,
+        args.priority_fee,
+        rpc_client,
+        connection_cache,
+        websocket_url,
+    ));
 
     // Execute user command.
     match args.command {
@@ -182,7 +218,7 @@ async fn main() {
             miner.mine(args.threads).await;
         }
         Commands::Claim(args) => {
-            miner.claim(cluster, args.beneficiary, args.amount).await;
+            miner.claim(args.beneficiary, args.amount).await;
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {
@@ -200,11 +236,19 @@ async fn main() {
 }
 
 impl Miner {
-    pub fn new(cluster: String, priority_fee: u64, keypair_filepath: Option<String>) -> Self {
+    pub fn new(
+        keypair_filepath: Option<String>,
+        priority_fee: u64,
+        rpc_client: Arc<RpcClient>,
+        connection_cache: ConnectionCache,
+        websocket_url: String,
+    ) -> Self {
         Self {
             keypair_filepath,
             priority_fee,
-            cluster,
+            rpc_client,
+            connection_cache,
+            websocket_url,
         }
     }
 
@@ -214,4 +258,22 @@ impl Miner {
             None => panic!("No keypair provided"),
         }
     }
+}
+
+fn compute_websocket_url(json_rpc_url: &str) -> String {
+    let json_rpc_url: Option<Url> = json_rpc_url.parse().ok();
+    if json_rpc_url.is_none() {
+        return "".to_string();
+    }
+    let json_rpc_url = json_rpc_url.unwrap();
+    let is_secure = json_rpc_url.scheme().to_ascii_lowercase() == "https";
+    let mut ws_url = json_rpc_url.clone();
+    ws_url
+        .set_scheme(if is_secure { "wss" } else { "ws" })
+        .expect("unable to set scheme");
+    if let Some(port) = json_rpc_url.port() {
+        let port = port.checked_add(1).expect("port out of range");
+        ws_url.set_port(Some(port)).expect("unable to set port");
+    }
+    ws_url.to_string()
 }

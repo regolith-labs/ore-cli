@@ -44,8 +44,8 @@ impl Miner {
         // Start mining loop
         loop {
             // Find a valid hash.
-            let treasury = get_treasury(self.cluster.clone()).await;
-            let proof = get_proof(self.cluster.clone(), signer.pubkey()).await;
+            let treasury = get_treasury(&self.rpc_client).await;
+            let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
 
             // Escape sequence that clears the screen and the scrollback buffer
             stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
@@ -79,8 +79,8 @@ impl Miner {
                 }
 
                 // Reset if epoch has ended
-                let treasury = get_treasury(self.cluster.clone()).await;
-                let clock = get_clock_account(self.cluster.clone()).await;
+                let treasury = get_treasury(&self.rpc_client).await;
+                let clock = get_clock_account(&self.rpc_client).await;
                 let threshold = treasury.last_reset_at.saturating_add(EPOCH_DURATION);
                 if clock.unix_timestamp.ge(&threshold) || needs_reset {
                     let reset_ix = ore::instruction::reset(signer.pubkey());

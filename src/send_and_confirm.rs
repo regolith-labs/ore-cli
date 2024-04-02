@@ -1,16 +1,15 @@
-use std::{
-    io::{stdout, Write},
-    time::Duration,
-};
+use std::time::{Duration, Instant};
 
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
-    nonblocking::rpc_client::RpcClient,
-    rpc_config::{RpcSendTransactionConfig, RpcSimulateTransactionConfig},
+    connection_cache::ConnectionCache,
+    nonblocking::tpu_client::TpuClient,
+    rpc_config::RpcSimulateTransactionConfig,
+    tpu_client::TpuClientConfig,
 };
 use solana_program::instruction::{Instruction, InstructionError};
 use solana_sdk::{
-    commitment_config::{CommitmentConfig, CommitmentLevel},
+    commitment_config::CommitmentConfig,
     compute_budget::ComputeBudgetInstruction,
     signature::{Signature, Signer},
     transaction::{Transaction, TransactionError},
@@ -19,35 +18,21 @@ use solana_transaction_status::UiTransactionEncoding;
 
 use crate::Miner;
 
-const RPC_RETRIES: usize = 1;
-const GATEWAY_RETRIES: usize = 10;
-const CONFIRM_RETRIES: usize = 10;
-
 impl Miner {
     pub async fn send_and_confirm(&self, ixs: &[Instruction]) -> ClientResult<Signature> {
-        let mut stdout = stdout();
         let signer = self.signer();
-        let client =
-            RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::confirmed());
 
         // Build tx
-        let (mut hash, mut slot) = client
+        let (hash, slot) = (&self.rpc_client)
             .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
             .await
             .unwrap();
-        let mut send_cfg = RpcSendTransactionConfig {
-            skip_preflight: true,
-            preflight_commitment: Some(CommitmentLevel::Confirmed),
-            encoding: Some(UiTransactionEncoding::Base64),
-            max_retries: Some(RPC_RETRIES),
-            min_context_slot: Some(slot),
-        };
 
         let mut tx = Transaction::new_with_payer(ixs, Some(&signer.pubkey()));
         tx.sign(&[&signer], hash);
 
         // Sim and prepend cu ixs
-        let sim_res = client
+        let sim_res = (&self.rpc_client)
             .simulate_transaction_with_config(
                 &tx,
                 RpcSimulateTransactionConfig {
@@ -116,71 +101,48 @@ impl Miner {
             });
         };
 
-        // Loop
-        let mut attempts = 0;
-        loop {
-            println!("Attempt: {:?}", attempts);
-            match client.send_transaction_with_config(&tx, send_cfg).await {
-                Ok(sig) => {
-                    log::info!("{:?}", sig);
-                    let mut confirm_check = 0;
-                    'confirm: loop {
-                        match client
-                            .confirm_transaction_with_commitment(
-                                &sig,
-                                CommitmentConfig::confirmed(),
-                            )
-                            .await
-                        {
-                            Ok(confirmed) => {
-                                log::info!(
-                                    "Confirm check {:?}: {:?}",
-                                    confirm_check,
-                                    confirmed.value
-                                );
-                                if confirmed.value {
-                                    return Ok(sig);
-                                }
-                            }
-                            Err(err) => {
-                                log::error!("Err: {:?}", err);
-                            }
-                        }
+        eprintln!("{}", self.websocket_url.clone());
 
-                        // Retry confirm
-                        std::thread::sleep(Duration::from_millis(500));
-                        confirm_check += 1;
-                        if confirm_check.gt(&CONFIRM_RETRIES) {
-                            break 'confirm;
-                        }
-                    }
-                }
-                Err(err) => {
-                    println!("Error {:?}", err);
-                }
+        let success = match &self.connection_cache {
+            ConnectionCache::Quic(cache) => {
+                TpuClient::new_with_connection_cache(
+                    self.rpc_client.clone(),
+                    &self.websocket_url,
+                    TpuClientConfig::default(),
+                    cache.clone(),
+                )
+                .await
+                .expect("quic tpu client")
+                .send_transaction(&tx)
+                .await
             }
-            stdout.flush().ok();
+            ConnectionCache::Udp(cache) => {
+                TpuClient::new_with_connection_cache(
+                    self.rpc_client.clone(),
+                    &self.websocket_url,
+                    TpuClientConfig::default(),
+                    cache.clone(),
+                )
+                .await
+                .expect("udp tpu client")
+                .send_transaction(&tx)
+                .await
+            }
+        };
 
-            // Retry with new hash
-            std::thread::sleep(Duration::from_millis(1000));
-            (hash, slot) = client
-                .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
+        assert!(success);
+        let timeout = Duration::from_secs(5);
+        let now = Instant::now();
+        let signature = tx.signatures[0];
+        loop {
+            assert!(now.elapsed() < timeout);
+            let statuses = &self
+                .rpc_client
+                .get_signature_statuses(&vec![signature])
                 .await
                 .unwrap();
-            send_cfg = RpcSendTransactionConfig {
-                skip_preflight: true,
-                preflight_commitment: Some(CommitmentLevel::Confirmed),
-                encoding: Some(UiTransactionEncoding::Base64),
-                max_retries: Some(RPC_RETRIES),
-                min_context_slot: Some(slot),
-            };
-            tx.sign(&[&signer], hash);
-            attempts += 1;
-            if attempts > GATEWAY_RETRIES {
-                return Err(ClientError {
-                    request: None,
-                    kind: ClientErrorKind::Custom("Max retries".into()),
-                });
+            if statuses.value.first().is_some() {
+                return Ok(signature);
             }
         }
     }
