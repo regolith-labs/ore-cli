@@ -11,6 +11,7 @@ use solana_sdk::{
     keccak::{hashv, Hash as KeccakHash},
     signature::Signer,
 };
+use tokio::time::sleep;
 
 use crate::{
     utils::{get_clock_account, get_proof, get_treasury},
@@ -82,11 +83,28 @@ impl Miner {
                 let treasury = get_treasury(self.cluster.clone()).await;
                 let clock = get_clock_account(self.cluster.clone()).await;
                 let threshold = treasury.last_reset_at.saturating_add(EPOCH_DURATION);
+                let mut attempts = 0;
+                const MAX_ATTEMPTS: u8 = 10; // Maximum number of attempts before giving up
                 if clock.unix_timestamp.ge(&threshold) || needs_reset {
                     let reset_ix = ore::instruction::reset(signer.pubkey());
-                    self.send_and_confirm(&[reset_ix])
-                        .await
-                        .expect("Transaction failed");
+                    loop {
+                        let cloned_ix = reset_ix.clone();
+                        match self.send_and_confirm(&[cloned_ix]).await {
+                            Ok(_) => {
+                                println!("Transaction confirmed");
+                                break;
+                            }
+                            Err(e) => {
+                                attempts += 1;
+                                println!("Attempt {} failed: {:?}", attempts, e);
+                                if attempts >= MAX_ATTEMPTS {
+                                    panic!("Transaction failed after {} attempts: {:?}", MAX_ATTEMPTS, e);
+                                }
+                                // Exponential backoff or fixed delay could be considered here
+                                sleep(Duration::from_secs(5)).await;
+                            }
+                        }
+                    }
                     needs_reset = false;
                 }
 
