@@ -4,7 +4,7 @@ use ore::{self, state::Proof, utils::AccountDeserialize};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 
-use crate::{utils::proof_pubkey, Miner};
+use crate::{send_and_confirm::{CU_LIMIT_ATA, CU_LIMIT_CLAIM}, utils::proof_pubkey, Miner};
 
 impl Miner {
     pub async fn claim(&self, beneficiary: Option<String>, amount: Option<f64>) {
@@ -32,7 +32,7 @@ impl Miner {
         };
         let amountf = (amount as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
         let ix = ore::instruction::claim(pubkey, beneficiary, amount);
-        match self.send_and_confirm(&[ix]).await {
+        match self.send_and_confirm(&[ix], CU_LIMIT_CLAIM).await {
             Ok(sig) => {
                 println!("Claimed {:} ORE to account {:}", amountf, beneficiary);
                 println!("{:?}", sig);
@@ -65,7 +65,7 @@ impl Miner {
             &ore::MINT_ADDRESS,
             &spl_token::id(),
         );
-        match self.send_and_confirm(&[ix]).await {
+        match self.send_and_confirm(&[ix], CU_LIMIT_ATA).await {
             Ok(_sig) => println!("Created token account {:?}", token_account_pubkey),
             Err(e) => println!("Transaction failed: {:?}", e),
         }

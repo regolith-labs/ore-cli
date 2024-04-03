@@ -29,8 +29,8 @@ use solana_sdk::{
 struct Miner {
     pub keypair_filepath: Option<String>,
     pub priority_fee: u64,
-    pub(crate) rpc_client: Arc<RpcClient>,
     pub(crate) connection_cache: ConnectionCache,
+    pub(crate) rpc_client: Arc<RpcClient>,
     pub(crate) websocket_url: String,
 }
 
@@ -56,7 +56,7 @@ struct Args {
         long,
         value_name = "MICROLAMPORTS",
         help = "Number of microlamports to pay as priority fee per transaction",
-        default_value = "0"
+        default_value = "100000"
     )]
     priority_fee: u64,
 
@@ -181,14 +181,14 @@ async fn main() {
     let websocket_url = compute_websocket_url(&args.rpc);
 
     let connection_cache = if args.use_quic {
-        ConnectionCache::new_quic("connection_cache_ore_clie_quic", 1)
+        ConnectionCache::new_quic("connection_cache_ore_cli_quic", 1)
     } else {
         ConnectionCache::with_udp("connection_cache_ore_cli_udp", 1)
     };
 
     let rpc_client = Arc::new(RpcClient::new_with_commitment(
         args.rpc,
-        CommitmentConfig::confirmed(),
+        CommitmentConfig::processed(),
     ));
 
     // Initialize miner.

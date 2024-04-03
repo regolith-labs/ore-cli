@@ -1,6 +1,6 @@
 use solana_sdk::signature::Signer;
 
-use crate::{utils::proof_pubkey, Miner};
+use crate::{send_and_confirm::CU_LIMIT_REGISTER, utils::proof_pubkey, Miner};
 
 impl Miner {
     pub async fn register(&self) {
@@ -14,7 +14,7 @@ impl Miner {
         // Sign and send transaction.
         println!("Generating challenge...");
         let ix = ore::instruction::register(signer.pubkey());
-        self.send_and_confirm(&[ix])
+        self.send_and_confirm(&[ix], CU_LIMIT_REGISTER)
             .await
             .expect("Transaction failed");
     }

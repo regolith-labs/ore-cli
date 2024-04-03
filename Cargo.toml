@@ -26,6 +26,7 @@ solana-cli-config = "1.18.5"
 solana-client = "^1.16"
 solana-connection-cache = "1.18.5"
 solana-program = "^1.16"
+solana-quic-client = "^1.16"
 solana-sdk = "^1.16"
 solana-tpu-client = { version = "^1.16", features = ["spinner"] }
 solana-transaction-status = "^1.16"
