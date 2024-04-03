@@ -27,7 +27,7 @@ solana-client = "^1.16"
 solana-connection-cache = "1.18.5"
 solana-program = "^1.16"
 solana-sdk = "^1.16"
-solana-tpu-client = "^1.16"
+solana-tpu-client = { version = "^1.16", features = ["spinner"] }
 solana-transaction-status = "^1.16"
 spl-associated-token-account = { version = "^2.2", features = [ "no-entrypoint" ] }
 spl-token = { version = "^4", features = ["no-entrypoint"] }

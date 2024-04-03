@@ -101,9 +101,7 @@ impl Miner {
             });
         };
 
-        eprintln!("{}", self.websocket_url.clone());
-
-        let success = match &self.connection_cache {
+        match &self.connection_cache {
             ConnectionCache::Quic(cache) => {
                 TpuClient::new_with_connection_cache(
                     self.rpc_client.clone(),
@@ -113,7 +111,7 @@ impl Miner {
                 )
                 .await
                 .expect("quic tpu client")
-                .send_transaction(&tx)
+                .send_and_confirm_messages_with_spinner(&[tx.message], &[&signer])
                 .await
             }
             ConnectionCache::Udp(cache) => {
@@ -125,25 +123,12 @@ impl Miner {
                 )
                 .await
                 .expect("udp tpu client")
-                .send_transaction(&tx)
+                .send_and_confirm_messages_with_spinner(&[tx.message], &[&signer])
                 .await
-            }
-        };
-
-        assert!(success);
-        let timeout = Duration::from_secs(5);
-        let now = Instant::now();
-        let signature = tx.signatures[0];
-        loop {
-            assert!(now.elapsed() < timeout);
-            let statuses = &self
-                .rpc_client
-                .get_signature_statuses(&vec![signature])
-                .await
-                .unwrap();
-            if statuses.value.first().is_some() {
-                return Ok(signature);
             }
         }
+        .expect("send and confirm to win");
+
+        Ok(tx.signatures[0])
     }
 }
