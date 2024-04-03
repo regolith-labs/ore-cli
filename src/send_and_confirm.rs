@@ -16,6 +16,7 @@ use solana_sdk::{
     transaction::{Transaction, TransactionError},
 };
 use solana_transaction_status::UiTransactionEncoding;
+use tokio::time::sleep;
 
 use crate::Miner;
 
@@ -31,10 +32,24 @@ impl Miner {
             RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::confirmed());
 
         // Build tx
-        let (mut hash, mut slot) = client
-            .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
-            .await
-            .unwrap();
+        let mut attempts = 0;
+        const MAX_ATTEMPTS: u8 = 3; // Maximum number of attempts before giving up
+        let retry_delay = Duration::from_secs(5); // Delay between retries
+        
+        let (mut hash, mut slot) = loop {
+            match client.get_latest_blockhash_with_commitment(CommitmentConfig::confirmed()).await {
+                Ok(result) => break result,
+                Err(e) => {
+                    attempts += 1;
+                    if attempts >= MAX_ATTEMPTS {
+                        panic!("Failed to get latest blockhash after {} attempts: {:?}", MAX_ATTEMPTS, e);
+                    }
+                    eprintln!("Attempt {} failed, retrying in {:?}: {:?}", attempts, retry_delay, e);
+                    sleep(retry_delay).await;
+                }
+            }
+        };        
+
         let mut send_cfg = RpcSendTransactionConfig {
             skip_preflight: true,
             preflight_commitment: Some(CommitmentLevel::Confirmed),
