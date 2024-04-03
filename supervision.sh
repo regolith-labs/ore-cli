@@ -1,16 +1,17 @@
 #!/bin/bash
 
-# Check if at least one argument is given
-if [ $# -lt 1 ]; then
-    echo "Usage: $0 <RPC_URL>"
-    exit 1
-fi
+# Set default values
+DEFAULT_RPC_URL="https://api.mainnet-beta.solana.com"
+DEFAULT_FEE=1
+DEFAULT_THREADS=4
 
-# Assign the first argument to RPC_URL
-RPC_URL=$1
+# Assign arguments with defaults
+RPC_URL=${1:-$DEFAULT_RPC_URL}
+FEE=${2:-$DEFAULT_FEE}
+THREADS=${3:-$DEFAULT_THREADS}
 
-# Command and its arguments, with dynamic RPC URL
-COMMAND="./target/release/ore --rpc ${RPC_URL} --keypair ~/.config/solana/id2.json --priority-fee 5000000 mine --threads 8"
+# Command and its arguments, with dynamic values
+COMMAND="./target/release/ore --rpc ${RPC_URL} --keypair ~/.config/solana/id.json --priority-fee ${FEE} mine --threads ${THREADS}"
 
 # Loop indefinitely
 while true; do
