@@ -181,7 +181,7 @@ async fn main() {
     let websocket_url = compute_websocket_url(&args.rpc);
 
     let connection_cache = if args.use_quic {
-        ConnectionCache::new_quic("connection_cache_cli_program_v4_quic", 1)
+        ConnectionCache::new_quic("connection_cache_ore_clie_quic", 1)
     } else {
         ConnectionCache::with_udp("connection_cache_ore_cli_udp", 1)
     };
