@@ -1,5 +1,3 @@
-use std::time::{Duration, Instant};
-
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
     connection_cache::ConnectionCache,
