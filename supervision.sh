@@ -2,16 +2,18 @@
 
 # Set default values
 DEFAULT_RPC_URL="https://api.mainnet-beta.solana.com"
+DEFAULT_KEY="~/.config/solana/id.json"
 DEFAULT_FEE=1
 DEFAULT_THREADS=4
 
 # Assign arguments with defaults
 RPC_URL=${1:-$DEFAULT_RPC_URL}
-FEE=${2:-$DEFAULT_FEE}
-THREADS=${3:-$DEFAULT_THREADS}
+KEY=${2:-$DEFAULT_KEY}
+FEE=${3:-$DEFAULT_FEE}
+THREADS=${4:-$DEFAULT_THREADS}
 
 # Command and its arguments, with dynamic values
-COMMAND="./target/release/ore --rpc ${RPC_URL} --keypair ~/.config/solana/id.json --priority-fee ${FEE} mine --threads ${THREADS}"
+COMMAND="./target/release/ore --rpc ${RPC_URL} --keypair ${KEY} --priority-fee ${FEE} mine --threads ${THREADS}"
 
 # Loop indefinitely
 while true; do
