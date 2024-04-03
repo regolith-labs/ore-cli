@@ -31,10 +31,23 @@ impl Miner {
             RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::confirmed());
 
         // Build tx
-        let (mut hash, mut slot) = client
-            .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
+        // It's good to get a finalized blockhash as the future trx might hit a RPC node
+        // that's behind the previous one.
+        let (hash, slot) = match client
+            .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
             .await
-            .unwrap();
+        {
+            Ok((hash, slot)) => (hash, slot),
+            Err(err) => {
+                return Err(ClientError {
+                    request: None,
+                    kind: ClientErrorKind::Custom(format!(
+                        "Failed to get latest blockhash: {}",
+                        err
+                    )),
+                });
+            }
+        };
         let mut send_cfg = RpcSendTransactionConfig {
             skip_preflight: true,
             preflight_commitment: Some(CommitmentLevel::Confirmed),
@@ -71,6 +84,8 @@ impl Miner {
                                 request: None,
                                 kind: ClientErrorKind::Custom("Needs reset".into()),
                             });
+                        } else if e == 2 {
+                            // Epoch can't be reset (yet)
                         } else if e == 3 {
                             log::info!("Hash invalid!");
                             return Err(ClientError {
@@ -157,16 +172,35 @@ impl Miner {
                 }
                 Err(err) => {
                     println!("Error {:?}", err);
+
+                    // No need to retry here on explicit error. it'll fail again.
+                    return Err(ClientError {
+                        request: None,
+                        kind: ClientErrorKind::Custom(format!("Failed to send tx: {:?}", err)),
+                    });
                 }
             }
             stdout.flush().ok();
 
             // Retry with new hash
             std::thread::sleep(Duration::from_millis(1000));
-            (hash, slot) = client
-                .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
+            // It's good to get a finalized blockhash as the future trx might hit a RPC node
+            // that's behind the previous one.
+            let (hash, slot) = match client
+                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
                 .await
-                .unwrap();
+            {
+                Ok((hash, slot)) => (hash, slot),
+                Err(err) => {
+                    return Err(ClientError {
+                        request: None,
+                        kind: ClientErrorKind::Custom(format!(
+                            "Failed to get latest blockhash: {:?}",
+                            err
+                        )),
+                    });
+                }
+            };
             send_cfg = RpcSendTransactionConfig {
                 skip_preflight: true,
                 preflight_commitment: Some(CommitmentLevel::Confirmed),
