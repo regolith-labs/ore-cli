@@ -8,13 +8,13 @@ use solana_client::{
     },
     tpu_client::TpuClientConfig,
 };
-use solana_program::instruction::Instruction;
+use solana_program::instruction::{Instruction, InstructionError};
 use solana_quic_client::{QuicConfig, QuicConnectionManager, QuicPool};
 use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
     compute_budget::ComputeBudgetInstruction,
     signature::{Signature, Signer},
-    transaction::Transaction,
+    transaction::{Transaction, TransactionError},
 };
 
 use crate::Miner;
@@ -67,7 +67,7 @@ impl Miner {
                 .await
                 .expect("quic tpu client");
                 Some(tpu_client)
-            },
+            }
             _ => None,
         };
 
@@ -90,7 +90,41 @@ impl Miner {
             }
         })?;
 
-        eprintln!("possible_tx_errors: {:?}", possible_tx_errors);
+        for tx_error in possible_tx_errors.into_iter().flatten() {
+            match tx_error {
+                TransactionError::InstructionError(_, InstructionError::Custom(e)) => {
+                    if e == 1 {
+                        log::info!("Needs reset!");
+                        return Err(ClientError {
+                            request: None,
+                            kind: ClientErrorKind::Custom(format!("Needs reset e={}", e)),
+                        });
+                    } else if e == 3 {
+                        log::info!("Hash invalid!");
+                        return Err(ClientError {
+                            request: None,
+                            kind: ClientErrorKind::Custom(format!("Hash invalid e={}", e)),
+                        });
+                    } else if e == 5 {
+                        return Err(ClientError {
+                            request: None,
+                            kind: ClientErrorKind::Custom(format!("Bus insufficient e={}", e)),
+                        });
+                    } else {
+                        return Err(ClientError {
+                            request: None,
+                            kind: ClientErrorKind::Custom(format!("Sim failed e={}", e)),
+                        });
+                    }
+                }
+                _ => {
+                    return Err(ClientError {
+                        request: None,
+                        kind: ClientErrorKind::Custom(tx_error.to_string()),
+                    })
+                }
+            }
+        }
 
         Ok(tx.signatures[0])
     }
