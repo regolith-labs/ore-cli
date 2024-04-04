@@ -12,7 +12,6 @@ use solana_sdk::{
     keccak::{hashv, Hash as KeccakHash},
     signature::Signer,
 };
-use tokio::time::sleep;
 
 use crate::{
     cu_limits::{CU_LIMIT_MINE, CU_LIMIT_RESET},
