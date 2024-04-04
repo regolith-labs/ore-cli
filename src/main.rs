@@ -27,8 +27,8 @@ use solana_sdk::{
 };
 
 struct Miner {
-    pub keypair_filepath: Option<String>,
-    pub priority_fee: u64,
+    pub(crate) keypair_filepath: Option<String>,
+    pub(crate) priority_fee: u64,
     pub(crate) connection_cache: ConnectionCache,
     pub(crate) rpc_client: Arc<RpcClient>,
     pub(crate) websocket_url: String,

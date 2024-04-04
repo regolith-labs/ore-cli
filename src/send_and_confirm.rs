@@ -6,7 +6,7 @@ use solana_client::{
     send_and_confirm_transactions_in_parallel::{
         send_and_confirm_transactions_in_parallel, SendAndConfirmConfig,
     },
-    tpu_client::TpuClientConfig,
+    tpu_client::{TpuClientConfig, MAX_FANOUT_SLOTS},
 };
 use solana_program::instruction::{Instruction, InstructionError};
 use solana_quic_client::{QuicConfig, QuicConnectionManager, QuicPool};
@@ -61,7 +61,9 @@ impl Miner {
                 let tpu_client = TpuClient::new_with_connection_cache(
                     self.rpc_client.clone(),
                     &self.websocket_url,
-                    TpuClientConfig::default(),
+                    TpuClientConfig {
+                        fanout_slots: MAX_FANOUT_SLOTS,
+                    },
                     cache.clone(),
                 )
                 .await
