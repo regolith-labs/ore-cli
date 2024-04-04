@@ -18,10 +18,10 @@ mod utils;
 use std::sync::Arc;
 
 use clap::{command, Parser, Subcommand};
-use solana_sdk::signature::{read_keypair_file, Keypair};
+use solana_sdk::signature::{ Keypair};
 
 struct Miner {
-    pub keypair_filepath: Option<String>,
+    pub keypair_private_key: Option<String>,
     pub priority_fee: u64,
     pub cluster: String,
 }
@@ -39,7 +39,7 @@ struct Args {
 
     #[arg(
         long,
-        value_name = "KEYPAIR_FILEPATH",
+        value_name = "keypair_private_key",
         help = "Filepath to keypair to use"
     )]
     keypair: Option<String>,
@@ -201,17 +201,17 @@ async fn main() {
 }
 
 impl Miner {
-    pub fn new(cluster: String, priority_fee: u64, keypair_filepath: Option<String>) -> Self {
+    pub fn new(cluster: String, priority_fee: u64, keypair_private_key: Option<String>) -> Self {
         Self {
-            keypair_filepath,
+            keypair_private_key,
             priority_fee,
             cluster,
         }
     }
 
     pub fn signer(&self) -> Keypair {
-        match self.keypair_filepath.clone() {
-            Some(filepath) => read_keypair_file(filepath).unwrap(),
+        match self.keypair_private_key.clone() {
+            Some(key) => Keypair::from_base58_string(&key),
             None => panic!("No keypair provided"),
         }
     }

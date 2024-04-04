@@ -96,6 +96,7 @@ impl Miner {
                     }
                     Err(_err) => {
                         // TODO
+                        break;
                     }
                 }
             }
