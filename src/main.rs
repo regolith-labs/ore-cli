@@ -135,7 +135,7 @@ struct MineArgs {
         short,
         value_name = "THREAD_COUNT",
         help = "The number of threads to dedicate to mining",
-        default_value = "1"
+        default_value = "8"
     )]
     threads: u64,
 }

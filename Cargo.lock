@@ -2442,6 +2442,7 @@ dependencies = [
  "solana-sdk",
  "solana-tpu-client",
  "solana-transaction-status",
+ "solana-udp-client",
  "spl-associated-token-account",
  "spl-token",
  "tokio",

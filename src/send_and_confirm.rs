@@ -93,40 +93,7 @@ impl Miner {
         })?;
 
         for tx_error in possible_tx_errors.into_iter().flatten() {
-            match tx_error {
-                TransactionError::InstructionError(_, InstructionError::Custom(e)) => {
-                    if e == 1 {
-                        return Err(ClientError {
-                            request: None,
-                            kind: ClientErrorKind::Custom(format!("Needs reset e={}", e)),
-                        });
-                    } else if e == 3 {
-                        return Err(ClientError {
-                            request: None,
-                            kind: ClientErrorKind::Custom(format!("Hash invalid e={}", e)),
-                        });
-                    } else if e == 5 {
-                        return Err(ClientError {
-                            request: None,
-                            kind: ClientErrorKind::Custom(format!("Bus insufficient e={}", e)),
-                        });
-                    } else {
-                        eprintln!("Sim failed e={}", e);
-                        continue;
-                        // return Err(ClientError {
-                        //     request: None,
-                        //     kind: ClientErrorKind::Custom(format!("Sim failed e={}", e)),
-                        // });
-                    }
-                }
-                _ => {
-                    eprintln!("unknown tx_error={}", tx_error);
-                    return Err(ClientError {
-                        request: None,
-                        kind: ClientErrorKind::Custom(tx_error.to_string()),
-                    })
-                }
-            }
+            handle_tx_error(tx_error)?;
         }
 
         Ok(tx.signatures[0])
@@ -175,7 +142,7 @@ impl Miner {
                     ..Default::default()
                 },
             )
-            .await?;
+            .await?; // TODO(Levi) there _could_ be a TransactionError we want to handle in here.
 
         Ok(signature)
     }
@@ -196,49 +163,85 @@ impl Miner {
         final_ixs.extend_from_slice(ixs);
         let tx = Transaction::new_with_payer(&final_ixs, Some(&signer.pubkey()));
 
-        for retry in (0..20).rev() {
-            let tx = tx.clone();
-
-            let outcome = match &self.connection_cache {
-                ConnectionCache::Quic(cache) => {
-                    let tpu_client = TpuClient::new_with_connection_cache(
-                        self.rpc_client.clone(),
-                        &self.websocket_url,
-                        TpuClientConfig::default(),
-                        cache.clone(),
-                    )
-                    .await
-                    .expect("quic tpu client");
-
-                    tpu_client
-                        .send_and_confirm_messages_with_spinner(&[tx.message], &[&signer])
-                        .await
-                }
-                ConnectionCache::Udp(cache) => {
-                    let tpu_client = TpuClient::new_with_connection_cache(
-                        self.rpc_client.clone(),
-                        &self.websocket_url,
-                        TpuClientConfig::default(),
-                        cache.clone(),
-                    )
-                    .await
-                    .expect("udp tpu client");
-
-                    tpu_client
-                        .send_and_confirm_messages_with_spinner(&[tx.message], &[&signer])
-                        .await
-                }
-            };
-
-            if outcome.is_ok() {
-                break;
-            } else {
-                eprintln!("outcome: {:?}", outcome);
-                eprintln!("retrying: {}", retry);
-                continue;
+        let tx = tx.clone();
+        let outcome = match &self.connection_cache {
+            ConnectionCache::Quic(cache) => {
+                eprintln!(">> send_and_confirm with quic tpu client");
+                TpuClient::new_with_connection_cache(
+                    self.rpc_client.clone(),
+                    &self.websocket_url,
+                    TpuClientConfig {
+                        fanout_slots: MAX_FANOUT_SLOTS,
+                    },
+                    cache.clone(),
+                )
+                .await
+                .expect("quic tpu client")
+                .send_and_confirm_messages_with_spinner(&[tx.message], &[&signer])
+                .await
             }
-        }
+            ConnectionCache::Udp(cache) => {
+                eprintln!(">> send_and_confirm with udp tpu client");
+                TpuClient::new_with_connection_cache(
+                    self.rpc_client.clone(),
+                    &self.websocket_url,
+                    TpuClientConfig {
+                        fanout_slots: MAX_FANOUT_SLOTS,
+                    },
+                    cache.clone(),
+                )
+                .await
+                .expect("udp tpu client")
+                .send_and_confirm_messages_with_spinner(&[tx.message], &[&signer])
+                .await
+            }
+        };
+
+        match outcome {
+            Ok(possible_tx_errors) => {
+                for tx_error in possible_tx_errors.into_iter().flatten() {
+                    handle_tx_error(tx_error)?;
+                }
+            }
+            Err(tpu_send_error) => {
+                eprintln!("tpu_send_error={}", tpu_send_error);
+                return Err(ClientError {
+                    request: None,
+                    kind: ClientErrorKind::Custom(tpu_send_error.to_string()),
+                });
+            }
+        };
 
         Ok(tx.signatures[0])
+    }
+}
+
+fn handle_tx_error(tx_error: TransactionError) -> Result<(), ClientError> {
+    match tx_error {
+        TransactionError::InstructionError(_, InstructionError::Custom(e)) => match e {
+            1 => Err(ClientError {
+                request: None,
+                kind: ClientErrorKind::Custom(format!("Needs reset e={}", e)),
+            }),
+            3 => Err(ClientError {
+                request: None,
+                kind: ClientErrorKind::Custom(format!("Hash invalid e={}", e)),
+            }),
+            5 => Err(ClientError {
+                request: None,
+                kind: ClientErrorKind::Custom(format!("Bus insufficient e={}", e)),
+            }),
+            _ => {
+                eprintln!("Sim failed e={}", e);
+                Ok(())
+            }
+        },
+        _ => {
+            eprintln!("unknown tx_error={}", tx_error);
+            Err(ClientError {
+                request: None,
+                kind: ClientErrorKind::Custom(tx_error.to_string()),
+            })
+        }
     }
 }
