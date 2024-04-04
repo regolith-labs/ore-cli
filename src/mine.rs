@@ -1,145 +1,115 @@
 use std::{
     io::{stdout, Write},
     sync::{atomic::AtomicBool, Arc, Mutex},
-    time::Duration,
 };
 
-use chrono::{Duration as ChronoDuration, Utc};
-use ore::{self, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, START_AT};
-use solana_client::client_error::ClientErrorKind;
+use ore::{self, state::Bus, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION};
+use rand::Rng;
+use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
+    commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
     keccak::{hashv, Hash as KeccakHash},
     signature::Signer,
 };
 use tokio::time::sleep;
 
 use crate::{
+    cu_limits::{CU_LIMIT_MINE, CU_LIMIT_RESET},
     utils::{get_clock_account, get_proof, get_treasury},
     Miner,
 };
+
+// Odds of being selected to submit a reset tx
+const RESET_ODDS: u64 = 20;
 
 impl Miner {
     pub async fn mine(&self, threads: u64) {
         // Register, if needed.
         let signer = self.signer();
         self.register().await;
-
         let mut stdout = stdout();
-
-        // Wait for mining to begin if necessary
-        loop {
-            std::thread::sleep(Duration::from_secs(1));
-            let now_unix_timestamp = Utc::now().timestamp();
-            let duration = START_AT - now_unix_timestamp;
-            let t = format_duration(duration);
-            stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
-            stdout
-                .write_all(format!("Waiting for mining to begin... {}\n", t).as_bytes())
-                .ok();
-            stdout.flush().ok();
-            if START_AT.le(&now_unix_timestamp) {
-                break;
-            }
-        }
+        let mut rng = rand::thread_rng();
 
         // Start mining loop
         loop {
-            // Find a valid hash.
+            // Fetch account state
+            let balance = self.get_ore_display_balance().await;
             let treasury = get_treasury(self.cluster.clone()).await;
             let proof = get_proof(self.cluster.clone(), signer.pubkey()).await;
+            let rewards =
+                (proof.claimable_rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+            let reward_rate =
+                (treasury.reward_rate as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+            stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
+            println!("Balance: {} ORE", balance);
+            println!("Claimable: {} ORE", rewards);
+            println!("Reward rate: {} ORE", reward_rate);
 
             // Escape sequence that clears the screen and the scrollback buffer
-            stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
-            stdout
-                .write_all(format!("Searching for valid hash...\n").as_bytes())
-                .ok();
+            println!("\nMining for a valid hash...");
             let (next_hash, nonce) =
                 self.find_next_hash_par(proof.hash.into(), treasury.difficulty.into(), threads);
-            stdout
-                .write_all(format!("\nSubmitting hash for validation... \n").as_bytes())
-                .ok();
-            stdout.flush().ok();
 
             // Submit mine tx.
-            let mut bus_id = 0;
-            let mut invalid_busses: Vec<u8> = vec![];
-            let mut needs_reset = false;
-            'submit: loop {
-                // Find a valid bus.
-                if invalid_busses.len().eq(&(BUS_COUNT as usize)) {
-                    // All busses are drained. Wait until next epoch.
-                    std::thread::sleep(std::time::Duration::from_millis(1000));
-                }
-                if invalid_busses.contains(&bus_id) {
-                    println!("Bus {} is empty... ", bus_id);
-                    bus_id += 1;
-                    if bus_id.ge(&(BUS_COUNT as u8)) {
-                        std::thread::sleep(Duration::from_secs(1));
-                        bus_id = 0;
-                    }
-                }
-
-                // Reset if epoch has ended
+            // Use busses randomly so on each epoch, transactions don't pile on the same busses
+            println!("\n\nSubmitting hash for validation...");
+            loop {
+                // Reset epoch, if needed
                 let treasury = get_treasury(self.cluster.clone()).await;
                 let clock = get_clock_account(self.cluster.clone()).await;
                 let threshold = treasury.last_reset_at.saturating_add(EPOCH_DURATION);
-                let mut attempts = 0;
-                const MAX_ATTEMPTS: u8 = 10; // Maximum number of attempts before giving up
-                if clock.unix_timestamp.ge(&threshold) || needs_reset {
-                    let reset_ix = ore::instruction::reset(signer.pubkey());
-                    loop {
-                        let cloned_ix = reset_ix.clone();
-                        match self.send_and_confirm(&[cloned_ix]).await {
-                            Ok(_) => {
-                                println!("Transaction confirmed");
-                                break;
-                            }
-                            Err(e) => {
-                                attempts += 1;
-                                println!("Attempt {} failed: {:?}", attempts, e);
-                                if attempts >= MAX_ATTEMPTS {
-                                    panic!("Transaction failed after {} attempts: {:?}", MAX_ATTEMPTS, e);
-                                }
-                                // Exponential backoff or fixed delay could be considered here
-                                sleep(Duration::from_secs(5)).await;
-                            }
-                        }
+                if clock.unix_timestamp.ge(&threshold) {
+                    // There are a lot of miners right now, so randomly select into submitting tx
+                    if rng.gen_range(0..RESET_ODDS).eq(&0) {
+                        println!("Sending epoch reset transaction...");
+                        let cu_limit_ix =
+                            ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_RESET);
+                        let cu_price_ix =
+                            ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
+                        let reset_ix = ore::instruction::reset(signer.pubkey());
+                        self.send_and_confirm(&[cu_limit_ix, cu_price_ix, reset_ix], true)
+                            .await
+                            .ok();
                     }
-                    needs_reset = false;
                 }
 
                 // Submit request.
+                let bus = self.find_bus_id(treasury.reward_rate).await;
+                let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+                println!("Sending on bus {} ({} ORE)", bus.id, bus_rewards);
+                let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_MINE);
+                let cu_price_ix =
+                    ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
                 let ix_mine = ore::instruction::mine(
                     signer.pubkey(),
-                    BUS_ADDRESSES[bus_id as usize],
+                    BUS_ADDRESSES[bus.id as usize],
                     next_hash.into(),
                     nonce,
                 );
-                match self.send_and_confirm(&[ix_mine]).await {
+                match self
+                    .send_and_confirm(&[cu_limit_ix, cu_price_ix, ix_mine], false)
+                    .await
+                {
                     Ok(sig) => {
-                        stdout.write(format!("Success: {}", sig).as_bytes()).ok();
+                        println!("Success: {}", sig);
                         break;
                     }
-                    Err(err) => match err.kind {
-                        ClientErrorKind::Custom(msg) => {
-                            if msg.contains("Bus insufficient") {
-                                invalid_busses.push(bus_id);
-                            } else if msg.contains("Needs reset") {
-                                needs_reset = true;
-                            } else if msg.contains("Hash invalid") {
-                                break 'submit;
-                            } else {
-                                stdout
-                                    .write_all(format!("\n{:?} \n", msg.to_string()).as_bytes())
-                                    .ok();
-                            }
-                        }
-                        _ => {
-                            stdout
-                                .write_all(format!("\nUnhandled error {:?} \n", err).as_bytes())
-                                .ok();
-                        }
-                    },
+                    Err(_err) => {
+                        // TODO
+                    }
+                }
+            }
+        }
+    }
+
+    async fn find_bus_id(&self, reward_rate: u64) -> Bus {
+        let mut rng = rand::thread_rng();
+        loop {
+            let bus_id = rng.gen_range(0..BUS_COUNT);
+            if let Ok(bus) = self.get_bus(bus_id).await {
+                if bus.rewards.gt(&reward_rate.saturating_mul(4)) {
+                    return bus;
                 }
             }
         }
@@ -229,12 +199,24 @@ impl Miner {
         let r_solution = solution.lock().expect("Failed to get lock");
         *r_solution
     }
-}
 
-pub fn format_duration(seconds: i64) -> String {
-    let duration = ChronoDuration::try_seconds(seconds).unwrap();
-    let hours = duration.num_hours();
-    let minutes = duration.num_minutes() % 60;
-    let seconds = duration.num_seconds() % 60;
-    format!("{:02}:{:02}:{:02}", hours, minutes, seconds)
+    pub async fn get_ore_display_balance(&self) -> String {
+        let client =
+            RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::confirmed());
+        let signer = self.signer();
+        let token_account_address = spl_associated_token_account::get_associated_token_address(
+            &signer.pubkey(),
+            &ore::MINT_ADDRESS,
+        );
+        match client.get_token_account(&token_account_address).await {
+            Ok(token_account) => {
+                if let Some(token_account) = token_account {
+                    token_account.token_amount.ui_amount_string
+                } else {
+                    "0.00".to_string()
+                }
+            }
+            Err(_) => "Err".to_string(),
+        }
+    }
 }

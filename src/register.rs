@@ -1,8 +1,10 @@
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_sdk::{commitment_config::CommitmentConfig, signature::Signer};
-use tokio::time::{sleep, Duration};
+use solana_sdk::{
+    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
+    signature::Signer,
+};
 
-use crate::{utils::proof_pubkey, Miner};
+use crate::{cu_limits::CU_LIMIT_REGISTER, utils::proof_pubkey, Miner};
 
 impl Miner {
     pub async fn register(&self) {
@@ -17,27 +19,11 @@ impl Miner {
 
         // Sign and send transaction with retry mechanism.
         println!("Generating challenge...");
+        let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_REGISTER);
+        let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
         let ix = ore::instruction::register(signer.pubkey());
-        let mut attempts = 0;
-        const MAX_ATTEMPTS: u8 = 10; // Maximum number of attempts before giving up
-        
-        loop {
-            let cloned_ix = ix.clone();
-            match self.send_and_confirm(&[cloned_ix]).await {
-                Ok(_) => {
-                    println!("Transaction confirmed");
-                    break;
-                }
-                Err(e) => {
-                    attempts += 1;
-                    println!("Attempt {} failed: {:?}", attempts, e);
-                    if attempts >= MAX_ATTEMPTS {
-                        panic!("Transaction failed after {} attempts: {:?}", MAX_ATTEMPTS, e);
-                    }
-                    // Exponential backoff or fixed delay could be considered here
-                    sleep(Duration::from_secs(5)).await;
-                }
-            }
-        }
+        self.send_and_confirm(&[cu_limit_ix, cu_price_ix, ix], false)
+            .await
+            .expect("Transaction failed");
     }
 }
