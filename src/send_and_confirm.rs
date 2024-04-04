@@ -80,7 +80,7 @@ impl Miner {
             &[&signer],
             SendAndConfirmConfig {
                 with_spinner: true,
-                resign_txs_count: Some(10),
+                resign_txs_count: Some(50),
             },
         )
         .await
@@ -96,13 +96,11 @@ impl Miner {
             match tx_error {
                 TransactionError::InstructionError(_, InstructionError::Custom(e)) => {
                     if e == 1 {
-                        log::info!("Needs reset!");
                         return Err(ClientError {
                             request: None,
                             kind: ClientErrorKind::Custom(format!("Needs reset e={}", e)),
                         });
                     } else if e == 3 {
-                        log::info!("Hash invalid!");
                         return Err(ClientError {
                             request: None,
                             kind: ClientErrorKind::Custom(format!("Hash invalid e={}", e)),
@@ -113,13 +111,16 @@ impl Miner {
                             kind: ClientErrorKind::Custom(format!("Bus insufficient e={}", e)),
                         });
                     } else {
-                        return Err(ClientError {
-                            request: None,
-                            kind: ClientErrorKind::Custom(format!("Sim failed e={}", e)),
-                        });
+                        eprintln!("Sim failed e={}", e);
+                        continue;
+                        // return Err(ClientError {
+                        //     request: None,
+                        //     kind: ClientErrorKind::Custom(format!("Sim failed e={}", e)),
+                        // });
                     }
                 }
                 _ => {
+                    eprintln!("unknown tx_error={}", tx_error);
                     return Err(ClientError {
                         request: None,
                         kind: ClientErrorKind::Custom(tx_error.to_string()),

@@ -11,6 +11,7 @@ use solana_sdk::{
     keccak::{hashv, Hash as KeccakHash},
     signature::Signer,
 };
+use tokio::time::sleep;
 
 use crate::{
     send_and_confirm::{CU_LIMIT_MINE, CU_LIMIT_RESET},
@@ -28,7 +29,7 @@ impl Miner {
 
         // Wait for mining to begin if necessary
         loop {
-            std::thread::sleep(Duration::from_secs(1));
+            sleep(Duration::from_secs(1)).await;
             let now_unix_timestamp = Utc::now().timestamp();
             let duration = START_AT - now_unix_timestamp;
             let t = format_duration(duration);
@@ -68,13 +69,13 @@ impl Miner {
                 // Find a valid bus.
                 if invalid_busses.len().eq(&(BUS_COUNT as usize)) {
                     // All busses are drained. Wait until next epoch.
-                    std::thread::sleep(std::time::Duration::from_millis(1000));
+                    sleep(Duration::from_millis(1000)).await;
                 }
                 if invalid_busses.contains(&bus_id) {
                     println!("Bus {} is empty... ", bus_id);
                     bus_id += 1;
                     if bus_id.ge(&(BUS_COUNT as u8)) {
-                        std::thread::sleep(Duration::from_secs(1));
+                        sleep(Duration::from_secs(1)).await;
                         bus_id = 0;
                     }
                 }
@@ -84,6 +85,7 @@ impl Miner {
                 let clock = get_clock_account(&self.rpc_client).await;
                 let threshold = treasury.last_reset_at.saturating_add(EPOCH_DURATION);
                 if clock.unix_timestamp.ge(&threshold) || needs_reset {
+                    log::info!("Resetting!");
                     let reset_ix = ore::instruction::reset(signer.pubkey());
                     self.send_and_confirm(&[reset_ix], CU_LIMIT_RESET)
                         .await
