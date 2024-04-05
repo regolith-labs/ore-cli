@@ -32,6 +32,8 @@ impl Miner {
         let signer = self.signer();
         let client =
             RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::confirmed());
+        let send_tx_client =
+            RpcClient::new_with_commitment(self.send_tx_cluster.clone(), CommitmentConfig::confirmed());
 
         // Return error if balance is zero
         let balance = client
@@ -65,7 +67,7 @@ impl Miner {
         let mut attempts = 0;
         loop {
             println!("Attempt: {:?}", attempts);
-            match client.send_transaction_with_config(&tx, send_cfg).await {
+            match send_tx_client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
                     sigs.push(sig);
                     println!("{:?}", sig);
