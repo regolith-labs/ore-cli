@@ -59,6 +59,12 @@ impl Miner {
             let reward_rate =
                 (treasury.reward_rate as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
             stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
+            println!("ore-cli optimized");
+            println!("Twitter:[𝕏] @0xNaiXi");
+            println!("Twitter:[𝕏] @0xNaiXi");
+            println!("Twitter:[𝕏] @0xNaiXi");
+            println!("GitHub URL: https://github.com/okeyzero\n");
+
             println!("Balance: {} ORE", balance);
             println!("Claimable: {} ORE", rewards);
             println!("Reward rate: {} ORE", reward_rate);

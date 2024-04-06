@@ -17,7 +17,7 @@ cargo build --release
 - 增加send-tx-rpc 参数 用于避免频繁请求
 - 默认claim 次数为100 次，直到成功领取
 - 增加了程序挖矿时候的稳定性，避免程序退出
-
+- 增加了交易结果的延迟 避免交易太快 失败交易过多
 
 
 解释下 --send-tx-rpc 参数 因为付费节点 或者某些稳定节点 都会有请求频率限制 正常运行程序会出现频繁请求  这样的话 就不会了 把rpc 当作请求数据的rpc  send-tx-rpc 当作发送交易的rpc 这样避免频繁请求 `[alchemy](https://alchemy.com/?r=DIxNzAwNDA1MjY3M)` 的节点 似乎不限制请求速度)
