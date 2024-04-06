@@ -151,7 +151,7 @@ impl Miner {
                         return Ok(sig);
                     }
                     for _ in 0..CONFIRM_RETRIES {
-                        std::thread::sleep(Duration::from_millis(500));
+                        std::thread::sleep(Duration::from_millis(3000));
 
                         match client
                             .confirm_transaction_with_commitment(

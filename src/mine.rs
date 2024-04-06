@@ -40,8 +40,20 @@ impl Miner {
         loop {
             // Fetch account state
             let balance = self.get_ore_display_balance().await;
-            let treasury = get_treasury(self.cluster.clone()).await;
-            let proof = get_proof(self.cluster.clone(), signer.pubkey()).await;
+            let treasury = match get_treasury(self.cluster.clone()).await {
+                Ok(treasury) => treasury,
+                Err(e) => {
+                    println!("Failed to get treasury: {:?}", e);
+                    continue
+                },
+            };
+            let proof = match get_proof(self.cluster.clone(), signer.pubkey()).await{
+                Ok(proof) => proof,
+                Err(e) => {
+                    println!("Failed to get proof: {:?}", e);
+                    continue
+                },
+            };
             let rewards =
                 (proof.claimable_rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
             let reward_rate =
@@ -61,8 +73,20 @@ impl Miner {
             println!("\n\nSubmitting hash for validation...");
             'submit: loop {
                 // Reset epoch, if needed
-                let treasury = get_treasury(self.cluster.clone()).await;
-                let clock = get_clock_account(self.cluster.clone()).await;
+                let treasury =  match get_treasury(self.cluster.clone()).await {
+                    Ok(treasury) => treasury,
+                    Err(e) => {
+                        println!("Failed to get treasury: {:?}", e);
+                        continue
+                    },
+                };
+                let clock = match get_clock_account(self.cluster.clone()).await{
+                    Ok(clock) => clock,
+                    Err(e) => {
+                        println!("Failed to get clock: {:?}", e);
+                        continue
+                    },
+                };
                 let threshold = treasury.last_reset_at.saturating_add(EPOCH_DURATION);
                 if clock.unix_timestamp.ge(&threshold) {
                     // There are a lot of miners right now, so randomly select into submitting tx
