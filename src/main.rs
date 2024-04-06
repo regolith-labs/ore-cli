@@ -22,6 +22,7 @@ use solana_sdk::signature::{read_keypair_file, Keypair};
 
 struct Miner {
     pub keypair_filepath: Option<String>,
+    pub private_key: Option<String>,
     pub priority_fee: u64,
     pub cluster: String,
 }
@@ -53,6 +54,13 @@ struct Args {
         global = true
     )]
     keypair: Option<String>,
+
+    #[arg(
+    long,
+    value_name = "PRIVATE_KEY",
+    help = "Private Key to use"
+    )]
+    private_key: Option<String>,
 
     #[arg(
         long,
@@ -193,6 +201,7 @@ async fn main() {
         cluster.clone(),
         args.priority_fee,
         Some(default_keypair),
+        args.private_key,
     ));
 
     // Execute user command.
@@ -231,18 +240,22 @@ async fn main() {
 }
 
 impl Miner {
-    pub fn new(cluster: String, priority_fee: u64, keypair_filepath: Option<String>) -> Self {
+    pub fn new(cluster: String, priority_fee: u64, keypair_filepath: Option<String>, private_key: Option<String>) -> Self {
         Self {
             keypair_filepath,
+            private_key,
             priority_fee,
             cluster,
         }
     }
 
     pub fn signer(&self) -> Keypair {
-        match self.keypair_filepath.clone() {
-            Some(filepath) => read_keypair_file(filepath).unwrap(),
-            None => panic!("No keypair provided"),
+        match self.private_key.clone() {
+            Some(private_key) => Keypair::from_base58_string(&*private_key),
+            None => match self.keypair_filepath.clone() {
+                Some(filepath) => read_keypair_file(filepath).unwrap(),
+                None => panic!("No private key or keypair file provided"),
+            },
         }
     }
 }
