@@ -23,7 +23,7 @@ use crate::{
 const RESET_ODDS: u64 = 20;
 
 impl Miner {
-    pub async fn mine(&self, threads: u64) {
+    pub async fn mine(&self, threads: u64, loopminer: Option<bool>) {
         // Register, if needed.
         let signer = self.signer();
         self.register().await;
@@ -98,6 +98,11 @@ impl Miner {
                         // TODO
                     }
                 }
+            }
+            
+            match loopminer {
+                Some(false) => break,
+                _ => {} // Do nothing for Some(true) or None
             }
         }
     }

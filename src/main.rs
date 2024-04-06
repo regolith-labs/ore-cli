@@ -133,6 +133,13 @@ struct MineArgs {
         default_value = "1"
     )]
     threads: u64,
+
+    #[arg(
+        long,
+        value_name = "USE_LOOP_MINER",
+        help = "Use loop miner (true) or not (false)",
+    )]
+    loopminer: Option<bool>,
 }
 
 #[derive(Parser, Debug)]
@@ -210,7 +217,7 @@ async fn main() {
             miner.treasury().await;
         }
         Commands::Mine(args) => {
-            miner.mine(args.threads).await;
+            miner.mine(args.threads, args.loopminer).await;
         }
         Commands::Claim(args) => {
             miner.claim(cluster, args.beneficiary, args.amount).await;
