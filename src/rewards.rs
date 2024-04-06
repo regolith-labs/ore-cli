@@ -3,7 +3,7 @@ use std::str::FromStr;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 
-use crate::{utils::get_proof, Miner};
+use crate::{Miner, utils::get_proof};
 
 impl Miner {
     pub async fn rewards(&self, address: Option<String>) {

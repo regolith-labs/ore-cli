@@ -1,22 +1,21 @@
 use std::{
     io::{stdout, Write},
-    sync::{atomic::AtomicBool, Arc, Mutex},
+    sync::{Arc, atomic::AtomicBool, Mutex},
 };
 
-use ore::{self, state::Bus, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION};
+use ore::{self, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, state::Bus};
 use rand::Rng;
+use solana_client::client_error::ClientErrorKind;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
-    keccak::{hashv, Hash as KeccakHash},
+    keccak::{Hash as KeccakHash, hashv},
     signature::Signer,
 };
 
 use crate::{
-    cu_limits::{CU_LIMIT_MINE, CU_LIMIT_RESET},
-    utils::{get_clock_account, get_proof, get_treasury},
     Miner,
+    utils::{get_clock_account, get_proof, get_treasury},
 };
 
 // Odds of being selected to submit a reset tx
@@ -26,7 +25,14 @@ impl Miner {
     pub async fn mine(&self, threads: u64) {
         // Register, if needed.
         let signer = self.signer();
-        self.register().await;
+        loop {
+            println!("Registering miner...");
+            if let Ok(_) = self.register().await {
+                break;
+            }
+        }
+
+
         let mut stdout = stdout();
         let mut rng = rand::thread_rng();
 
@@ -53,7 +59,7 @@ impl Miner {
             // Submit mine tx.
             // Use busses randomly so on each epoch, transactions don't pile on the same busses
             println!("\n\nSubmitting hash for validation...");
-            loop {
+            'submit: loop {
                 // Reset epoch, if needed
                 let treasury = get_treasury(self.cluster.clone()).await;
                 let clock = get_clock_account(self.cluster.clone()).await;
@@ -62,12 +68,7 @@ impl Miner {
                     // There are a lot of miners right now, so randomly select into submitting tx
                     if rng.gen_range(0..RESET_ODDS).eq(&0) {
                         println!("Sending epoch reset transaction...");
-                        let cu_limit_ix =
-                            ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_RESET);
-                        let cu_price_ix =
-                            ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
-                        let reset_ix = ore::instruction::reset(signer.pubkey());
-                        self.send_and_confirm(&[cu_limit_ix, cu_price_ix, reset_ix], true)
+                        self.send_and_confirm(&[ore::instruction::reset(signer.pubkey())], true)
                             .await
                             .ok();
                     }
@@ -77,9 +78,6 @@ impl Miner {
                 let bus = self.find_bus_id(treasury.reward_rate).await;
                 let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
                 println!("Sending on bus {} ({} ORE)", bus.id, bus_rewards);
-                let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_MINE);
-                let cu_price_ix =
-                    ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
                 let ix_mine = ore::instruction::mine(
                     signer.pubkey(),
                     BUS_ADDRESSES[bus.id as usize],
@@ -87,16 +85,24 @@ impl Miner {
                     nonce,
                 );
                 match self
-                    .send_and_confirm(&[cu_limit_ix, cu_price_ix, ix_mine], false)
+                    .send_and_confirm(&[ix_mine], false)
                     .await
                 {
                     Ok(sig) => {
                         println!("Success: {}", sig);
                         break;
                     }
-                    Err(_err) => {
-                        // TODO
-                        break;
+                    Err(err) => match err.kind {
+                        ClientErrorKind::Custom(msg) => {
+                            if msg.contains("Hash invalid") {
+                                break 'submit;
+                            } else {
+                                println!("Error: {:?}", msg.to_string());
+                            }
+                        }
+                        _ => {
+                            println!("Unhandled error: {:?}", err);
+                        }
                     }
                 }
             }
@@ -202,7 +208,7 @@ impl Miner {
 
     pub async fn get_ore_display_balance(&self) -> String {
         let client =
-            RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::confirmed());
+            RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::finalized());
         let signer = self.signer();
         let token_account_address = spl_associated_token_account::get_associated_token_address(
             &signer.pubkey(),

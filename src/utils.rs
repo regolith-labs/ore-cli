@@ -1,9 +1,9 @@
 use cached::proc_macro::cached;
 use ore::{
     self,
-    state::{Proof, Treasury},
-    utils::AccountDeserialize,
-    MINT_ADDRESS, PROOF, TREASURY_ADDRESS,
+    MINT_ADDRESS,
+    PROOF,
+    state::{Proof, Treasury}, TREASURY_ADDRESS, utils::AccountDeserialize,
 };
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar};
@@ -11,7 +11,7 @@ use solana_sdk::{clock::Clock, commitment_config::CommitmentConfig};
 use spl_associated_token_account::get_associated_token_address;
 
 pub async fn get_treasury(cluster: String) -> Treasury {
-    let client = RpcClient::new_with_commitment(cluster, CommitmentConfig::confirmed());
+    let client = RpcClient::new_with_commitment(cluster, CommitmentConfig::finalized());
     let data = client
         .get_account_data(&TREASURY_ADDRESS)
         .await
@@ -20,7 +20,7 @@ pub async fn get_treasury(cluster: String) -> Treasury {
 }
 
 pub async fn get_proof(cluster: String, authority: Pubkey) -> Proof {
-    let client = RpcClient::new_with_commitment(cluster, CommitmentConfig::confirmed());
+    let client = RpcClient::new_with_commitment(cluster, CommitmentConfig::finalized());
     let proof_address = proof_pubkey(authority);
     let data = client
         .get_account_data(&proof_address)
@@ -30,7 +30,7 @@ pub async fn get_proof(cluster: String, authority: Pubkey) -> Proof {
 }
 
 pub async fn get_clock_account(cluster: String) -> Clock {
-    let client = RpcClient::new_with_commitment(cluster, CommitmentConfig::confirmed());
+    let client = RpcClient::new_with_commitment(cluster, CommitmentConfig::finalized());
     let data = client
         .get_account_data(&sysvar::clock::ID)
         .await

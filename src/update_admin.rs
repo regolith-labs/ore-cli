@@ -8,7 +8,7 @@ use crate::Miner;
 impl Miner {
     pub async fn update_admin(&self, new_admin: String) {
         let signer = self.signer();
-        let new_admin = Pubkey::from_str(new_admin.as_str()).unwrap();
+        let new_admin = Pubkey::from_str(new_admin.as_str()).expect("Invalid pubkey");
         let ix = ore::instruction::update_admin(signer.pubkey(), new_admin);
         self.send_and_confirm(&[ix], false)
             .await

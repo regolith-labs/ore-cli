@@ -17,13 +17,13 @@ use solana_sdk::{
 };
 use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::transaction::TransactionError;
-use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
+use solana_transaction_status::UiTransactionEncoding;
 
 use crate::Miner;
 
 const RPC_RETRIES: usize = 3;
-const GATEWAY_RETRIES: usize = 5;
-const CONFIRM_RETRIES: usize = 5;
+const GATEWAY_RETRIES: usize = 10;
+const CONFIRM_RETRIES: usize = 10;
 
 impl Miner {
     pub async fn send_and_confirm(
@@ -33,14 +33,16 @@ impl Miner {
     ) -> ClientResult<Signature> {
         let mut stdout = stdout();
         let signer = self.signer();
+
         let client =
-            RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::processed());
+            RpcClient::new_with_commitment(self.cluster.clone(), CommitmentConfig::finalized());
+        let send_tx_client =
+            RpcClient::new_with_commitment(self.send_tx_cluster.clone(), CommitmentConfig::finalized());
 
         // Return error if balance is zero
         let balance = client
-            .get_balance_with_commitment(&signer.pubkey(), CommitmentConfig::processed())
-            .await
-            ?;
+            .get_balance_with_commitment(&signer.pubkey(), CommitmentConfig::finalized())
+            .await?;
         if balance.value <= 0 {
             return Err(ClientError {
                 request: None,
@@ -50,7 +52,7 @@ impl Miner {
 
         // Build tx
         let (mut hash, mut slot) = client
-            .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+            .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
             .await?;
         let mut send_cfg = RpcSendTransactionConfig {
             skip_preflight: true,
@@ -63,7 +65,6 @@ impl Miner {
         tx.sign(&[&signer], hash);
 
 
-
         // Sim and prepend cu ixs
         let sim_res = client
             .simulate_transaction_with_config(
@@ -71,7 +72,7 @@ impl Miner {
                 RpcSimulateTransactionConfig {
                     sig_verify: false,
                     replace_recent_blockhash: false,
-                    commitment: Some(CommitmentConfig::processed()),
+                    commitment: Some(CommitmentConfig::finalized()),
                     encoding: Some(UiTransactionEncoding::Base64),
                     accounts: None,
                     min_context_slot: Some(slot),
@@ -138,13 +139,11 @@ impl Miner {
 
 
         // Submit tx
-        let mut sigs = vec![];
         let mut attempts = 0;
         loop {
-            println!("Attempt: {:?}", attempts);
-            match client.send_transaction_with_config(&tx, send_cfg).await {
+            println!("Submit tx Attempt: {:?}", attempts);
+            match send_tx_client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
-                    sigs.push(sig);
                     println!("{:?}", sig);
 
                     // Confirm tx
@@ -152,35 +151,21 @@ impl Miner {
                         return Ok(sig);
                     }
                     for _ in 0..CONFIRM_RETRIES {
-                        std::thread::sleep(Duration::from_millis(2000));
-                        match client.get_signature_statuses(&sigs).await {
-                            Ok(signature_statuses) => {
-                                println!("Confirms: {:?}", signature_statuses);
-                                for signature_status in signature_statuses.value {
-                                    if let Some(signature_status) = signature_status.as_ref() {
-                                        if signature_status.confirmation_status.is_some() {
-                                            let current_commitment = signature_status
-                                                .confirmation_status
-                                                .as_ref().ok_or(ClientError {
-                                                    request: None,
-                                                    kind: ClientErrorKind::Custom("No status".into()),
-                                                })?;
-                                            match current_commitment {
-                                                TransactionConfirmationStatus::Processed => {}
-                                                TransactionConfirmationStatus::Confirmed
-                                                | TransactionConfirmationStatus::Finalized => {
-                                                    println!("Transaction landed!");
-                                                    return Ok(sig);
-                                                }
-                                            }
-                                        } else {
-                                            println!("No status");
-                                        }
-                                    }
+                        std::thread::sleep(Duration::from_millis(500));
+
+                        match client
+                            .confirm_transaction_with_commitment(
+                                &sig,
+                                CommitmentConfig::finalized(),
+                            )
+                            .await
+                        {
+                            Ok(confirmed) => {
+                                println!("Confirmed: {:?}", confirmed.value);
+                                if confirmed.value {
+                                    return Ok(sig);
                                 }
                             }
-
-                            // Handle confirmation errors
                             Err(err) => {
                                 println!("Error: {:?}", err);
                             }
@@ -197,9 +182,9 @@ impl Miner {
             stdout.flush().ok();
 
             // Retry
-            std::thread::sleep(Duration::from_millis(200));
+            std::thread::sleep(Duration::from_millis(1000));
             (hash, slot) = client
-                .get_latest_blockhash_with_commitment(CommitmentConfig::processed())
+                .get_latest_blockhash_with_commitment(CommitmentConfig::finalized())
                 .await?;
             send_cfg = RpcSendTransactionConfig {
                 skip_preflight: true,
