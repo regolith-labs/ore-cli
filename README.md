@@ -1,4 +1,4 @@
-# Ore CLI
+# O
 
 A command line interface for the Ore program.
 
