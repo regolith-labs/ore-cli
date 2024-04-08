@@ -42,15 +42,10 @@ else
 	echo "Now installing ore-cli. You will see other logging messages from ore-cli being installed."
 	cargo install ore-cli
 fi
+
 NUM_PROCESSORS=$(nproc)
 
-# REMOVE AFTER TESTING
-NUM_PROCESSORS=4
-
 NUM_MINERS=$((NUM_PROCESSORS - 2))
-
-# TO DO: change this to mainnet-beta when ready to release
-solana config set -u devnet > /dev/null
 
 while true; do
 	echo "Your PC has $NUM_PROCESSORS processors. It is recommended that you use 2 threads per CPU and mine on separate accounts"
@@ -84,12 +79,6 @@ while true; do
 		echo "Invalid choice."
 	fi
 done
-
-#REMOVE AFTER TESTING
-# This just resets the pubkey_list to the actual list since I'm not generating a real one during testing
-pubkey_list=()
-pubkey_list+=($(solana address -k ~/.config/solana/id1.json))
-pubkey_list+=($(solana address -k ~/.config/solana/id2.json))
 
 # TO DO: This doesn't account for alternate selections from above yet
 echo ""; echo "I have generated $NUM_MINERS private keys labelled id#.json in the directroy ~/.config/solana/ for you."
