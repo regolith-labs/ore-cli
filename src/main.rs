@@ -2,6 +2,7 @@ mod balance;
 mod busses;
 mod claim;
 mod cu_limits;
+mod estimate_fees;
 #[cfg(feature = "admin")]
 mod initialize;
 mod mine;
@@ -18,6 +19,7 @@ mod utils;
 use std::sync::Arc;
 
 use clap::{command, Parser, Subcommand};
+use estimate_fees::PriorityLevel;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_sdk::{
     commitment_config::CommitmentConfig,
@@ -27,6 +29,8 @@ use solana_sdk::{
 struct Miner {
     pub keypair_filepath: Option<String>,
     pub priority_fee: u64,
+    pub estimate_fees: bool,
+    pub priority_level: PriorityLevel,
     pub rpc_client: Arc<RpcClient>,
 }
 
@@ -66,6 +70,23 @@ struct Args {
         global = true
     )]
     priority_fee: u64,
+
+    #[arg(
+        long,
+        help = "Estimate priority fees for transactions",
+        default_value = "false",
+        global = true
+    )]
+    estimate_fees: bool,
+
+    #[arg(
+        long,
+        value_enum,
+        help = "The desired level for priority fee estimation",
+        default_value = "default",
+        global = true
+    )]
+    priority_level: PriorityLevel,
 
     #[command(subcommand)]
     command: Commands,
@@ -197,6 +218,8 @@ async fn main() {
     let miner = Arc::new(Miner::new(
         Arc::new(rpc_client),
         args.priority_fee,
+        args.estimate_fees,
+        args.priority_level,
         Some(default_keypair),
     ));
 
@@ -236,11 +259,19 @@ async fn main() {
 }
 
 impl Miner {
-    pub fn new(rpc_client: Arc<RpcClient>, priority_fee: u64, keypair_filepath: Option<String>) -> Self {
+    pub fn new(
+        rpc_client: Arc<RpcClient>,
+        priority_fee: u64,
+        estimate_fees: bool,
+        priority_level: PriorityLevel,
+        keypair_filepath: Option<String>,
+    ) -> Self {
         Self {
             rpc_client,
             keypair_filepath,
             priority_fee,
+            estimate_fees,
+            priority_level,
         }
     }
 

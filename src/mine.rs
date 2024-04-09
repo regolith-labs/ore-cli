@@ -74,11 +74,23 @@ impl Miner {
                     // There are a lot of miners right now, so randomly select into submitting tx
                     if rng.gen_range(0..RESET_ODDS).eq(&0) {
                         println!("Sending epoch reset transaction...");
+                        let reset_ix = ore::instruction::reset(signer.pubkey());
                         let cu_limit_ix =
                             ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_RESET);
-                        let cu_price_ix =
-                            ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
-                        let reset_ix = ore::instruction::reset(signer.pubkey());
+                        let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(
+                            if self.estimate_fees {
+                                let priority_fee = self
+                                    .get_priority_fee_estimate(
+                                        &[reset_ix.clone()],
+                                        &signer.pubkey(),
+                                    )
+                                    .await;
+                                println!("Priority fee: {}", priority_fee);
+                                priority_fee
+                            } else {
+                                self.priority_fee
+                            },
+                        );
                         self.send_and_confirm(&[cu_limit_ix, cu_price_ix, reset_ix], false, true)
                             .await
                             .ok();
@@ -89,15 +101,23 @@ impl Miner {
                 let bus = self.find_bus_id(treasury.reward_rate).await;
                 let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
                 println!("Sending on bus {} ({} ORE)", bus.id, bus_rewards);
-                let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_MINE);
-                let cu_price_ix =
-                    ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
                 let ix_mine = ore::instruction::mine(
                     signer.pubkey(),
                     BUS_ADDRESSES[bus.id as usize],
                     next_hash.into(),
                     nonce,
                 );
+                let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_MINE);
+                let cu_price_ix =
+                    ComputeBudgetInstruction::set_compute_unit_price(if self.estimate_fees {
+                        let priority_fee = self
+                            .get_priority_fee_estimate(&[ix_mine.clone()], &signer.pubkey())
+                            .await;
+                        println!("Priority fee: {}", priority_fee);
+                        priority_fee
+                    } else {
+                        self.priority_fee
+                    });
                 match self
                     .send_and_confirm(&[cu_limit_ix, cu_price_ix, ix_mine], false, false)
                     .await
