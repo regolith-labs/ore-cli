@@ -251,7 +251,7 @@ impl Miner {
                 match read_keypair_file(filepath.clone()) {
                     Ok(keypair) => keypair,
                     Err(_) => {
-                        let private_key = fs::read_to_string(&filepath).expect("Failed to read secret key file");
+                        let private_key = fs::read_to_string(&filepath).expect("Failed to read private key file");
                         Keypair::from_base58_string(&private_key.trim())
                     }
                 }
