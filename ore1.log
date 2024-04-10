@@ -1,156 +1,0 @@
-Generating challenge...
-thread 'main' panicked at /home/user/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ore-cli-0.4.11/src/send_and_confirm.rs:41:66:
-called `Result::unwrap()` on an `Err` value: Error { request: None, kind: RpcError(RpcRequestError("cluster version query failed: error sending request for url (https://api.devnet.solana.com/): operation timed out")) }
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-olution")) }
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-s client error (429 Too Many Requests) for url (https://api.devnet.solana.com/)")) }
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
-ce
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-Sending epoch reset transaction...
-Attempt: 0
-28KTpoE21cFySTkko9CbryB5iXehAnEqUeZva1AQnH7Lrj6FMQpawpnv7cpDZHcYqZ3Uut9Abx397LFuCgnAQ1j4
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0.00 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
-[2J[3J[HBalance: 0 ORE
-Claimable: 0 ORE
-Reward rate: 0.25 ORE
-
-Mining for a valid hash...
-8WkTYk6yB3VBxxY3uD5WXEs3szsv2YxjDrRMa26nfZBG12Q7RLRfsadcV4STSzrNHHoiCF5dqbPCyJ7ieedBzg1i13pHUdneErY1s2YVEZaJD4jVuTQ4uCs2dH3YzWHsPPmh
-
-Submitting hash for validation...
