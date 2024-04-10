@@ -1,0 +1,5 @@
+thread 'main' panicked athread 'main' panicked at /home/user/.cargo/registry/src/index.crates.io-6f17d22bba15001f/ore-cli-0.4.11/src/send_and_confirm.rs:41:66:
+called `Result::unwrap()` on an `Err` value: Error { request: None, kind: RpcError(RpcRequestError("cluster version query failed: HTTP status client error (429 Too Many Requests) for url (https://api.devnet.solana.com/)")) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+ None } }) }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

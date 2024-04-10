@@ -38,6 +38,7 @@ function test_rust {
 		echo "Rust installed, OK"
 	else
 		while true; do
+			echo "Rust is not installed or not on path."
 			echo "Rust is required for ore mining. Would you like me to install it now? If no, program will exit"
 			echo "Enter [y/n]"
 			read install2
@@ -61,7 +62,8 @@ function test_ore_cli {
 	if command -v ore > /dev/null 2>&1; then
 		echo "ore-cli installed, OK"
 	else
-		echo "ore-cli is not installed. Now installing ore-cli. You will see other logging messages from ore-cli."
+		echo "ore-cli is not installed or not on path."
+		echo "Now installing ore-cli. You will see other logging messages from ore-cli."
 		cargo install ore-cli
 		export PATH="$HOME/.cargo/bin:$PATH"
 	fi
@@ -215,7 +217,7 @@ function fund_accounts {
 				SOL. Send some more." 
 				echo $FUND_MSG4 | fold -s -w 80
 			elif [ $(echo "$MAIN_ACCT_BAL >= $MIN_SOL" | bc) -eq 1 ]; then
-				echo "Ok, id1.json has $MAIN_ACCT_BAL which is greater than the minimum recommended $MIN_SOL SOL"
+				echo "Ok, id1.json has $MAIN_ACCT_BAL SOL which is greater than the minimum recommended $MIN_SOL SOL"
 				SOL_PER_MINER=$(echo "scale=5; $MAIN_ACCT_BAL / $NUM_MINERS" | bc )
 				break
 			fi
@@ -249,13 +251,13 @@ function disburse_sol {
 		echo $DISBURSE_MSG3 | fold -s -w 80; echo ""
 		DISBURSE_WARNING="*	*	* Take note: This is real SOL. You are authorizing the program to send it to your other accounts. \
 		This is just like signing a transaction in a wallet."
-		echo $DISBURSE_WARNING | fold -s w 80; echo ""
+		echo $DISBURSE_WARNING | fold -s -w 80; echo ""
 		echo "s) Send the SOL"
 		echo "e) Exit the program"
 		read choice5
 		echo ""
 
-		if [ "$choice5" = "y" ]; then
+		if [ "$choice5" = "s" ]; then
 			echo "Beginning transfers. This will take some time as they finalize, and especially if we need multiple retries."
 			for ((i=1; i<${#pubkey_list[@]}; i++)) do
 				solana transfer ${pubkey_list[i]} $AMT_TO_TRANSFER --allow-unfunded-recipient
@@ -290,6 +292,8 @@ function disburse_sol {
 					TEMP_BAL=$(solana balance ${pubkey_list[i]} | awk '{print $1}')
 					echo "${pubkey_list[i]}  ~/.config/solana/id$((i + 1)).json  $TEMP_BAL SOL"
 				done
+				echo ""; echo "You can now run the ore_miner_controller.sh script to start/stop/interact with these miner accounts"
+				echo "See you in the shafts!"
 				break
 			else
 				DISBURSE_MSG4="Not all accounts could be successfully funded. Recommend you try manual transactions to fund the \
