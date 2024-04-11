@@ -20,11 +20,11 @@ use crate::Miner;
 
 const RPC_RETRIES: usize = 0;
 const SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 150;
-const CONFIRM_RETRIES: usize = 1;
+const GATEWAY_RETRIES: usize = 8;
+const CONFIRM_RETRIES: usize = 4;
 
-const CONFIRM_DELAY: u64 = 0;
-const GATEWAY_DELAY: u64 = 300;
+const CONFIRM_DELAY: u64 = 4000;
+const GATEWAY_DELAY: u64 = 2000;
 
 impl Miner {
     pub async fn send_and_confirm(
@@ -47,12 +47,12 @@ impl Miner {
         }
 
         // Build tx
-        let (_hash, slot) = client
-            .get_latest_blockhash_with_commitment(self.rpc_client.commitment())
-            .await
-            .unwrap();
+        // let (_hash, slot) = client
+        //     .get_latest_blockhash_with_commitment(self.rpc_client.commitment())
+        //     .await
+        //     .unwrap();
         let send_cfg = RpcSendTransactionConfig {
-            skip_preflight: true,
+            skip_preflight: false,
             preflight_commitment: Some(CommitmentLevel::Confirmed),
             encoding: Some(UiTransactionEncoding::Base64),
             max_retries: Some(RPC_RETRIES),
@@ -72,7 +72,7 @@ impl Miner {
                         commitment: Some(self.rpc_client.commitment()),
                         encoding: Some(UiTransactionEncoding::Base64),
                         accounts: None,
-                        min_context_slot: Some(slot),
+                        min_context_slot: None, // Some(slot),
                         inner_instructions: false,
                     },
                 )
