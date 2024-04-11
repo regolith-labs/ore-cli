@@ -137,6 +137,14 @@ struct MineArgs {
         default_value = "1"
     )]
     threads: u64,
+    #[arg(
+        long,
+        short = 's',
+        value_name = "SEND_INTERVAL",
+        help = "The amount of time to wait between tx sends. 100ms is 10 sends per second.",
+        default_value = "1000"
+    )]
+    send_interval: u64,
 }
 
 #[derive(Parser, Debug)]
@@ -215,7 +223,7 @@ async fn main() {
             miner.treasury().await;
         }
         Commands::Mine(args) => {
-            miner.mine(args.threads).await;
+            miner.mine(args.threads, args.send_interval).await;
         }
         Commands::Claim(args) => {
             miner.claim(args.beneficiary, args.amount).await;

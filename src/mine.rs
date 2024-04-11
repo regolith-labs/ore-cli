@@ -22,15 +22,17 @@ use crate::{
 const RESET_ODDS: u64 = 20;
 
 impl Miner {
-    pub async fn mine(&self, threads: u64) {
+    pub async fn mine(&self, threads: u64, send_interval: u64) {
         // Register, if needed.
         let signer = self.signer();
         self.register().await;
         let mut stdout = stdout();
         let mut rng = rand::thread_rng();
+        let mut tx_time_keeper: Vec<u64> = vec![];
 
         // Start mining loop
         loop {
+            println!("TX TIMES: \n:{:?}", tx_time_keeper);
             // Fetch account state
             let balance = self.get_ore_display_balance().await;
             let treasury = get_treasury(&self.rpc_client).await;
@@ -99,11 +101,13 @@ impl Miner {
                     nonce,
                 );
                 match self
-                    .send_and_confirm(&[cu_limit_ix, cu_price_ix, ix_mine], false, false)
+                    .send_and_confirm_v2(&[cu_limit_ix, cu_price_ix, ix_mine], false, send_interval)
                     .await
                 {
-                    Ok(sig) => {
+                    Ok((sig, tx_time_secs)) => {
                         println!("Success: {}", sig);
+                        println!("Took: {} seconds", tx_time_secs);
+                        tx_time_keeper.push(tx_time_secs);
                         break;
                     }
                     Err(_err) => {
