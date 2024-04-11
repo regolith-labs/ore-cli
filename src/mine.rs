@@ -26,7 +26,8 @@ impl Miner {
         // Register, if needed.
         let signer = self.signer();
         self.register().await;
-        let mut stdout = stdout();
+        // let mut stdout = stdout();
+        // let stdout = stdout();
         let mut rng = rand::thread_rng();
 
         // Start mining loop
@@ -39,9 +40,10 @@ impl Miner {
                 (proof.claimable_rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
             let reward_rate =
                 (treasury.reward_rate as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
-            stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
-            println!("Balance: {} ORE", balance);
-            println!("Claimable: {} ORE", rewards);
+            println!("----------------------------------------------------------------");
+            // stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
+            println!("Balance:     {} ORE", balance);
+            println!("Claimable:   {} ORE", rewards);
             println!("Reward rate: {} ORE", reward_rate);
 
             // Escape sequence that clears the screen and the scrollback buffer
@@ -52,8 +54,12 @@ impl Miner {
             // Submit mine tx.
             // Use busses randomly so on each epoch, transactions don't pile on the same busses
             println!("\n\nSubmitting hash for validation...");
+			let mut attempts = 0;
             'submit: loop {
-                // Double check we're submitting for the right challenge
+                attempts += 1;
+                println!("----------------------------------------------------------------");
+            	
+				// Double check we're submitting for the right challenge
                 let proof_ = get_proof(&self.rpc_client, signer.pubkey()).await;
                 if !self.validate_hash(
                     next_hash,
@@ -62,7 +68,7 @@ impl Miner {
                     nonce,
                     treasury.difficulty.into(),
                 ) {
-                    println!("Hash already validated! An earlier transaction must have landed.");
+                    println!("Submit Hash {}:\tHash already validated! An earlier transaction must have landed.", attempts);
                     break 'submit;
                 }
 
@@ -73,7 +79,7 @@ impl Miner {
                 if clock.unix_timestamp.ge(&threshold) {
                     // There are a lot of miners right now, so randomly select into submitting tx
                     if rng.gen_range(0..RESET_ODDS).eq(&0) {
-                        println!("Sending epoch reset transaction...");
+                        println!("Submit Hash {}:\tSending epoch reset transaction...", attempts);
                         let cu_limit_ix =
                             ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_RESET);
                         let cu_price_ix =
@@ -88,7 +94,7 @@ impl Miner {
                 // Submit request.
                 let bus = self.find_bus_id(treasury.reward_rate).await;
                 let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
-                println!("Sending on bus {} ({} ORE)", bus.id, bus_rewards);
+				println!("Submit Hash {}:\tSending on bus {} ({} ORE) priority_fee: {:?}", attempts, bus.id, bus_rewards, self.priority_fee);
                 let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_MINE);
                 let cu_price_ix =
                     ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
@@ -103,11 +109,12 @@ impl Miner {
                     .await
                 {
                     Ok(sig) => {
-                        println!("Success: {}", sig);
+                        println!("Submit Hash {}:\t[SUCCESS] {}", attempts, sig);
                         break;
                     }
                     Err(_err) => {
                         // TODO
+						eprintln!("Submit Hash {}:\t[ERROR]\tFailed to submit hash", attempts);
                     }
                 }
             }

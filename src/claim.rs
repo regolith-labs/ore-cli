@@ -26,7 +26,7 @@ impl Miner {
                     proof.claimable_rewards
                 }
                 Err(err) => {
-                    println!("Error looking up claimable rewards: {:?}", err);
+                    println!("CLAIM Rewards:\t[ERROR] looking up claimable rewards: {:?}", err);
                     return;
                 }
             }
@@ -35,17 +35,17 @@ impl Miner {
         let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_CLAIM);
         let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
         let ix = ore::instruction::claim(pubkey, beneficiary, amount);
-        println!("Submitting claim transaction...");
+        println!("CLAIM Rewards:\tSubmitting claim transaction...priority_fee: {:?}", self.priority_fee);
         match self
             .send_and_confirm(&[cu_limit_ix, cu_price_ix, ix], false, false)
             .await
         {
             Ok(sig) => {
-                println!("Claimed {:} ORE to account {:}", amountf, beneficiary);
+                println!("CLAIM Rewards:\t[SUCCESS] Claimed {:} ORE to account {:}", amountf, beneficiary);
                 println!("{:?}", sig);
             }
             Err(err) => {
-                println!("Error: {:?}", err);
+                eprintln!("CLAIM Rewards:\t[Error]\t{:?}", err);
             }
         }
     }

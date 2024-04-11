@@ -1,3 +1,4 @@
+// use std::io::{self};
 use std::{
     io::{stdout, Write},
     time::Duration,
@@ -18,13 +19,12 @@ use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEnco
 
 use crate::Miner;
 
-const RPC_RETRIES: usize = 0;
-const SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 4;
-const CONFIRM_RETRIES: usize = 4;
-
-const CONFIRM_DELAY: u64 = 5000;
-const GATEWAY_DELAY: u64 = 2000;
+const RPC_RETRIES: usize = 2;			// Default 0
+const SIMULATION_RETRIES: usize = 1;	// Default 4
+const CONFIRM_RETRIES: usize = 6;		// Default 4
+const CONFIRM_DELAY: u64 = 5000;		// Default 5000
+const GATEWAY_RETRIES: usize = 4;		// Default 4
+const GATEWAY_DELAY: u64 = 2000;		// default 2000
 
 impl Miner {
     pub async fn send_and_confirm(
@@ -42,7 +42,7 @@ impl Miner {
         if balance <= 0 {
             return Err(ClientError {
                 request: None,
-                kind: ClientErrorKind::Custom("Insufficient SOL balance".into()),
+                kind: ClientErrorKind::Custom("\n\t\t[ERROR]\tget_balance: Insufficient SOL balance".into()),
             });
         }
 
@@ -62,7 +62,7 @@ impl Miner {
 
         // Simulate tx
         let mut sim_attempts = 0;
-        'simulate: loop {
+		'simulate: loop {
             let sim_res = client
                 .simulate_transaction_with_config(
                     &tx,
@@ -79,12 +79,12 @@ impl Miner {
                 .await;
             match sim_res {
                 Ok(sim_res) => {
+					sim_attempts += 1;
                     if let Some(err) = sim_res.value.err {
-                        println!("Simulaton error: {:?}", err);
-                        sim_attempts += 1;
+                        eprintln!("\n\t\t[ERROR]\tSimulaton error: {:?}", err);
                     } else if let Some(units_consumed) = sim_res.value.units_consumed {
                         if dynamic_cus {
-                            println!("Dynamic CUs: {:?}", units_consumed);
+                            println!("\n\t[PASS]\tDynamic CUs: {:?}", units_consumed);
                             let cu_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(
                                 units_consumed as u32 + 1000,
                             );
@@ -99,7 +99,7 @@ impl Miner {
                     }
                 }
                 Err(err) => {
-                    println!("Simulaton error: {:?}", err);
+                    eprintln!("\n\t\t[ERRORA]\tSimulaton error: {:?}", err);
                     sim_attempts += 1;
                 }
             }
@@ -108,7 +108,7 @@ impl Miner {
             if sim_attempts.gt(&SIMULATION_RETRIES) {
                 return Err(ClientError {
                     request: None,
-                    kind: ClientErrorKind::Custom("Simulation failed".into()),
+                    kind: ClientErrorKind::Custom("\n\t\t[ERROR]\tSimulation failed".into()),
                 });
             }
         }
@@ -118,21 +118,34 @@ impl Miner {
         // let mut sigs = vec![];
         let mut attempts = 0;
         loop {
-            println!("Attempt: {:?}", attempts);
-            match client.send_transaction_with_config(&tx, send_cfg).await {
+            attempts += 1;
+            print!("Submission attempt {:?}\t", attempts);
+			stdout.flush().unwrap();
+			// Attempt to send the transaction
+			match client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
-                    println!("{:?}", sig);
+                    println!("TX ID: {:?}", sig);
+					print!("\t\t\tAwaiting Transaction Confirmation...");
+					stdout.flush().unwrap();
                     // sigs.push(sig);
 
                     // Confirm tx
                     if skip_confirm {
                         return Ok(sig);
                     }
-                    for _ in 0..CONFIRM_RETRIES {
-                        std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
+					for retry_attempt in 0..CONFIRM_RETRIES {
+						// Pause to give the confirmation time to succeed
+						if retry_attempt == 0 {
+							// Shorter first delay for first confirmation check
+							std::thread::sleep(Duration::from_millis(1000));
+						} else {
+							std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
+						}
                         match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
-                                println!("Confirmation: {:?}", signature_statuses.value[0]);
+                                // print!(" [{:?}: {:?}]", retry_attempt+1, signature_statuses.value[0]);
+								print!("[{:?}]", retry_attempt+1);
+								stdout.flush().unwrap();
                                 for signature_status in signature_statuses.value {
                                     if let Some(signature_status) = signature_status.as_ref() {
                                         if signature_status.confirmation_status.is_some() {
@@ -144,43 +157,45 @@ impl Miner {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
-                                                    println!("Transaction landed!");
+                                                    println!("\n\t\t[SUCCESS]\tTransaction landed!");
                                                     std::thread::sleep(Duration::from_millis(
                                                         GATEWAY_DELAY,
                                                     ));
                                                     return Ok(sig);
                                                 }
                                             }
+
                                         } else {
-                                            println!("No status");
+                                            eprintln!("\n\t\t[ERROR]\tconfirmation_status: No status");
                                         }
                                     }
-                                }
+								}
                             }
 
                             // Handle confirmation errors
                             Err(err) => {
-                                println!("{:?}", err.kind().to_string());
+								eprintln!("\n\t\t[ERROR]\tget_signature_statuses: {:?}", err.kind().to_string());
                             }
                         }
                     }
-                    println!("Transaction did not land");
+                    eprintln!("\n\t\t[FAIL]\tTransaction did not land");
                 }
 
                 // Handle submit errors
                 Err(err) => {
-                    println!("{:?}", err.kind().to_string());
+                    eprintln!("\n\t\t[ERROR]\tsend_transaction_with_config: {:?}", err.kind().to_string());
                 }
             }
 
-            // Retry
-            stdout.flush().ok();
-            std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
-            attempts += 1;
-            if attempts > GATEWAY_RETRIES {
+            stdout.flush().unwrap();
+            // stdout.flush().ok();
+
+            // If we get her then the transaction has not succeeded
+			// std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+            if attempts >= GATEWAY_RETRIES {
                 return Err(ClientError {
                     request: None,
-                    kind: ClientErrorKind::Custom("Max retries".into()),
+                    kind: ClientErrorKind::Custom("Submitted up to max retries count with no success".into()),
                 });
             }
         }
