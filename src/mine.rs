@@ -26,7 +26,6 @@ impl Miner {
         // Register, if needed.
         let signer = self.signer();
         self.register().await;
-        let mut stdout = stdout();
         let mut rng = rand::thread_rng();
         let mut tx_time_keeper: Vec<u64> = vec![];
 
@@ -41,7 +40,6 @@ impl Miner {
                 (proof.claimable_rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
             let reward_rate =
                 (treasury.reward_rate as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
-            stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
             println!("Balance: {} ORE", balance);
             println!("Claimable: {} ORE", rewards);
             println!("Reward rate: {} ORE", reward_rate);
