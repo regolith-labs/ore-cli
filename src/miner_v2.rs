@@ -46,6 +46,7 @@ impl MinerV2 {
         println!("MinerV2 Running...");
         let priority_fee = 0;
         let mut key_paths = vec![];
+
         if let Some(wallets_dir) = wallets_directory_string {
             let dir_reader = tokio::fs::read_dir(wallets_dir.clone()).await;
             if let Ok(mut dir_reader) = dir_reader {
@@ -79,17 +80,29 @@ impl MinerV2 {
             println!("Wallets registered.");
 
             let mut tx_time_keeper: Vec<u64> = vec![];
+            let mut hash_time_keeper: Vec<u64> = vec![];
+            let mut total_time_keeper: Vec<u64> = vec![];
             loop {
-                println!("TX TIMES: \n:{:?}", tx_time_keeper);
+                println!("TX TIMES (seconds): \n:{:?}", tx_time_keeper);
+                println!("HASH TIMES (seconds): \n:{:?}", hash_time_keeper);
+                println!("TOTAL TIMES (seconds): \n:{:?}", total_time_keeper);
                 println!("Generating hashes...");
+                let mut total_time = 0;
                 let treasury = get_treasury(&rpc_client).await;
+                //let reward_rate =
+                //    (treasury.reward_rate as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+                //println!("Reward rate: {} ORE", reward_rate);
 
                 let hash_timer = SystemTime::now();
                 let mut handles = Vec::new();
                 for key_bytes in keys_bytes.clone() {
                     let signer = Keypair::from_bytes(&key_bytes).unwrap();
                     let key_string = signer.to_base58_string();
+                    //let balance = MinerV2::get_ore_display_balance(&rpc_client, signer.pubkey()).await;
                     let proof = get_proof(&rpc_client, signer.pubkey()).await;
+                    //let rewards =
+                    //    (proof.claimable_rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+
                     let handle = std::thread::spawn(move || {
                         let (next_hash, nonce) = MinerV2::find_next_hash_par(
                             &signer,
@@ -108,8 +121,11 @@ impl MinerV2 {
                     keys_bytes_with_hashes.push(data);
                 }
 
-                println!("Hashes generated.");
-                println!("Hash generation took {} seconds", hash_timer.elapsed().unwrap().as_secs());
+                println!("\nHashes generated.");
+                let hash_time = hash_timer.elapsed().unwrap().as_secs();
+                total_time += hash_time;
+                hash_time_keeper.push(hash_time);
+                println!("Hash generation took {} seconds", hash_time);
 
                 println!("Building transaction.");
 
@@ -232,7 +248,9 @@ impl MinerV2 {
                     Ok((sig, tx_time_elapsed)) => {
                         println!("Success: {}", sig);
                         println!("Took: {} seconds", tx_time_elapsed);
+                        total_time += tx_time_elapsed;
                         tx_time_keeper.push(tx_time_elapsed);
+                        total_time_keeper.push(total_time);
                     }
                     Err(e) => {
                         println!("Error: {}", e);
@@ -300,8 +318,22 @@ impl MinerV2 {
                                         TransactionConfirmationStatus::Confirmed
                                         | TransactionConfirmationStatus::Finalized => {
                                             println!("Transaction landed!");
-                                            let _ = tx_result_sender.send(Ok(sigs[0])).await;
-                                            return;
+                                            println!("STATUS: {:?}", signature_status);
+                                            match signature_status.status {
+                                                Ok(_) => {
+                                                    let _ =
+                                                        tx_result_sender.send(Ok(sigs[0])).await;
+                                                    return;
+                                                }
+                                                Err(_) => {
+                                                    let _ = tx_result_sender
+                                                        .send(
+                                                            Err("Transaction Failed.".to_string()),
+                                                        )
+                                                        .await;
+                                                    return;
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -324,7 +356,7 @@ impl MinerV2 {
                     let err = Err("Last valid blockheight exceeded!".to_string());
                     let _ = tx_result_sender.send(err).await;
                     return;
-                } 
+                }
                 // sleep 500ms to allow confirmations to potentially land
                 sleep(Duration::from_millis(500)).await;
             }
@@ -370,12 +402,8 @@ impl MinerV2 {
             Ok(res) => {
                 return Ok((res, tx_time_elapsed));
             }
-            Err(_) => {
-                return Err("Blockheight exceeded".to_string());
-                // return Err(ClientError {
-                //     request: None,
-                //     kind: ClientErrorKind::Custom("Blockheight Exceeded for this signed transaction".into()),
-                // });
+            Err(e) => {
+                return Err(e);
             }
         }
     }
@@ -395,14 +423,73 @@ impl MinerV2 {
 
         // Sign and send transaction.
         println!("Generating challenge...");
-        'send: loop {
+        loop {
             let client = client.clone();
             let ix = ore::instruction::register(signer.pubkey());
-            if MinerV2::send_and_confirm(&signer, client, &[ix], true, send_interval, 0)
+            let mut tx = Transaction::new_with_payer(&[ix.clone()], Some(&signer.pubkey()));
+            let (hash, last_valid_blockheight) = rpc_client
+                .get_latest_blockhash_with_commitment(rpc_client.commitment())
                 .await
-                .is_ok()
-            {
-                break 'send;
+                .unwrap();
+            tx.sign(&[&signer], hash);
+
+            println!("Simulating tx...");
+            let sim_res = rpc_client
+                .simulate_transaction_with_config(
+                    &tx,
+                    RpcSimulateTransactionConfig {
+                        sig_verify: true,
+                        replace_recent_blockhash: false,
+                        commitment: Some(rpc_client.commitment()),
+                        encoding: Some(UiTransactionEncoding::Base64),
+                        accounts: None,
+                        min_context_slot: Some(last_valid_blockheight),
+                        inner_instructions: true,
+                    },
+                )
+                .await;
+            match sim_res {
+                Ok(sim_res) => {
+                    if let Some(err) = sim_res.value.err {
+                        println!("Simulaton error: {:?}", err);
+                    } else {
+                        println!("Simulaton succeeded");
+                    }
+                }
+                Err(err) => {
+                    println!("Simulaton error: {:?}", err);
+                }
+            }
+
+            println!(
+                "Sending signed tx every {} milliseconds until Confirmed or blockhash expires...",
+                send_interval
+            );
+            let send_cfg = RpcSendTransactionConfig {
+                skip_preflight: true,
+                preflight_commitment: Some(CommitmentLevel::Confirmed),
+                encoding: Some(UiTransactionEncoding::Base64),
+                max_retries: None,
+                min_context_slot: None,
+            };
+            let result = MinerV2::send_and_confirm_transaction(
+                rpc_client.clone(),
+                tx,
+                last_valid_blockheight,
+                send_interval,
+                send_cfg,
+            )
+            .await;
+
+            match result {
+                Ok((sig, tx_time_elapsed)) => {
+                    println!("Success: {}", sig);
+                    println!("Took: {} seconds", tx_time_elapsed);
+                    break;
+                }
+                Err(e) => {
+                    println!("Error: {}", e);
+                }
             }
         }
     }
@@ -764,5 +851,20 @@ impl MinerV2 {
         let client = rpc_client;
         let data = client.get_account_data(&BUS_ADDRESSES[id]).await?;
         Ok(*Bus::try_from_bytes(&data).unwrap())
+    }
+
+    pub async fn get_ore_display_balance(client: &RpcClient, pubkey: Pubkey) -> String {
+        let token_account_address =
+            spl_associated_token_account::get_associated_token_address(&pubkey, &ore::MINT_ADDRESS);
+        match client.get_token_account(&token_account_address).await {
+            Ok(token_account) => {
+                if let Some(token_account) = token_account {
+                    token_account.token_amount.ui_amount_string
+                } else {
+                    "0.00".to_string()
+                }
+            }
+            Err(_) => "0.00".to_string(),
+        }
     }
 }
