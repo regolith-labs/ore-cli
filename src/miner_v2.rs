@@ -136,12 +136,13 @@ impl MinerV2 {
                 ixs.push(cu_limit_ix);
                 ixs.push(cu_price_ix);
                 let bus = MinerV2::find_bus_id(&rpc_client, treasury.reward_rate).await;
-                let bus_rewards =
-                    (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+                let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
                 println!("Will be sending on bus {} ({} ORE)", bus.id, bus_rewards);
 
+                let mut keypairs = vec![];
                 for (key_bytes, next_hash, nonce) in keys_bytes_with_hashes.clone() {
                     let signer = Keypair::from_bytes(&key_bytes).unwrap();
+                    keypairs.push(Keypair::from_bytes(&key_bytes).unwrap());
                     let ix_mine = ore::instruction::mine(
                         signer.pubkey(),
                         BUS_ADDRESSES[bus.id as usize],
@@ -152,9 +153,6 @@ impl MinerV2 {
                 }
 
                 let signer_1 = Keypair::from_bytes(&keys_bytes[0]).unwrap();
-                let signer_2 = Keypair::from_bytes(&keys_bytes[1]).unwrap();
-                let signer_3 = Keypair::from_bytes(&keys_bytes[2]).unwrap();
-                let signer_4 = Keypair::from_bytes(&keys_bytes[3]).unwrap();
 
                 let mut tx = Transaction::new_with_payer(ixs.as_slice(), Some(&signer_1.pubkey()));
 
@@ -165,9 +163,39 @@ impl MinerV2 {
 
                 println!("Signing tx...");
 
-                tx.sign(&[&signer_1, &signer_2, &signer_3, &signer_4], hash);
+                for keypair in keypairs {
+                    tx.partial_sign(&[&keypair], hash);
+                }
 
-                println!("Sending signed tx every {} milliseconds", send_interval);
+                //println!("Simulating tx...");
+                //let sim_res = rpc_client
+                //    .simulate_transaction_with_config(
+                //        &tx,
+                //        RpcSimulateTransactionConfig {
+                //            sig_verify: true,
+                //            replace_recent_blockhash: false,
+                //            commitment: Some(rpc_client.commitment()),
+                //            encoding: Some(UiTransactionEncoding::Base64),
+                //            accounts: None,
+                //            min_context_slot: Some(last_valid_blockheight),
+                //            inner_instructions: true,
+                //        },
+                //    )
+                //    .await;
+                //match sim_res {
+                //    Ok(sim_res) => {
+                //        if let Some(err) = sim_res.value.err {
+                //            println!("Simulaton error: {:?}", err);
+                //        } else {
+                //            println!("Simulaton succeeded");
+                //        }
+                //    }
+                //    Err(err) => {
+                //        println!("Simulaton error: {:?}", err);
+                //    }
+                //}
+
+                println!("Sending signed tx every {} milliseconds until Confirmed or blockhash expires...", send_interval);
                 let send_cfg = RpcSendTransactionConfig {
                     skip_preflight: true,
                     preflight_commitment: Some(CommitmentLevel::Confirmed),
