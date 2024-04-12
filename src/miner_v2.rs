@@ -78,22 +78,38 @@ impl MinerV2 {
             }
             println!("Wallets registered.");
 
+            let mut tx_time_keeper: Vec<u64> = vec![];
             loop {
+                println!("TX TIMES: \n:{:?}", tx_time_keeper);
                 println!("Generating hashes...");
                 let treasury = get_treasury(&rpc_client).await;
-                let mut keys_bytes_with_hashes = vec![];
+
+                let hash_timer = SystemTime::now();
+                let mut handles = Vec::new();
                 for key_bytes in keys_bytes.clone() {
                     let signer = Keypair::from_bytes(&key_bytes).unwrap();
+                    let key_string = signer.to_base58_string();
                     let proof = get_proof(&rpc_client, signer.pubkey()).await;
-                    let (next_hash, nonce) = MinerV2::find_next_hash_par(
-                        &signer,
-                        proof.hash.into(),
-                        treasury.difficulty.into(),
-                        threads,
-                    );
-                    keys_bytes_with_hashes.push((key_bytes, next_hash, nonce));
+                    let handle = std::thread::spawn(move || {
+                        let (next_hash, nonce) = MinerV2::find_next_hash_par(
+                            &signer,
+                            proof.hash.into(),
+                            treasury.difficulty.into(),
+                            threads,
+                        );
+                        return (key_string.clone(), next_hash, nonce);
+                    });
+                    handles.push(handle);
                 }
+
+                let mut keys_bytes_with_hashes = Vec::new();
+                for handle in handles {
+                    let data = handle.join().unwrap();
+                    keys_bytes_with_hashes.push(data);
+                }
+
                 println!("Hashes generated.");
+                println!("Hash generation took {} seconds", hash_timer.elapsed().unwrap().as_secs());
 
                 println!("Building transaction.");
 
@@ -140,9 +156,9 @@ impl MinerV2 {
                 println!("Will be sending on bus {} ({} ORE)", bus.id, bus_rewards);
 
                 let mut keypairs = vec![];
-                for (key_bytes, next_hash, nonce) in keys_bytes_with_hashes.clone() {
-                    let signer = Keypair::from_bytes(&key_bytes).unwrap();
-                    keypairs.push(Keypair::from_bytes(&key_bytes).unwrap());
+                for (key_bytes, next_hash, nonce) in keys_bytes_with_hashes {
+                    let signer = Keypair::from_base58_string(&key_bytes);
+                    keypairs.push(Keypair::from_base58_string(&key_bytes));
                     let ix_mine = ore::instruction::mine(
                         signer.pubkey(),
                         BUS_ADDRESSES[bus.id as usize],
@@ -216,6 +232,7 @@ impl MinerV2 {
                     Ok((sig, tx_time_elapsed)) => {
                         println!("Success: {}", sig);
                         println!("Took: {} seconds", tx_time_elapsed);
+                        tx_time_keeper.push(tx_time_elapsed);
                     }
                     Err(e) => {
                         println!("Error: {}", e);
@@ -300,12 +317,14 @@ impl MinerV2 {
 
                 // hash expiration checks
                 let current_blockheight = client.get_block_height().await.unwrap();
+                //println!("Last valid blockheight: {}", last_valid_blockheight);
+                //println!("Current blockheight: {}", current_blockheight);
+
                 if current_blockheight > last_valid_blockheight {
                     let err = Err("Last valid blockheight exceeded!".to_string());
                     let _ = tx_result_sender.send(err).await;
                     return;
-                }
-
+                } 
                 // sleep 500ms to allow confirmations to potentially land
                 sleep(Duration::from_millis(500)).await;
             }
