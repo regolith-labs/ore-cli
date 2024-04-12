@@ -116,34 +116,6 @@ impl MinerV2 {
                 println!("Signing tx...");
                 tx.sign(&[&signer], hash);
 
-                println!("Simulating tx...");
-                let sim_res = rpc_client
-                    .simulate_transaction_with_config(
-                        &tx,
-                        RpcSimulateTransactionConfig {
-                            sig_verify: true,
-                            replace_recent_blockhash: false,
-                            commitment: Some(rpc_client.commitment()),
-                            encoding: Some(UiTransactionEncoding::Base64),
-                            accounts: None,
-                            min_context_slot: Some(last_valid_blockheight),
-                            inner_instructions: true,
-                        },
-                    )
-                    .await;
-                match sim_res {
-                    Ok(sim_res) => {
-                        if let Some(err) = sim_res.value.err {
-                            println!("Simulaton error: {:?}", err);
-                        } else {
-                            println!("Simulaton succeeded");
-                        }
-                    }
-                    Err(err) => {
-                        println!("Simulaton error: {:?}", err);
-                    }
-                }
-
                 println!("Submitting claim transaction...");
                 let send_cfg = RpcSendTransactionConfig {
                     skip_preflight: true,
@@ -194,7 +166,12 @@ impl MinerV2 {
             if let Ok(mut dir_reader) = dir_reader {
                 loop {
                     if let Ok(Some(next_entry)) = dir_reader.next_entry().await {
-                        key_paths.push(next_entry.path());
+                        if key_paths.len() < 5 {
+                            key_paths.push(next_entry.path());
+                        } else {
+                            println!("Can only handle 5 wallets at a time for now.");
+                            break;
+                        }
                     } else {
                         break;
                     }
@@ -269,7 +246,7 @@ impl MinerV2 {
                 hash_time_keeper.push(hash_time);
                 println!("Hash generation took {} seconds", hash_time);
 
-                println!("Building transaction.");
+                println!("Building transactions.");
 
                 // Reset epoch, if needed
                 let treasury = get_treasury(&rpc_client).await;
@@ -312,6 +289,7 @@ impl MinerV2 {
                 let bus = MinerV2::find_bus_id(&rpc_client, treasury.reward_rate).await;
                 let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
                 println!("Will be sending on bus {} ({} ORE)", bus.id, bus_rewards);
+
 
                 let mut keypairs = vec![];
                 for (key_bytes, next_hash, nonce) in keys_bytes_with_hashes {
