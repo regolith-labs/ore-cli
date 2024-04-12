@@ -1,11 +1,11 @@
 use std::{str::FromStr, sync::Arc};
 
-use logfather::{crit, error, trace};
-use ore::{BUS_ADDRESSES, BUS_COUNT};
+use logfather::{crit, error, trace, warn};
+use ore::{state::Proof, utils::AccountDeserialize, BUS_ADDRESSES, BUS_COUNT};
 use rand::Rng;
 use serde_json::json;
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_program::{instruction::Instruction, pubkey::Pubkey, system_instruction};
+use solana_program::{instruction::Instruction, pubkey::Pubkey};
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, hash::Hash, signature::Keypair, signer::Signer,
     transaction::Transaction,
@@ -15,6 +15,7 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::{
     blockhash::LatestBlockhash,
     messages::{SendJob, Tunnel},
+    utils::sleep_ms,
 };
 
 pub struct Sender {
@@ -27,12 +28,13 @@ pub struct Sender {
     tip_amount: u64,
 }
 
-// TODO Re-queue tunnels
+// TODO This implicitly assumes
 
 const JITO_URL: &str = "https://mainnet.block-engine.jito.wtf/api/v1/bundles";
 const CU_LIMIT_MINE: u32 = 10_000; // 160_000; // 3200;
 const BATCH_SIZE: usize = 2;
 const BUNDLE_SIZE: usize = 1; // 1;
+const CONFIRMATION_DELAY: u64 = 8000;
 
 impl Sender {
     pub fn start(
@@ -44,38 +46,67 @@ impl Sender {
         priority_fee: u64,
         tip_amount: u64,
     ) {
+        let sender = Arc::new(Sender {
+            rpc,
+            keypair,
+            client: Arc::new(reqwest::Client::new()),
+            tunnel_tx,
+            blockhash,
+            priority_fee,
+            tip_amount,
+        });
         tokio::task::spawn(async move {
-            let sender = Sender {
-                rpc,
-                keypair,
-                client: Arc::new(reqwest::Client::new()),
-                tunnel_tx,
-                blockhash,
-                priority_fee,
-                tip_amount,
-            };
-            // let mut bundle = vec![];
             let mut jobs = vec![];
             while let Some(job) = send_rx.recv().await {
                 trace!("received send job: {:?}", job.hash);
                 jobs.push(job);
                 if jobs.len().ge(&(BATCH_SIZE * BUNDLE_SIZE)) {
-                    let blockhash = sender
-                        .blockhash
-                        .load()
-                        .await
-                        .expect("failed to get latest blockhash");
-                    let mut bundle = vec![];
-                    for j in jobs.chunks(BATCH_SIZE) {
-                        let tx = sender
-                            .build_mine_transaction(j, bundle.is_empty(), blockhash)
-                            .await;
-                        bundle.push(tx);
-                    }
-                    sender.send_transactions_as_bundle(&bundle).await;
+                    let sender = sender.clone();
+                    let jobs_to_send = jobs.drain(..).collect::<Vec<_>>();
+                    tokio::task::spawn(async move {
+                        sender.bundle_and_send(jobs_to_send).await;
+                    });
                 }
             }
         });
+    }
+
+    async fn bundle_and_send(&self, jobs: Vec<SendJob>) {
+        // Bundle and send
+        let bundle = self.build_bundle(&jobs).await;
+        self.send_transactions_as_bundle(&bundle).await;
+
+        // With bundles, we can assume all landed if the first one landed
+        loop {
+            sleep_ms(CONFIRMATION_DELAY).await;
+            if self.confirm(&jobs[0]).await {
+                crit!("confirmed bundle!");
+                break;
+            } else {
+                warn!("failed to confirm bundle...");
+            }
+        }
+
+        // Requeue all tunnels
+        for job in jobs {
+            self.tunnel_tx.send(job.tunnel).ok();
+        }
+    }
+
+    async fn build_bundle(&self, jobs: &[SendJob]) -> Vec<Transaction> {
+        let blockhash = self
+            .blockhash
+            .load()
+            .await
+            .expect("failed to get latest blockhash");
+        let mut bundle = vec![];
+        for j in jobs.chunks(BATCH_SIZE) {
+            let tx = self
+                .build_mine_transaction(j, bundle.is_empty(), blockhash)
+                .await;
+            bundle.push(tx);
+        }
+        bundle
     }
 
     async fn build_mine_transaction(
@@ -127,6 +158,23 @@ impl Sender {
         )
     }
 
+    async fn confirm(&self, job: &SendJob) -> bool {
+        // Fetch data
+        let Ok(data) = self.rpc.get_account_data(&job.tunnel.proof).await else {
+            warn!("failed to fetch proof ({})", job.tunnel.proof);
+            return false;
+        };
+
+        // Check if total hashes has incremented
+        if let Ok(proof) = Proof::try_from_bytes(&data) {
+            if proof.total_hashes.gt(&job.total_hashes) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     async fn send_transactions_as_bundle(&self, transactions: &[Transaction]) {
         // Serialize tx to bs58
         let tx_strs = transactions
@@ -155,7 +203,7 @@ impl Sender {
                 {
                     if let Some(bundlehash) = response_json.get("result") {
                         // If submitted:
-                        crit!("submitted bundle {bundlehash}");
+                        crit!("submitted bundle {}", bundlehash.to_string());
                     } else if let Some(error_message) =
                         response_json.get("error").and_then(|e| e.get("message"))
                     {

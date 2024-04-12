@@ -7,12 +7,14 @@ pub struct MineJob {
     pub tunnel: Tunnel,
     pub challenge: Hash,
     pub difficulty: Hash,
+    pub total_hashes: u64,
 }
 
 pub struct SendJob {
     pub tunnel: Tunnel,
     pub hash: Hash,
     pub nonce: u64,
+    pub total_hashes: u64,
 }
 
 pub struct Tunnel {

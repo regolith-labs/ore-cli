@@ -34,6 +34,7 @@ impl Miner {
                     tunnel: job.tunnel,
                     hash,
                     nonce,
+                    total_hashes: job.total_hashes,
                 };
             }
         }

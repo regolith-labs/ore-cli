@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use logfather::{crit, trace};
+use logfather::trace;
 use ore::{state::Proof, utils::AccountDeserialize};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{native_token::LAMPORTS_PER_SOL, system_instruction};
@@ -118,12 +118,9 @@ impl Foreman {
                 .expect("failed to fetch account")
         };
 
-        // Update arc
+        // Load accounts
         let proof = Proof::try_from_bytes(&data).expect("failed to parse proof");
-        let Some(treasury) = self.treasury.load().await else {
-            // TODO
-            return;
-        };
+        let treasury = self.treasury.load().await.expect("failed to get treasury");
 
         // Send job to miner
         self.mine_txs[tunnel.id]
@@ -131,6 +128,7 @@ impl Foreman {
                 tunnel,
                 challenge: proof.hash.into(),
                 difficulty: treasury.difficulty.into(),
+                total_hashes: proof.total_hashes,
             })
             .ok();
     }
@@ -149,12 +147,16 @@ impl Foreman {
                 &[&tunnel.keypair],
                 blockhash,
             );
-            trace!("registering {}", tunnel.keypair.pubkey());
+            trace!("registering {} {}", tunnel.id, tunnel.keypair.pubkey());
             if let Err(e) = self.rpc.send_and_confirm_transaction(&tx).await {
-                trace!("failed to register {}: {e:#?}", tunnel.keypair.pubkey());
+                trace!(
+                    "failed to register {} {}: {e:#?}",
+                    tunnel.id,
+                    tunnel.keypair.pubkey()
+                );
                 sleep_ms(2000).await;
             } else {
-                trace!("registered miner {}", tunnel.keypair.pubkey());
+                trace!("registered miner {} {}", tunnel.id, tunnel.keypair.pubkey());
                 return;
             }
         }
@@ -190,12 +192,12 @@ impl Foreman {
                     &[&self.keypair],
                     blockhash,
                 );
-                trace!("topping up {}", tunnel.keypair.pubkey());
+                trace!("topping up {} {}", tunnel.id, tunnel.keypair.pubkey());
                 if let Err(e) = self.rpc.send_and_confirm_transaction(&tx).await {
                     trace!("failed to top up {}: {e:#?}", tunnel.keypair.pubkey());
                     sleep_ms(2000).await;
                 } else {
-                    trace!("topped up {}", tunnel.keypair.pubkey());
+                    trace!("topped up {} {}", tunnel.id, tunnel.keypair.pubkey());
                     return;
                 }
             } else {
