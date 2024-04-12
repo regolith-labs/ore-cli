@@ -1,5 +1,6 @@
-use ore::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, TOKEN_DECIMALS};
 use ore::{state::Bus, utils::AccountDeserialize};
+use ore::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, TOKEN_DECIMALS};
+use rand::Rng;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::{
     client_error::Result as ClientResult,
@@ -15,14 +16,16 @@ use solana_sdk::{
     signature::{Keypair, Signature, Signer},
     transaction::Transaction,
 };
+use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
 use std::{
     io::{stdout, Write},
     sync::{atomic::AtomicBool, Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use rand::Rng;
-use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
-use tokio::{sync::mpsc::{self, Receiver, Sender}, time::sleep};
+use tokio::{
+    sync::mpsc::{self, Receiver, Sender},
+    time::sleep,
+};
 
 use crate::cu_limits::{CU_LIMIT_MINE, CU_LIMIT_RESET};
 use crate::utils::{get_clock_account, get_proof, get_treasury, proof_pubkey};
@@ -53,130 +56,147 @@ impl MinerV2 {
                         break;
                     }
                 }
-
             } else {
                 println!("Failed to read miner wallets directory: {}", wallets_dir);
                 return;
             }
-
 
             println!("Found {} keys", key_paths.len());
             println!("Registering wallets...");
             let mut keys_bytes = vec![];
             for key_path in key_paths.clone() {
                 if let Ok(signer) = read_keypair_file(key_path.clone()) {
-                    MinerV2::register(rpc_client.clone(), &signer, send_interval, priority_fee).await;
+                    MinerV2::register(rpc_client.clone(), &signer, send_interval, priority_fee)
+                        .await;
                     keys_bytes.push(signer.to_bytes());
                 } else {
-                    println!("Failed to read keypair file: {}", key_path.to_str().unwrap());
+                    println!(
+                        "Failed to read keypair file: {}",
+                        key_path.to_str().unwrap()
+                    );
                 }
             }
             println!("Wallets registered.");
 
+            loop {
+                println!("Generating hashes...");
+                let treasury = get_treasury(&rpc_client).await;
+                let mut keys_bytes_with_hashes = vec![];
+                for key_bytes in keys_bytes.clone() {
+                    let signer = Keypair::from_bytes(&key_bytes).unwrap();
+                    let proof = get_proof(&rpc_client, signer.pubkey()).await;
+                    let (next_hash, nonce) = MinerV2::find_next_hash_par(
+                        &signer,
+                        proof.hash.into(),
+                        treasury.difficulty.into(),
+                        threads,
+                    );
+                    keys_bytes_with_hashes.push((key_bytes, next_hash, nonce));
+                }
+                println!("Hashes generated.");
 
-            println!("Generating hashes...");
-            let treasury = get_treasury(&rpc_client).await;
-            let mut keys_bytes_with_hashes = vec![];
-            for key_bytes in keys_bytes.clone() {
-                let signer = Keypair::from_bytes(&key_bytes).unwrap();
-                let proof = get_proof(&rpc_client, signer.pubkey()).await;
-                let (next_hash, nonce) = MinerV2::find_next_hash_par(&signer, proof.hash.into(), treasury.difficulty.into(), threads);
-                keys_bytes_with_hashes.push((key_bytes, next_hash, nonce));
+                println!("Building transaction.");
 
-            }
-            println!("Hashes generated.");
+                // Reset epoch, if needed
+                let treasury = get_treasury(&rpc_client).await;
+                let clock = get_clock_account(&rpc_client).await;
+                let threshold = treasury.last_reset_at.saturating_add(EPOCH_DURATION);
+                let mut rng = rand::thread_rng();
 
-
-            println!("Building transaction.");
-
-            // Reset epoch, if needed
-            let treasury = get_treasury(&rpc_client).await;
-            let clock = get_clock_account(&rpc_client).await;
-            let threshold = treasury.last_reset_at.saturating_add(EPOCH_DURATION);
-            let mut rng = rand::thread_rng();
-
-            if clock.unix_timestamp.ge(&threshold) {
-                // There are a lot of miners right now, so randomly select into submitting tx
-                if rng.gen_range(0..RESET_ODDS).eq(&0) {
-                    println!("Sending epoch reset transaction...");
-                    let signer = Keypair::from_bytes(&keys_bytes[0]).unwrap();
-                    let cu_limit_ix =
-                        ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_RESET);
-                    let cu_price_ix =
-                        ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
-                    let reset_ix = ore::instruction::reset(signer.pubkey());
-                    MinerV2::send_and_confirm(&signer, rpc_client.clone(), &[cu_limit_ix, cu_price_ix, reset_ix], false, send_interval, priority_fee)
+                if clock.unix_timestamp.ge(&threshold) {
+                    // There are a lot of miners right now, so randomly select into submitting tx
+                    if rng.gen_range(0..RESET_ODDS).eq(&0) {
+                        println!("Sending epoch reset transaction...");
+                        let signer = Keypair::from_bytes(&keys_bytes[0]).unwrap();
+                        let cu_limit_ix =
+                            ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_RESET);
+                        let cu_price_ix =
+                            ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+                        let reset_ix = ore::instruction::reset(signer.pubkey());
+                        MinerV2::send_and_confirm(
+                            &signer,
+                            rpc_client.clone(),
+                            &[cu_limit_ix, cu_price_ix, reset_ix],
+                            false,
+                            send_interval,
+                            priority_fee,
+                        )
                         .await
                         .ok();
+                    }
                 }
-            }
 
-            let wallet_count = keys_bytes_with_hashes.len();
-            let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_MINE * wallet_count as u32);
-            let cu_price_ix =
-                ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
-
-            let mut ixs = vec![];
-            ixs.push(cu_limit_ix);
-            ixs.push(cu_price_ix);
-            let bus = MinerV2::find_bus_id(&rpc_client, treasury.reward_rate).await;
-            for (key_bytes, next_hash, nonce) in keys_bytes_with_hashes.clone() {
-                let signer = Keypair::from_bytes(&key_bytes).unwrap();
-                let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
-                println!("Sending on bus {} ({} ORE)", bus.id, bus_rewards);
-                let ix_mine = ore::instruction::mine(
-                    signer.pubkey(),
-                    BUS_ADDRESSES[bus.id as usize],
-                    next_hash.into(),
-                    nonce,
+                let wallet_count = keys_bytes_with_hashes.len();
+                let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(
+                    CU_LIMIT_MINE * wallet_count as u32,
                 );
-                ixs.push(ix_mine);
-            }
+                let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
 
-            let signer_1 = Keypair::from_bytes(&keys_bytes[0]).unwrap();
-            let signer_2 = Keypair::from_bytes(&keys_bytes[1]).unwrap();
-            let signer_3 = Keypair::from_bytes(&keys_bytes[2]).unwrap();
-            let signer_4 = Keypair::from_bytes(&keys_bytes[3]).unwrap();
+                let mut ixs = vec![];
+                ixs.push(cu_limit_ix);
+                ixs.push(cu_price_ix);
+                let bus = MinerV2::find_bus_id(&rpc_client, treasury.reward_rate).await;
+                let bus_rewards =
+                    (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+                println!("Will be sending on bus {} ({} ORE)", bus.id, bus_rewards);
 
-            let mut tx = Transaction::new_with_payer(ixs.as_slice(), Some(&signer_1.pubkey()));
+                for (key_bytes, next_hash, nonce) in keys_bytes_with_hashes.clone() {
+                    let signer = Keypair::from_bytes(&key_bytes).unwrap();
+                    let ix_mine = ore::instruction::mine(
+                        signer.pubkey(),
+                        BUS_ADDRESSES[bus.id as usize],
+                        next_hash.into(),
+                        nonce,
+                    );
+                    ixs.push(ix_mine);
+                }
 
-            let (hash, last_valid_blockheight) = rpc_client
-                .get_latest_blockhash_with_commitment(rpc_client.commitment())
-                .await
-                .unwrap();
+                let signer_1 = Keypair::from_bytes(&keys_bytes[0]).unwrap();
+                let signer_2 = Keypair::from_bytes(&keys_bytes[1]).unwrap();
+                let signer_3 = Keypair::from_bytes(&keys_bytes[2]).unwrap();
+                let signer_4 = Keypair::from_bytes(&keys_bytes[3]).unwrap();
 
-            println!("Signing tx...");
+                let mut tx = Transaction::new_with_payer(ixs.as_slice(), Some(&signer_1.pubkey()));
 
+                let (hash, last_valid_blockheight) = rpc_client
+                    .get_latest_blockhash_with_commitment(rpc_client.commitment())
+                    .await
+                    .unwrap();
 
-            tx.sign(&[&signer_1, &signer_2, &signer_3, &signer_4], hash);
+                println!("Signing tx...");
 
+                tx.sign(&[&signer_1, &signer_2, &signer_3, &signer_4], hash);
 
-            println!("Sending signed tx every {} milliseconds", send_interval);
-            let send_cfg = RpcSendTransactionConfig {
-                skip_preflight: true,
-                preflight_commitment: Some(CommitmentLevel::Confirmed),
-                encoding: Some(UiTransactionEncoding::Base64),
-                max_retries: None,
-                min_context_slot: None,
-            };
-            let result = MinerV2::send_and_confirm_transaction(rpc_client.clone(), tx, last_valid_blockheight, send_interval, send_cfg).await;
+                println!("Sending signed tx every {} milliseconds", send_interval);
+                let send_cfg = RpcSendTransactionConfig {
+                    skip_preflight: true,
+                    preflight_commitment: Some(CommitmentLevel::Confirmed),
+                    encoding: Some(UiTransactionEncoding::Base64),
+                    max_retries: None,
+                    min_context_slot: None,
+                };
+                let result = MinerV2::send_and_confirm_transaction(
+                    rpc_client.clone(),
+                    tx,
+                    last_valid_blockheight,
+                    send_interval,
+                    send_cfg,
+                )
+                .await;
 
-            match result {
-                Ok((sig, tx_time_elapsed)) => {
-                    println!("Success: {}", sig);
-                    println!("Took: {} seconds", tx_time_elapsed);
-                },
-                Err(e) => {
-                    println!("Error: {}", e);
+                match result {
+                    Ok((sig, tx_time_elapsed)) => {
+                        println!("Success: {}", sig);
+                        println!("Took: {} seconds", tx_time_elapsed);
+                    }
+                    Err(e) => {
+                        println!("Error: {}", e);
+                    }
                 }
             }
-
-
-
         } else {
             println!("Please provide the miner wallets directory. ");
         }
-
     }
 
     pub async fn send_and_confirm_transaction(
@@ -275,9 +295,8 @@ impl MinerV2 {
                     let sig_checks_sender = sig_checks_sender.clone();
 
                     if let Ok(sig) = client.send_transaction_with_config(&tx, send_cfg).await {
-                        match  sig_checks_sender.send(Ok(sig)).await {
-                            Ok(_) => {
-                            },
+                        match sig_checks_sender.send(Ok(sig)).await {
+                            Ok(_) => {}
                             Err(_) => {
                                 return;
                             }
@@ -306,16 +325,20 @@ impl MinerV2 {
             }
             Err(_) => {
                 return Err("Blockheight exceeded".to_string());
-               // return Err(ClientError {
-               //     request: None,
-               //     kind: ClientErrorKind::Custom("Blockheight Exceeded for this signed transaction".into()),
-               // });
+                // return Err(ClientError {
+                //     request: None,
+                //     kind: ClientErrorKind::Custom("Blockheight Exceeded for this signed transaction".into()),
+                // });
             }
         }
-
     }
 
-    pub async fn register(rpc_client: Arc<RpcClient>, signer: &Keypair, send_interval: u64, priority_fee: u64) {
+    pub async fn register(
+        rpc_client: Arc<RpcClient>,
+        signer: &Keypair,
+        send_interval: u64,
+        priority_fee: u64,
+    ) {
         // Return early if miner is already registered
         let proof_address = proof_pubkey(signer.pubkey());
         let client = rpc_client.clone();
@@ -328,7 +351,10 @@ impl MinerV2 {
         'send: loop {
             let client = client.clone();
             let ix = ore::instruction::register(signer.pubkey());
-            if MinerV2::send_and_confirm(&signer, client, &[ix], true, send_interval, 0).await.is_ok() {
+            if MinerV2::send_and_confirm(&signer, client, &[ix], true, send_interval, 0)
+                .await
+                .is_ok()
+            {
                 break 'send;
             }
         }
