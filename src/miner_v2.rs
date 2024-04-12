@@ -64,63 +64,71 @@ impl MinerV2 {
 
         println!("Found {} wallets", key_paths.len());
 
-        println!("Found {} wallets", key_paths.len());
-        let key_path = &key_paths[0];
-        if let Ok(signer) = read_keypair_file(key_path.clone()) {
-            let token_account =
-                MinerV2::initialize_ata(rpc_client.clone(), &signer, priority_fee, send_interval)
-                    .await;
-            let proof = get_proof(&rpc_client, signer.pubkey()).await;
-            let rewards = proof.claimable_rewards;
-            let amount = rewards;
-            println!("Got token account: {}", token_account.to_string());
-            println!("Proof: {:?}", proof);
-            let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_CLAIM);
-            let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
-            let ix = ore::instruction::claim(signer.pubkey(), token_account, amount);
+        for key_path in key_paths.clone() {
+            if let Ok(signer) = read_keypair_file(key_path.clone()) {
+                println!("Starting claim for \n{}", signer.pubkey().to_string());
+                let token_account = MinerV2::initialize_ata(
+                    rpc_client.clone(),
+                    &signer,
+                    priority_fee,
+                    send_interval,
+                )
+                .await;
+                let proof = get_proof(&rpc_client, signer.pubkey()).await;
+                let rewards = proof.claimable_rewards;
+                let amount = rewards;
+                println!("Got token account: {}", token_account.to_string());
+                println!("Proof: {:?}", proof);
+                let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_CLAIM);
+                let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+                let ix = ore::instruction::claim(signer.pubkey(), token_account, amount);
 
-            println!("Building tx...");
-            let mut tx = Transaction::new_with_payer(&[cu_limit_ix, cu_price_ix, ix], Some(&signer.pubkey()));
+                println!("Building tx...");
+                let mut tx = Transaction::new_with_payer(
+                    &[cu_limit_ix, cu_price_ix, ix],
+                    Some(&signer.pubkey()),
+                );
 
-            let (hash, last_valid_blockheight) = rpc_client
-                .get_latest_blockhash_with_commitment(rpc_client.commitment())
-                .await
-                .unwrap();
+                let (hash, last_valid_blockheight) = rpc_client
+                    .get_latest_blockhash_with_commitment(rpc_client.commitment())
+                    .await
+                    .unwrap();
 
-            println!("Signing tx...");
+                println!("Signing tx...");
 
-            tx.sign(&[&signer], hash);
-            println!("Submitting claim transaction...");
-            let send_cfg = RpcSendTransactionConfig {
-                skip_preflight: true,
-                preflight_commitment: Some(CommitmentLevel::Confirmed),
-                encoding: Some(UiTransactionEncoding::Base64),
-                max_retries: None,
-                min_context_slot: None,
-            };
-            let result = MinerV2::send_and_confirm_transaction(
-                rpc_client.clone(),
-                tx,
-                last_valid_blockheight,
-                send_interval,
-                send_cfg,
-            )
-            .await;
+                tx.sign(&[&signer], hash);
+                println!("Submitting claim transaction...");
+                let send_cfg = RpcSendTransactionConfig {
+                    skip_preflight: true,
+                    preflight_commitment: Some(CommitmentLevel::Confirmed),
+                    encoding: Some(UiTransactionEncoding::Base64),
+                    max_retries: None,
+                    min_context_slot: None,
+                };
+                let result = MinerV2::send_and_confirm_transaction(
+                    rpc_client.clone(),
+                    tx,
+                    last_valid_blockheight,
+                    send_interval,
+                    send_cfg,
+                )
+                .await;
 
-            match result {
-                Ok((sig, tx_time_elapsed)) => {
-                    println!("Success: {}", sig);
-                    println!("Took: {} seconds", tx_time_elapsed);
+                match result {
+                    Ok((sig, tx_time_elapsed)) => {
+                        println!("Success: {}", sig);
+                        println!("Took: {} seconds", tx_time_elapsed);
+                    }
+                    Err(e) => {
+                        println!("Error: {}", e);
+                    }
                 }
-                Err(e) => {
-                    println!("Error: {}", e);
-                }
+            } else {
+                println!(
+                    "Failed to read keypair file: {}",
+                    key_path.to_str().unwrap()
+                );
             }
-        } else {
-            println!(
-                "Failed to read keypair file: {}",
-                key_path.to_str().unwrap()
-            );
         }
     }
 
