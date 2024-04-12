@@ -27,7 +27,7 @@ use tokio::{
     time::sleep,
 };
 
-use crate::cu_limits::{CU_LIMIT_MINE, CU_LIMIT_RESET};
+use crate::cu_limits::{CU_LIMIT_CLAIM, CU_LIMIT_MINE, CU_LIMIT_RESET};
 use crate::utils::{get_clock_account, get_proof, get_treasury, proof_pubkey};
 
 const SIMULATION_RETRIES: usize = 4;
@@ -37,6 +37,93 @@ const RESET_ODDS: u64 = 20;
 pub struct MinerV2;
 
 impl MinerV2 {
+    pub async fn claim(
+        rpc_client: Arc<RpcClient>,
+        send_interval: u64,
+        wallets_directory_string: Option<String>,
+    ) {
+        println!("MinerV2 claiming rewards.");
+        let priority_fee = 0;
+        let mut key_paths = vec![];
+
+        if let Some(wallets_dir) = wallets_directory_string {
+            let dir_reader = tokio::fs::read_dir(wallets_dir.clone()).await;
+            if let Ok(mut dir_reader) = dir_reader {
+                loop {
+                    if let Ok(Some(next_entry)) = dir_reader.next_entry().await {
+                        key_paths.push(next_entry.path());
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                println!("Failed to read miner wallets directory: {}", wallets_dir);
+                return;
+            }
+        }
+
+        println!("Found {} wallets", key_paths.len());
+
+        println!("Found {} wallets", key_paths.len());
+        let key_path = &key_paths[0];
+        if let Ok(signer) = read_keypair_file(key_path.clone()) {
+            let token_account =
+                MinerV2::initialize_ata(rpc_client.clone(), &signer, priority_fee, send_interval)
+                    .await;
+            let proof = get_proof(&rpc_client, signer.pubkey()).await;
+            let rewards = proof.claimable_rewards;
+            let amount = rewards;
+            println!("Got token account: {}", token_account.to_string());
+            println!("Proof: {:?}", proof);
+            let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_CLAIM);
+            let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
+            let ix = ore::instruction::claim(signer.pubkey(), token_account, amount);
+
+            println!("Building tx...");
+            let mut tx = Transaction::new_with_payer(&[cu_limit_ix, cu_price_ix, ix], Some(&signer.pubkey()));
+
+            let (hash, last_valid_blockheight) = rpc_client
+                .get_latest_blockhash_with_commitment(rpc_client.commitment())
+                .await
+                .unwrap();
+
+            println!("Signing tx...");
+
+            tx.sign(&[&signer], hash);
+            println!("Submitting claim transaction...");
+            let send_cfg = RpcSendTransactionConfig {
+                skip_preflight: true,
+                preflight_commitment: Some(CommitmentLevel::Confirmed),
+                encoding: Some(UiTransactionEncoding::Base64),
+                max_retries: None,
+                min_context_slot: None,
+            };
+            let result = MinerV2::send_and_confirm_transaction(
+                rpc_client.clone(),
+                tx,
+                last_valid_blockheight,
+                send_interval,
+                send_cfg,
+            )
+            .await;
+
+            match result {
+                Ok((sig, tx_time_elapsed)) => {
+                    println!("Success: {}", sig);
+                    println!("Took: {} seconds", tx_time_elapsed);
+                }
+                Err(e) => {
+                    println!("Error: {}", e);
+                }
+            }
+        } else {
+            println!(
+                "Failed to read keypair file: {}",
+                key_path.to_str().unwrap()
+            );
+        }
+    }
+
     pub async fn mine(
         rpc_client: Arc<RpcClient>,
         threads: u64,
@@ -866,5 +953,48 @@ impl MinerV2 {
             }
             Err(_) => "0.00".to_string(),
         }
+    }
+
+    pub async fn initialize_ata(
+        client: Arc<RpcClient>,
+        signer: &Keypair,
+        priority_fee: u64,
+        send_interval: u64,
+    ) -> Pubkey {
+        // Build instructions.
+        let token_account_pubkey = spl_associated_token_account::get_associated_token_address(
+            &signer.pubkey(),
+            &ore::MINT_ADDRESS,
+        );
+
+        // Check if ata already exists
+        if let Ok(Some(_ata)) = client.get_token_account(&token_account_pubkey).await {
+            return token_account_pubkey;
+        }
+
+        // Sign and send transaction.
+        let ix = spl_associated_token_account::instruction::create_associated_token_account(
+            &signer.pubkey(),
+            &signer.pubkey(),
+            &ore::MINT_ADDRESS,
+            &spl_token::id(),
+        );
+        println!("Creating token account {}...", token_account_pubkey);
+        match MinerV2::send_and_confirm(
+            &signer,
+            client.clone(),
+            &[ix],
+            true,
+            send_interval,
+            priority_fee,
+        )
+        .await
+        {
+            Ok(_sig) => println!("Created token account {:?}", token_account_pubkey),
+            Err(e) => println!("Transaction failed: {:?}", e),
+        }
+
+        // Return token account address
+        token_account_pubkey
     }
 }
