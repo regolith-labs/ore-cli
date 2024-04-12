@@ -2,9 +2,16 @@ use std::str::FromStr;
 
 use ore::{self, state::Proof, utils::AccountDeserialize};
 use solana_program::pubkey::Pubkey;
-use solana_sdk::{compute_budget::ComputeBudgetInstruction, signature::Signer};
+use solana_sdk::{
+	compute_budget::ComputeBudgetInstruction, 
+	signature::Signer,
+};
 
-use crate::{cu_limits::CU_LIMIT_CLAIM, utils::proof_pubkey, Miner};
+use crate::{
+	cu_limits::CU_LIMIT_CLAIM, 
+	utils::proof_pubkey, 
+	Miner,
+};
 
 impl Miner {
     pub async fn claim(&self, beneficiary: Option<String>, amount: Option<f64>) {
@@ -34,10 +41,10 @@ impl Miner {
         let amountf = (amount as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
         let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_CLAIM);
         let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
-        let ix = ore::instruction::claim(pubkey, beneficiary, amount);
-        println!("CLAIM Rewards:\tSubmitting claim transaction...priority_fee: {:?}", self.priority_fee);
+        let claim_ix = ore::instruction::claim(pubkey, beneficiary, amount);
+        print!("CLAIM Rewards:\tSubmitting claim transaction...priority_fee: {:?}", self.priority_fee);
         match self
-            .send_and_confirm(&[cu_limit_ix, cu_price_ix, ix], false, false)
+            .send_and_confirm(&[cu_limit_ix, cu_price_ix, claim_ix], false, false)
             .await
         {
             Ok(sig) => {

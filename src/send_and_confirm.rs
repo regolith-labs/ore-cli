@@ -3,7 +3,7 @@ use std::{
     io::{stdout, Write},
     time::Duration,
 };
-
+// use std::time::Instant;
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
     rpc_config::{RpcSendTransactionConfig, RpcSimulateTransactionConfig},
@@ -21,11 +21,11 @@ use crate::Miner;
 
 const RPC_RETRIES: usize = 0;
 const SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 150;
-const CONFIRM_RETRIES: usize = 1;
+const GATEWAY_RETRIES: usize = 15;
+const CONFIRM_RETRIES: usize = 3;
 
-const CONFIRM_DELAY: u64 = 0;
-const GATEWAY_DELAY: u64 = 300;
+const CONFIRM_DELAY: u64 = 2500;
+const GATEWAY_DELAY: u64 = 1000;
 
 impl Miner {
     pub async fn send_and_confirm(
@@ -34,6 +34,7 @@ impl Miner {
         dynamic_cus: bool,
         skip_confirm: bool,
     ) -> ClientResult<Signature> {
+		// let startTime = Instant::now();
         let mut stdout = stdout();
         let signer = self.signer();
         let client = self.rpc_client.clone();
@@ -43,7 +44,7 @@ impl Miner {
         if balance <= 0 {
             return Err(ClientError {
                 request: None,
-                kind: ClientErrorKind::Custom("\n\t\t[ERROR]\tget_balance: Insufficient SOL balance".into()),
+                kind: ClientErrorKind::Custom("\t[ERROR]\tget_balance: Insufficient SOL balance".into()),
             });
         }
 
@@ -81,26 +82,31 @@ impl Miner {
             match sim_res {
                 Ok(sim_res) => {
 					sim_attempts += 1;
-                    if let Some(err) = sim_res.value.err {
-                        eprintln!("\n\t\t[ERROR]\tSimulaton error: {:?}", err);
-                    } else if let Some(units_consumed) = sim_res.value.units_consumed {
-                        if dynamic_cus {
-                            println!("\n\t[PASS]\tDynamic CUs: {:?}", units_consumed);
-                            let cu_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(
-                                units_consumed as u32 + 1000,
-                            );
-                            let cu_price_ix =
-                                ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
-                            let mut final_ixs = vec![];
-                            final_ixs.extend_from_slice(&[cu_budget_ix, cu_price_ix]);
-                            final_ixs.extend_from_slice(ixs);
-                            tx = Transaction::new_with_payer(&final_ixs, Some(&signer.pubkey()));
-                        }
-                        break 'simulate;
-                    }
+					print!("[Sim {:?}] ", sim_attempts);
+					stdout.flush().unwrap();
+
+					if let Some(err) = sim_res.value.err {
+                        eprintln!("\t[ERROR]\tSimulaton error: {:?}", err);
+                    } else {
+						if let Some(units_consumed) = sim_res.value.units_consumed {
+							if dynamic_cus {
+								println!("\n\t[PASS]\tDynamic CUs: {:?}", units_consumed);
+								let cu_budget_ix = ComputeBudgetInstruction::set_compute_unit_limit(
+									units_consumed as u32 + 1000,
+								);
+								let cu_price_ix =
+									ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
+								let mut final_ixs = vec![];
+								final_ixs.extend_from_slice(&[cu_budget_ix, cu_price_ix]);
+								final_ixs.extend_from_slice(ixs);
+								tx = Transaction::new_with_payer(&final_ixs, Some(&signer.pubkey()));
+							}
+							break 'simulate;
+						}
+					}
                 }
                 Err(err) => {
-                    eprintln!("\n\t\t[ERRORA]\tSimulaton error: {:?}", err);
+                    eprintln!("\t[ERROR]\tSimulaton error: {:?}", err);
                     sim_attempts += 1;
                 }
             }
@@ -109,7 +115,7 @@ impl Miner {
             if sim_attempts.gt(&SIMULATION_RETRIES) {
                 return Err(ClientError {
                     request: None,
-                    kind: ClientErrorKind::Custom("\n\t\t[ERROR]\tSimulation failed".into()),
+                    kind: ClientErrorKind::Custom("\t[ERROR]\tSimulation failed".into()),
                 });
             }
         }
@@ -126,32 +132,44 @@ impl Miner {
         let mut attempts = 0;
         loop {
             attempts += 1;
-            print!("Submission attempt {:?}\t", attempts);
-			stdout.flush().unwrap();
+			if attempts > 1 {
+				print!("\t{:?}/{:?}:", attempts, GATEWAY_RETRIES);
+				stdout.flush().unwrap();
+			}
+
 			// Attempt to send the transaction
 			match client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
-                    println!("TX ID: {:?}", sig);
-					print!("\t\t\tAwaiting Transaction Confirmation...");
+					if attempts == 1 {
+						println!("TX ID: {:?}", sig);
+						print!("{:?}/{:?}:", attempts, GATEWAY_RETRIES);
+					}
 					stdout.flush().unwrap();
-                    // sigs.push(sig);
-
+                    
                     // Confirm tx
                     if skip_confirm {
                         return Ok(sig);
                     }
+
+					// Delay to prevent overloading your RPC
+					std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+		
+					let mut log_progress = 10;
 					for retry_attempt in 0..CONFIRM_RETRIES {
-						// Pause to give the confirmation time to succeed
-						if retry_attempt == 0 {
-							// Shorter first delay for first confirmation check
-							std::thread::sleep(Duration::from_millis(1000));
-						} else {
-							std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
-						}
-                        match client.get_signature_statuses(&[sig]).await {
+						// Pause between each confirmation check
+						std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
+		
+		                match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
                                 // print!(" [{:?}: {:?}]", retry_attempt+1, signature_statuses.value[0]);
-								print!("[{:?}]", retry_attempt+1);
+								// print!("[{:?}]", retry_attempt+1);
+								log_progress-=1;
+								if log_progress==0 {
+									log_progress=10;
+									print!("{:?}", retry_attempt+1);
+								} else {
+									print!(".");
+								}
 								stdout.flush().unwrap();
                                 for signature_status in signature_statuses.value {
                                     if let Some(signature_status) = signature_status.as_ref() {
@@ -164,7 +182,7 @@ impl Miner {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
-                                                    println!("\n\t\t[SUCCESS]\tTransaction landed!");
+                                                    println!("[SUCCESS]\tTransaction landed!");
                                                     std::thread::sleep(Duration::from_millis(
                                                         GATEWAY_DELAY,
                                                     ));
@@ -173,38 +191,46 @@ impl Miner {
                                             }
 
                                         } else {
-                                            eprintln!("\n\t\t[ERROR]\tconfirmation_status: No status");
+                                            // eprintln!("[ERROR]\tconfirmation_status: No status");
+                                            eprint!("[E1]");
                                         }
                                     }
 								}
                             }
 
                             // Handle confirmation errors
-                            Err(err) => {
-								eprintln!("\n\t\t[ERROR]\tget_signature_statuses: {:?}", err.kind().to_string());
+                            // Err(err) => {
+							// 		eprintln!("[ERROR]\tget_signature_statuses: {:?}", err.kind().to_string());
+							// }
+							Err(_err) => {
+								eprint!("[E2]");
                             }
                         }
                     }
-                    eprintln!("\n\t\t[FAIL]\tTransaction did not land");
+                    // eprintln!("\t[FAIL]\tTransaction did not land");
+                    eprint!("[FAIL]");
                 }
 
                 // Handle submit errors
-                Err(err) => {
-                    eprintln!("\n\t\t[ERROR]\tsend_transaction_with_config: {:?}", err.kind().to_string());
+                // Err(err) => {
+                //     eprint!("[ERROR]\tsend_transaction_with_config: {:?}", err.kind().to_string());
+                // }
+                Err(_err) => {
+                    eprint!("[E3]");
                 }
             }
+            stdout.flush().unwrap();	// Just in case
 
-            stdout.flush().unwrap();
-            // stdout.flush().ok();
-
-            // If we get her then the transaction has not succeeded
-			// std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+            // If we get here then the transaction has not yet succeeded so try again
             if attempts >= GATEWAY_RETRIES {
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom("Submitted up to max retries count with no success".into()),
                 });
-            }
+            } else {
+				// Delay before retry to prevent overloading your RPC
+				std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+			}
         }
     }
 }

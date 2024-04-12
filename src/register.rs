@@ -13,10 +13,10 @@ impl Miner {
         }
 
         // Sign and send transaction.
-        println!("Generating challenge...");
+        print!("Generating challenge...");
         'send: loop {
             let ix = ore::instruction::register(signer.pubkey());
-            if self.send_and_confirm(&[ix], true, false).await.is_ok() {
+            if self.send_and_confirm(&[ix], false, false).await.is_ok() {
                 break 'send;
             }
         }
