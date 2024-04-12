@@ -28,7 +28,8 @@ pub struct Sender {
     tip_amount: u64,
 }
 
-// TODO This implicitly assumes
+// TODO This implicitly assumes tunnels > (batch size * bundle size). Generalize this
+// TODO Move tip to last ix of last tx
 
 const JITO_URL: &str = "https://mainnet.block-engine.jito.wtf/api/v1/bundles";
 const CU_LIMIT_MINE: u32 = 10_000; // 160_000; // 3200;
