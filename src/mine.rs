@@ -2,7 +2,7 @@ use std::{
     io::{stdout, Write},
     sync::{atomic::AtomicBool, Arc, Mutex},
 };
-
+use std::time::Instant;
 use ore::{self, state::Bus, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION};
 use rand::Rng;
 use solana_program::{keccak::HASH_BYTES, program_memory::sol_memcmp, pubkey::Pubkey};
@@ -29,35 +29,64 @@ impl Miner {
         // let mut stdout = stdout();
         // let stdout = stdout();
         let mut rng = rand::thread_rng();
+        let mut session_mined = 0;
+        let mut mining_passes = 0;
+		let mut initial_rewards = 0.0;
+		let mut initial_sol_balance = 0.0;
 
         // Start mining loop
         loop {
-            // Fetch account state
+			mining_passes+=1;
+			let pass_start_time = Instant::now();
+		
+		    // Fetch account state
             let balance = self.get_ore_display_balance().await;
-            let treasury = get_treasury(&self.rpc_client).await;
+			let sol_balance = self.get_sol_display_balance().await;
+			let treasury = get_treasury(&self.rpc_client).await;
             let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
-            let rewards =
-                (proof.claimable_rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
-            let reward_rate =
-                (treasury.reward_rate as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
-            println!("----------------------------------------------------------------");
+            let rewards = (proof.claimable_rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+            let reward_rate = (treasury.reward_rate as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+
+			// Set the initial rewards amount to calc what has been added in this mining session
+			if mining_passes == 1 {
+				initial_rewards=rewards;
+				initial_sol_balance=sol_balance;
+			} else {			
+            	println!("\n\n\n\n\n");								// Add a few empty lines between passes
+			}
+            // stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();	// Clear the terminal windows - hides previous path from scroll buffer
+			println!("-------------------------------------------------------------------------------");
+            println!("Mining Pass {}", mining_passes);
+			println!("-------------------------------------------------------------------------------");
             // stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
-            println!("Balance:     {} ORE", balance);
-            println!("Claimable:   {} ORE", rewards);
-            println!("Reward rate: {} ORE", reward_rate);
+            println!("Wallet:\t\t\t{}", &signer.pubkey());
+            println!("RPC_URL:\t\t{}", self.rpc_url);
+            println!("Initial SOL Price:\t${:.2}", self.initial_sol_price);
+            println!("Initial ORE Price:\t${:.2}", self.initial_ore_price);
+            println!("SOL Balance:\t\t{:.9}\t${:.2}\tUsed: {:.9}\t${:.2}", 
+					sol_balance, sol_balance*self.initial_sol_price, 
+					(sol_balance-initial_sol_balance), (sol_balance-initial_sol_balance)*self.initial_sol_price);
+			println!("ORE Balance:\t\t{:.9}\t${:.2}", balance, balance*self.initial_ore_price);
+			println!("ORE Claimable:\t\t{:.9}\t${:.2}", rewards, rewards*self.initial_ore_price);
+			println!("Session Rewards:\t{:.9}\t${:.2}\t(succeeded {} times)", 
+					(rewards-initial_rewards), (rewards-initial_rewards)*self.initial_ore_price, session_mined, );
+            println!("Reward Rate:\t\t{:.9}\t${:.2}", reward_rate, reward_rate*self.initial_ore_price);
 
             // Escape sequence that clears the screen and the scrollback buffer
-            println!("\nMining for a valid hash...");
+            let hash_start_time= Instant::now();
+			println!("\nMining for a valid hash...");
             let (next_hash, nonce) =
                 self.find_next_hash_par(proof.hash.into(), treasury.difficulty.into(), threads);
+			let hash_duration = hash_start_time.elapsed();
 
             // Submit mine tx.
             // Use busses randomly so on each epoch, transactions don't pile on the same busses
-            println!("\n\nSubmitting hash for validation...");
+            let submit_start_time= Instant::now();
+			println!("\n\nSubmitting hash for validation...");
 			let mut attempts = 0;
             'submit: loop {
                 attempts += 1;
-                println!("----------------------------------------------------------------");
+                println!("-------------------------------------------------------------------------------");
             	
 				// Double check we're submitting for the right challenge
                 let proof_ = get_proof(&self.rpc_client, signer.pubkey()).await;
@@ -94,7 +123,7 @@ impl Miner {
                 // Submit request.
                 let bus = self.find_bus_id(treasury.reward_rate).await;
                 let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
-				println!("Submit Hash {}:\tSending on bus {} ({} ORE) priority_fee: {:?}", attempts, bus.id, bus_rewards, self.priority_fee);
+				print!("Submit Hash {}:\tSending on bus {} ({} ORE) priority_fee: {:?}\t", attempts, bus.id, bus_rewards, self.priority_fee);
                 let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_MINE);
                 let cu_price_ix =
                     ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
@@ -109,12 +138,17 @@ impl Miner {
                     .await
                 {
                     Ok(sig) => {
-                        println!("Submit Hash {}:\t[SUCCESS] {}", attempts, sig);
+                        println!("\nSubmit Hash {}:\t[SUCCESS] Rewards available in wallet. TX ID: {}", attempts, sig);
+						session_mined+=1;
+						let submit_duration = submit_start_time.elapsed();
+						let pass_duration = pass_start_time.elapsed();
+                        println!("Submit Hash {}:\tTime for pass execution: (hash){}s + (submit){}s = {}s for entire pass", 
+								attempts, hash_duration.as_secs(), submit_duration.as_secs(), pass_duration.as_secs());
                         break;
                     }
                     Err(_err) => {
                         // TODO
-						eprintln!("Submit Hash {}:\t[ERROR]\tFailed to submit hash", attempts);
+						eprintln!("\nSubmit Hash {}:\t[ERROR]\tFailed to submit hash. Will retry on another bus...", attempts);
                     }
                 }
             }
@@ -244,7 +278,7 @@ impl Miner {
         true
     }
 
-    pub async fn get_ore_display_balance(&self) -> String {
+    pub async fn get_ore_display_balance(&self) -> f64 {
         let client = self.rpc_client.clone();
         let signer = self.signer();
         let token_account_address = spl_associated_token_account::get_associated_token_address(
@@ -254,12 +288,27 @@ impl Miner {
         match client.get_token_account(&token_account_address).await {
             Ok(token_account) => {
                 if let Some(token_account) = token_account {
-                    token_account.token_amount.ui_amount_string
+                    token_account.token_amount.ui_amount_string.parse().unwrap()
                 } else {
-                    "0.00".to_string()
+                    0.00
                 }
             }
-            Err(_) => "0.00".to_string(),
+            Err(_) => 0.00,
         }
     }
+
+	// 
+    pub async fn get_sol_display_balance(&self) -> f64 {
+	    let client = self.rpc_client.clone();
+        let signer = self.signer();
+		match client.get_account(&signer.pubkey()).await {
+			Ok(account) => {
+				let lamports_balance = account.lamports;							// Extract the SOL balance (in lamports)
+				let sol_balance = lamports_balance as f64 / 1_000_000_000.0;		// Convert lamports to SOL (1 SOL = 1_000_000_000 lamports)
+				return sol_balance;
+			},
+			Err(_) => 0.00,
+		}
+	}
+
 }
