@@ -21,6 +21,10 @@ use crate::{
     utils::{sleep_ms, tunnel_keypair_filepath},
 };
 
+// TODO Before register + top up, check to make sure the foremane keypair has enough SOL.
+// TODO Throw warning or error if user is trying to initialize more tunnels than they have SOL for
+// TODO Offer a recommended SOL balance
+
 pub struct Foreman {
     rpc: Arc<RpcClient>,
     keypair: Keypair,
