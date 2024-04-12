@@ -213,6 +213,7 @@ struct ClaimV2Args {
     amount: Option<f64>,
     #[arg(
         // long,
+        short = 'b',
         value_name = "TOKEN_ACCOUNT_ADDRESS",
         help = "Token account to receive mining rewards."
     )]
@@ -302,7 +303,7 @@ async fn main() {
             miner.claim(args.beneficiary, args.amount).await;
         }
         Commands::ClaimV2(args) => {
-            MinerV2::claim(rpc_client_2.clone(), args.send_interval, args.miner_wallets).await;
+            MinerV2::claim(rpc_client_2.clone(), args.send_interval, args.miner_wallets, args.beneficiary).await;
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {

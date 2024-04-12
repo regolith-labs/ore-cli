@@ -17,6 +17,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
+use std::str::FromStr;
 use std::{
     io::{stdout, Write},
     sync::{atomic::AtomicBool, Arc, Mutex},
@@ -41,6 +42,7 @@ impl MinerV2 {
         rpc_client: Arc<RpcClient>,
         send_interval: u64,
         wallets_directory_string: Option<String>,
+        beneficiary: Option<String>,
     ) {
         println!("MinerV2 claiming rewards.");
         let priority_fee = 0;
@@ -61,23 +63,40 @@ impl MinerV2 {
                 return;
             }
         }
+        let beneficiary = match beneficiary {
+            Some(beneficiary) => {
+                println!("Claim beneficiary supplied: {}", beneficiary);
+                Some(Pubkey::from_str(&beneficiary).expect("Failed to parse beneficiary address"))
+            }
+            None => None,
+        };
 
         println!("Found {} wallets", key_paths.len());
 
         for key_path in key_paths.clone() {
             if let Ok(signer) = read_keypair_file(key_path.clone()) {
                 println!("Starting claim for \n{}", signer.pubkey().to_string());
-                let token_account = MinerV2::initialize_ata(
-                    rpc_client.clone(),
-                    &signer,
-                    priority_fee,
-                    send_interval,
-                )
-                .await;
+
                 let proof = get_proof(&rpc_client, signer.pubkey()).await;
                 let rewards = proof.claimable_rewards;
                 let amount = rewards;
-                println!("Got token account: {}", token_account.to_string());
+
+                if amount == 0 {
+                    println!("No rewards to claim in this wallet.");
+                    continue;
+                }
+
+                let token_account = if let Some(beneficiary) = beneficiary {
+                    beneficiary
+                } else {
+                    MinerV2::initialize_ata(
+                        rpc_client.clone(),
+                        &signer,
+                        priority_fee,
+                        send_interval,
+                    )
+                    .await
+                };
                 println!("Proof: {:?}", proof);
                 let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_CLAIM);
                 let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(priority_fee);
@@ -95,8 +114,36 @@ impl MinerV2 {
                     .unwrap();
 
                 println!("Signing tx...");
-
                 tx.sign(&[&signer], hash);
+
+                println!("Simulating tx...");
+                let sim_res = rpc_client
+                    .simulate_transaction_with_config(
+                        &tx,
+                        RpcSimulateTransactionConfig {
+                            sig_verify: true,
+                            replace_recent_blockhash: false,
+                            commitment: Some(rpc_client.commitment()),
+                            encoding: Some(UiTransactionEncoding::Base64),
+                            accounts: None,
+                            min_context_slot: Some(last_valid_blockheight),
+                            inner_instructions: true,
+                        },
+                    )
+                    .await;
+                match sim_res {
+                    Ok(sim_res) => {
+                        if let Some(err) = sim_res.value.err {
+                            println!("Simulaton error: {:?}", err);
+                        } else {
+                            println!("Simulaton succeeded");
+                        }
+                    }
+                    Err(err) => {
+                        println!("Simulaton error: {:?}", err);
+                    }
+                }
+
                 println!("Submitting claim transaction...");
                 let send_cfg = RpcSendTransactionConfig {
                     skip_preflight: true,
