@@ -28,6 +28,9 @@ struct Miner {
     pub keypair_filepath: Option<String>,
     pub priority_fee: u64,
     pub rpc_client: Arc<RpcClient>,
+	pub initial_sol_price: f64,
+	pub initial_ore_price: f64,
+	pub rpc_url: String,
 }
 
 #[derive(Parser, Debug)]
@@ -66,6 +69,24 @@ struct Args {
         global = true
     )]
     priority_fee: u64,
+
+    #[arg(
+        long,
+        value_name = "$",
+        help = "The price in $ of SOL when the miner started",
+        default_value = "0",
+        global = true
+    )]
+    initial_sol_price: f64,
+
+    #[arg(
+        long,
+        value_name = "$",
+        help = "The price in $ of ORE when the miner started",
+        default_value = "0",
+        global = true
+    )]
+    initial_ore_price: f64,
 
     #[command(subcommand)]
     command: Commands,
@@ -192,13 +213,16 @@ async fn main() {
     // Initialize miner.
     let cluster = args.rpc.unwrap_or(cli_config.json_rpc_url);
     let default_keypair = args.keypair.unwrap_or(cli_config.keypair_path);
-    let rpc_client = RpcClient::new_with_commitment(cluster, CommitmentConfig::confirmed());
+    let rpc_client = RpcClient::new_with_commitment(cluster.clone(), CommitmentConfig::confirmed());
 
     let miner = Arc::new(Miner::new(
         Arc::new(rpc_client),
         args.priority_fee,
         Some(default_keypair),
-    ));
+		args.initial_sol_price,
+		args.initial_ore_price,
+		cluster,
+	));
 
     // Execute user command.
     match args.command {
@@ -236,11 +260,14 @@ async fn main() {
 }
 
 impl Miner {
-    pub fn new(rpc_client: Arc<RpcClient>, priority_fee: u64, keypair_filepath: Option<String>) -> Self {
+    pub fn new(rpc_client: Arc<RpcClient>, priority_fee: u64, keypair_filepath: Option<String>, initial_sol_price: f64, initial_ore_price: f64, rpc_url: String) -> Self {
         Self {
             rpc_client,
             keypair_filepath,
             priority_fee,
+			initial_sol_price,
+			initial_ore_price,
+			rpc_url,
         }
     }
 
