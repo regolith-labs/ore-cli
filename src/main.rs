@@ -15,6 +15,7 @@ mod update_admin;
 mod update_difficulty;
 mod utils;
 
+use std::fs;
 use std::sync::Arc;
 
 use clap::{command, Parser, Subcommand};
@@ -246,7 +247,15 @@ impl Miner {
 
     pub fn signer(&self) -> Keypair {
         match self.keypair_filepath.clone() {
-            Some(filepath) => read_keypair_file(filepath).unwrap(),
+            Some(filepath) => {
+                match read_keypair_file(filepath.clone()) {
+                    Ok(keypair) => keypair,
+                    Err(_) => {
+                        let private_key = fs::read_to_string(&filepath).expect("Failed to read private key file");
+                        Keypair::from_base58_string(&private_key.trim())
+                    }
+                }
+            }
             None => panic!("No keypair provided"),
         }
     }
