@@ -14,6 +14,8 @@ mod update_admin;
 #[cfg(feature = "admin")]
 mod update_difficulty;
 mod utils;
+#[cfg(feature = "metrics")]
+mod tracer;
 
 use std::sync::Arc;
 
@@ -137,6 +139,26 @@ struct MineArgs {
         default_value = "1"
     )]
     threads: u64,
+
+    #[cfg(feature = "metrics")]
+    #[arg(
+        long,
+        value_name = "METRICS",
+        help = "enable metrics",
+        default_value_t = false,
+        global = true
+    )]
+    metrics: bool,
+
+    #[cfg(feature = "metrics")]
+    #[arg(
+        long,
+        value_name = "METRICS_ENDPOINT",
+        help = "push metrics to this opentelemetry gRPC endpoint",
+        default_value = "http://localhost:4317",
+        global = true
+    )]
+    metrics_endpoint: String,
 }
 
 #[derive(Parser, Debug)]
@@ -215,6 +237,9 @@ async fn main() {
             miner.treasury().await;
         }
         Commands::Mine(args) => {
+            #[cfg(feature = "metrics")]
+            let _guard = tracer::init_tracing_subscriber(args.metrics, &args.metrics_endpoint);
+
             miner.mine(args.threads).await;
         }
         Commands::Claim(args) => {

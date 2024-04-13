@@ -33,6 +33,11 @@ impl Miner {
         dynamic_cus: bool,
         skip_confirm: bool,
     ) -> ClientResult<Signature> {
+        #[cfg(feature = "metrics")]
+        let span = tracing::info_span!(target: "otel", "sending transaction" , method = "send_and_confirm");
+        #[cfg(feature = "metrics")]
+        let _guard = span.enter();
+
         let mut stdout = stdout();
         let signer = self.signer();
         let client = self.rpc_client.clone();
@@ -63,6 +68,8 @@ impl Miner {
         // Simulate tx
         let mut sim_attempts = 0;
         'simulate: loop {
+            #[cfg(feature = "metrics")]
+            tracing::info!(target: "otel", tx_type = "sim", monotonic_counter.send_tx = 1_u64);
             let sim_res = client
                 .simulate_transaction_with_config(
                     &tx,
@@ -124,6 +131,8 @@ impl Miner {
         // let mut sigs = vec![];
         let mut attempts = 0;
         loop {
+            #[cfg(feature = "metrics")]
+            tracing::info!(target: "otel", tx_type = "sign", monotonic_counter.send_tx = 1_u64);
             println!("Attempt: {:?}", attempts);
             match client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
