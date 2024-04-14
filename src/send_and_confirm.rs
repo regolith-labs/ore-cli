@@ -63,7 +63,7 @@ impl Miner {
         let mut tx = Transaction::new_with_payer(ixs, Some(&signer.pubkey()));
 
         // Simulate tx
-        let mut sim_attempts = 1;
+        let mut sim_attempts = 0;
 		'simulate: loop {
 			sim_attempts += 1;
             let sim_res = client
@@ -112,7 +112,6 @@ impl Miner {
             }
 
             // Abort if sim fails
-			sim_attempts += 1;
             if sim_attempts.gt(&SIMULATION_RETRIES) {
                 return Err(ClientError {
                     request: None,
