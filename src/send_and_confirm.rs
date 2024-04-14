@@ -126,8 +126,7 @@ impl Miner {
             .await
             .unwrap();
 
-		
-        // Submit tx
+        // Sign the transaction
         tx.sign(&[&signer], hash);
 
         // let mut sigs = vec![];
@@ -138,9 +137,6 @@ impl Miner {
 				print!("\t{:?}/{:?}:", attempts, GATEWAY_RETRIES);
 				stdout.flush().unwrap();
 			}
-			// Delay at start of attempt to prevent overloading your RPC
-			std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
-
 			// Attempt to send the transaction
 			match client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
@@ -155,7 +151,7 @@ impl Miner {
                         return Ok(sig);
                     }
 
-					// Delay to prevent overloading your RPC
+					// Delay to prevent overloading your RPC & give the transaction a chance to process
 					std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
 		
 					let mut log_progress = 10;
@@ -165,8 +161,6 @@ impl Miner {
 		
 		                match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
-                                // print!(" [{:?}: {:?}]", retry_attempt+1, signature_statuses.value[0]);
-								// print!("[{:?}]", retry_attempt+1);
 								log_progress-=1;
 								if log_progress==0 {
 									log_progress=10;
@@ -187,9 +181,9 @@ impl Miner {
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
                                                     println!("[SUCCESS]\tTransaction landed!");
-                                                    std::thread::sleep(Duration::from_millis(
-                                                        GATEWAY_DELAY,
-                                                    ));
+                                                    // std::thread::sleep(Duration::from_millis(
+                                                    //     GATEWAY_DELAY,
+                                                    // ));
                                                     return Ok(sig);
                                                 }
                                             }
@@ -202,24 +196,15 @@ impl Miner {
 								}
                             }
 
-                            // Handle confirmation errors
-                            // Err(err) => {
-							// 		eprintln!("[ERROR]\tget_signature_statuses: {:?}", err.kind().to_string());
-							// }
-							Err(_err) => {
+							Err(_err) => {	// Error Trap for get_signature_statuses
 								eprint!("[E2]");
                             }
                         }
                     }
-                    // eprintln!("\t[FAIL]\tTransaction did not land");
                     eprint!("[FAIL]");
                 }
 
-                // Handle submit errors
-                // Err(err) => {
-                //     eprint!("[ERROR]\tsend_transaction_with_config: {:?}", err.kind().to_string());
-                // }
-                Err(_err) => {
+                Err(_err) => {	// Error trap for send_transaction_with_config
                     eprint!("[E3]");
                 }
             }
@@ -231,10 +216,9 @@ impl Miner {
                     request: None,
                     kind: ClientErrorKind::Custom("Submitted up to max retries count with no success".into()),
                 });
-            // } else {
-			// 	// Delay before retry to prevent overloading your RPC
-			// 	std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
 			}
+			// Delay at end of attempt to prevent overloading your RPC
+			std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
         }
     }
 }
