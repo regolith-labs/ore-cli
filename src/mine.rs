@@ -109,10 +109,8 @@ impl Miner {
                     // There are a lot of miners right now, so randomly select into submitting tx
                     if rng.gen_range(0..RESET_ODDS).eq(&0) {
                         println!("Submit Hash {}:\tSending epoch reset transaction...", attempts);
-                        let cu_limit_ix =
-                            ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_RESET);
-                        let cu_price_ix =
-                            ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
+                        let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_RESET);
+                        let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
                         let reset_ix = ore::instruction::reset(signer.pubkey());
                         self.send_and_confirm(&[cu_limit_ix, cu_price_ix, reset_ix], false, true)
                             .await
@@ -125,8 +123,7 @@ impl Miner {
                 let bus_rewards = (bus.rewards as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
 				print!("Submit Hash {}:\tSending on bus {} ({} ORE) priority_fee: {:?}\t", attempts, bus.id, bus_rewards, self.priority_fee);
                 let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_MINE);
-                let cu_price_ix =
-                    ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
+                let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
                 let ix_mine = ore::instruction::mine(
                     signer.pubkey(),
                     BUS_ADDRESSES[bus.id as usize],
