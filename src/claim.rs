@@ -42,7 +42,7 @@ impl Miner {
         let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_CLAIM);
         let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
         let claim_ix = ore::instruction::claim(pubkey, beneficiary, amount);
-        print!("CLAIM Rewards:\tSubmitting claim transaction...priority_fee: {:?}", self.priority_fee);
+        print!("CLAIM Rewards:\tSubmitting claim transaction...priority_fee: {:?} ", self.priority_fee);
         match self
             .send_and_confirm(&[cu_limit_ix, cu_price_ix, claim_ix], false, false)
             .await
