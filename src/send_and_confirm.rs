@@ -129,7 +129,7 @@ impl Miner {
 
 		
         // Submit tx
-        tx.sign(&[&signer], hash).await;
+        tx.sign(&[&signer], hash);
 
         // let mut sigs = vec![];
         let mut attempts = 0;
