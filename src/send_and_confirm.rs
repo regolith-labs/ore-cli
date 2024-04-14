@@ -21,7 +21,7 @@ use crate::Miner;
 
 const RPC_RETRIES: usize = 0;
 const SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 15;
+const GATEWAY_RETRIES: usize = 10;
 const CONFIRM_RETRIES: usize = 3;
 
 const CONFIRM_DELAY: u64 = 2500;
@@ -63,8 +63,9 @@ impl Miner {
         let mut tx = Transaction::new_with_payer(ixs, Some(&signer.pubkey()));
 
         // Simulate tx
-        let mut sim_attempts = 0;
+        let mut sim_attempts = 1;
 		'simulate: loop {
+			sim_attempts += 1;
             let sim_res = client
                 .simulate_transaction_with_config(
                     &tx,
@@ -81,7 +82,6 @@ impl Miner {
                 .await;
             match sim_res {
                 Ok(sim_res) => {
-					sim_attempts += 1;
 					print!("[Sim {:?}] ", sim_attempts);
 					stdout.flush().unwrap();
 
@@ -112,6 +112,7 @@ impl Miner {
             }
 
             // Abort if sim fails
+			sim_attempts += 1;
             if sim_attempts.gt(&SIMULATION_RETRIES) {
                 return Err(ClientError {
                     request: None,
@@ -126,8 +127,10 @@ impl Miner {
             .await
             .unwrap();
 
+		
         // Submit tx
-        tx.sign(&[&signer], hash);
+        tx.sign(&[&signer], hash).await;
+
         // let mut sigs = vec![];
         let mut attempts = 0;
         loop {
@@ -136,6 +139,8 @@ impl Miner {
 				print!("\t{:?}/{:?}:", attempts, GATEWAY_RETRIES);
 				stdout.flush().unwrap();
 			}
+			// Delay at start of attempt to prevent overloading your RPC
+			std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
 
 			// Attempt to send the transaction
 			match client.send_transaction_with_config(&tx, send_cfg).await {
@@ -227,9 +232,9 @@ impl Miner {
                     request: None,
                     kind: ClientErrorKind::Custom("Submitted up to max retries count with no success".into()),
                 });
-            } else {
-				// Delay before retry to prevent overloading your RPC
-				std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+            // } else {
+			// 	// Delay before retry to prevent overloading your RPC
+			// 	std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
 			}
         }
     }

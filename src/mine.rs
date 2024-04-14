@@ -53,9 +53,9 @@ impl Miner {
 				initial_sol_balance=sol_balance;
 			} else {			
             	println!("\n\n\n\n\n");								// Add a few empty lines between passes
+				println!("-------------------------------------------------------------------------------");
 			}
             // stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();	// Clear the terminal windows - hides previous path from scroll buffer
-			println!("-------------------------------------------------------------------------------");
             println!("Mining Pass {}", mining_passes);
 			println!("-------------------------------------------------------------------------------");
             // stdout.write_all(b"\x1b[2J\x1b[3J\x1b[H").ok();
@@ -65,7 +65,7 @@ impl Miner {
             println!("Initial ORE Price:\t${:.2}", self.initial_ore_price);
             println!("SOL Balance:\t\t{:.9}\t${:.2}\tUsed: {:.9}\t${:.2}", 
 					sol_balance, sol_balance*self.initial_sol_price, 
-					(sol_balance-initial_sol_balance), (sol_balance-initial_sol_balance)*self.initial_sol_price);
+					(initial_sol_balance-sol_balance), (initial_sol_balance-sol_balance)*self.initial_sol_price);
 			println!("ORE Balance:\t\t{:.9}\t${:.2}", balance, balance*self.initial_ore_price);
 			println!("ORE Claimable:\t\t{:.9}\t${:.2}", rewards, rewards*self.initial_ore_price);
 			println!("Session Rewards:\t{:.9}\t${:.2}\t(succeeded {} times)", 
