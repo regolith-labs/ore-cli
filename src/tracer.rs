@@ -17,7 +17,9 @@ use opentelemetry_semantic_conventions::{
 };
 use tracing_core::Level;
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_subscriber::fmt::Subscriber;
 
 
 fn version() -> String {
@@ -104,7 +106,9 @@ pub fn init_tracing_subscriber(enabled: bool, endpoint: &str) -> OtelGuard {
       .with(OpenTelemetryLayer::new(init_tracer(endpoint)))
       .init();
   } else {
-    tracing_subscriber::fmt::init();
+    let builder = Subscriber::builder();
+    let builder = builder.with_env_filter(EnvFilter::from_default_env()).with_span_events(FmtSpan::CLOSE);
+    builder.init();
   }
   OtelGuard { meter_provider: Some(meter_provider) }
 }
