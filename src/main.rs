@@ -236,7 +236,11 @@ async fn main() {
 }
 
 impl Miner {
-    pub fn new(rpc_client: Arc<RpcClient>, priority_fee: u64, keypair_filepath: Option<String>) -> Self {
+    pub fn new(
+        rpc_client: Arc<RpcClient>,
+        priority_fee: u64,
+        keypair_filepath: Option<String>,
+    ) -> Self {
         Self {
             rpc_client,
             keypair_filepath,
