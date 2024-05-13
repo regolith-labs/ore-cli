@@ -3,16 +3,12 @@ use std::str::FromStr;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 
-use crate::{
-    args::BalanceArgs,
-    utils::{amount_u64_to_string, get_proof},
-    Miner,
-};
+use crate::Miner;
 
 impl Miner {
-    pub async fn balance(&self, args: BalanceArgs) {
+    pub async fn balance(&self, address: Option<String>) {
         let signer = self.signer();
-        let address = if let Some(address) = args.address {
+        let address = if let Some(address) = address {
             if let Ok(address) = Pubkey::from_str(&address) {
                 address
             } else {
@@ -22,24 +18,22 @@ impl Miner {
         } else {
             signer.pubkey()
         };
-        let proof = get_proof(&self.rpc_client, address).await;
+        let client = self.rpc_client.clone();
         let token_account_address = spl_associated_token_account::get_associated_token_address(
             &address,
             &ore::MINT_ADDRESS,
         );
-        let token_balance = if let Ok(Some(token_account)) = self
-            .rpc_client
-            .get_token_account(&token_account_address)
-            .await
-        {
-            token_account.token_amount.ui_amount_string
-        } else {
-            "0".to_string()
-        };
-        println!(
-            "Balance: {} ORE\nStake: {} ORE",
-            token_balance,
-            amount_u64_to_string(proof.balance)
-        )
+        match client.get_token_account(&token_account_address).await {
+            Ok(token_account) => {
+                if let Some(token_account) = token_account {
+                    println!("{:} ORE", token_account.token_amount.ui_amount_string);
+                } else {
+                    println!("Account not found");
+                }
+            }
+            Err(err) => {
+                println!("{:?}", err);
+            }
+        }
     }
 }
