@@ -2,36 +2,28 @@ use std::str::FromStr;
 
 use ore::{self, state::Proof, utils::AccountDeserialize};
 use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
+use solana_sdk::{compute_budget::ComputeBudgetInstruction, signature::Signer};
 
-use crate::{
-    args::ClaimArgs,
-    cu_limits::CU_LIMIT_CLAIM,
-    send_and_confirm::ComputeBudget,
-    utils::{amount_f64_to_u64, proof_pubkey},
-    Miner,
-};
-
-// TODO Burn warning
+use crate::{cu_limits::CU_LIMIT_CLAIM, utils::proof_pubkey, Miner};
 
 impl Miner {
-    pub async fn claim(&self, args: ClaimArgs) {
+    pub async fn claim(&self, beneficiary: Option<String>, amount: Option<f64>) {
         let signer = self.signer();
         let pubkey = signer.pubkey();
         let client = self.rpc_client.clone();
-        let beneficiary = match args.beneficiary {
+        let beneficiary = match beneficiary {
             Some(beneficiary) => {
                 Pubkey::from_str(&beneficiary).expect("Failed to parse beneficiary address")
             }
             None => self.initialize_ata().await,
         };
-        let amount = if let Some(amount) = args.amount {
-            amount_f64_to_u64(amount)
+        let amount = if let Some(amount) = amount {
+            (amount * 10f64.powf(ore::TOKEN_DECIMALS as f64)) as u64
         } else {
             match client.get_account(&proof_pubkey(pubkey)).await {
                 Ok(proof_account) => {
                     let proof = Proof::try_from_bytes(&proof_account.data).unwrap();
-                    proof.balance
+                    proof.claimable_rewards
                 }
                 Err(err) => {
                     println!("Error looking up claimable rewards: {:?}", err);
@@ -39,10 +31,23 @@ impl Miner {
                 }
             }
         };
+        let amountf = (amount as f64) / (10f64.powf(ore::TOKEN_DECIMALS as f64));
+        let cu_limit_ix = ComputeBudgetInstruction::set_compute_unit_limit(CU_LIMIT_CLAIM);
+        let cu_price_ix = ComputeBudgetInstruction::set_compute_unit_price(self.priority_fee);
         let ix = ore::instruction::claim(pubkey, beneficiary, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        println!("Submitting claim transaction...");
+        match self
+            .send_and_confirm(&[cu_limit_ix, cu_price_ix, ix], false, false)
             .await
-            .ok();
+        {
+            Ok(sig) => {
+                println!("Claimed {:} ORE to account {:}", amountf, beneficiary);
+                println!("{:?}", sig);
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+            }
+        }
     }
 
     async fn initialize_ata(&self) -> Pubkey {
@@ -68,9 +73,11 @@ impl Miner {
             &ore::MINT_ADDRESS,
             &spl_token::id(),
         );
-        self.send_and_confirm(&[ix], ComputeBudget::Dynamic, false)
-            .await
-            .ok();
+        println!("Creating token account {}...", token_account_pubkey);
+        match self.send_and_confirm(&[ix], true, false).await {
+            Ok(_sig) => println!("Created token account {:?}", token_account_pubkey),
+            Err(e) => println!("Transaction failed: {:?}", e),
+        }
 
         // Return token account address
         token_account_pubkey
