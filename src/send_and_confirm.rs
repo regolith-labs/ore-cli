@@ -16,6 +16,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
+use chrono::prelude::*;
 
 use crate::Miner;
 
@@ -119,8 +120,10 @@ impl Miner {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
-                                                    progress_bar.finish_with_message(format!(
-                                                        "Confirmed: {}",
+													let date_as_string = Utc::now().format("%Y-%m-%d-%H-%M-%S").to_string();
+													progress_bar.finish_with_message(format!(
+                                                        "{} Confirmed: {}",
+														date_as_string,
                                                         sig
                                                     ));
                                                     return Ok(sig);

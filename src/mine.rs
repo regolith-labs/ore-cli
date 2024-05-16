@@ -6,6 +6,7 @@ use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
+use chrono::prelude::*;
 
 // #[cfg(feature = "gpu")]
 // use drillx::{
@@ -29,19 +30,24 @@ impl Miner {
         // Benchmark the gpu
         // #[cfg(feature = "gpu")]
         // self.benchmark_gpu(args.buffer_time).await;
+		let mut pass=1;
 
         // Start mining loop
         loop {
+			let pass_start_time = Instant::now();
+
             // Fetch proof
             let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
-            println!(
-                "\nStake balance: {} ORE",
+            // let date_as_string = Utc::now().format("%Y-%m-%d-%H-%M-%S").to_string();
+			println!("\nPass {}: Staked ORE: {}",
+				pass,
                 amount_u64_to_string(proof.balance)
             );
 
             // Calc cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
 
+			let hash_start_time = Instant::now();
             // Run drillx (gpu)
             // #[cfg(feature = "gpu")]
             // let solution = self.find_hash_gpu(proof, cutoff_time).await;
@@ -49,6 +55,7 @@ impl Miner {
             // Run drillx
             // #[cfg(not(feature = "gpu"))]
             let solution = self.find_hash_par(proof, cutoff_time, args.threads).await;
+			let hash_duration = hash_start_time.elapsed();
 
             // Submit most difficult hash
             let mut ixs = vec![];
@@ -60,9 +67,20 @@ impl Miner {
                 find_bus(),
                 solution,
             ));
+			let submit_start_time = Instant::now();
             self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false)
                 .await
                 .ok();
+			let submit_duration = submit_start_time.elapsed();
+
+			let pass_duration = pass_start_time.elapsed();
+            println!("  {} Hash Duration: [{}s]\tSubmit Duration: [{}s]\t= Pass Duration: [{}s]",
+				Utc::now().format("%Y-%m-%d-%H-%M-%S").to_string(),
+				hash_duration.as_secs(),
+				submit_duration.as_secs(),
+				pass_duration.as_secs()
+			);
+			pass=pass+1;
         }
     }
 
@@ -201,8 +219,10 @@ impl Miner {
         }
 
         // Update log
+		let date_as_string = Utc::now().format("%Y-%m-%d-%H-%M-%S").to_string();
         progress_bar.finish_with_message(format!(
-            "Best hash: {} (difficulty: {})",
+            "{} Best hash: {} (difficulty: {})",
+			date_as_string,
             bs58::encode(best_hash.h).into_string(),
             best_difficulty
         ));

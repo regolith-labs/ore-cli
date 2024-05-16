@@ -1,13 +1,12 @@
 #!/bin/bash
 #
 #devnet config
-ORE_BIN=./target/release/ore
+source ./ore_env.sh
 
-RPC_URL=https://api.devnet.solana.com
-# RPC_URL=http://localhost:8899
-KEY=~/.config/solana/id.json
-FEE=11
-THREADS=4
+RPC_URL=$DEFAULT_RPC_URL
+KEY=$DEFAULT_KEY
+FEE=$DEFAULT_FEE
+THREADS=$DEFAULT_THREADS
 
 MINER_NAME="Miner ${1:-1}"
 
