@@ -1,0 +1,43 @@
+#!/bin/bash
+#
+#devnet config
+ORE_BIN=./target/release/ore
+
+RPC_URL=https://api.devnet.solana.com
+# RPC_URL=http://localhost:8899
+KEY=~/.config/solana/id.json
+FEE=11
+THREADS=4
+
+MINER_NAME="Miner ${1:-1}"
+
+if [ ! -f ${KEY} ]; then
+	echo "Sorry, the key file does not exist: ${KEY}"
+	exit 2
+fi
+
+if [ ! -f ${ORE_BIN} ]; then
+	echo "Sorry, the ore-cli file does not exist: ${ORE_BIN}"
+	exit 2
+fi
+
+solana config set --url localhost
+
+# while true; do
+	echo -------------------------------------------------------------------------------
+	echo `date +'%Y-%m-%d %H:%M:%S'` Starting ${MINER_NAME}.....
+	echo `date +'%Y-%m-%d %H:%M:%S'` Wallet: ${KEY}
+	echo `date +'%Y-%m-%d %H:%M:%S'` RPC: ${RPC_URL}
+	echo `date +'%Y-%m-%d %H:%M:%S'` ore-cli: ${ORE_BIN}
+
+	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial SOL Price:	\$${SOL_PRICE}"
+	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial ORE Price:	\$${ORE_PRICE}"
+	echo -------------------------------------------------------------------------------
+	# start the miner
+	COMMAND="${ORE_BIN} mine --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE} --threads ${THREADS} --buffer-time 2"
+	echo ${COMMAND}
+	eval $COMMAND
+	[ $? -eq 0 ] && break
+	# echo `date +'%Y-%m-%d %H:%M:%S'` "Restart in 5 seconds..."
+	# sleep 5
+# done
