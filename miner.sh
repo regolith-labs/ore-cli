@@ -20,7 +20,7 @@ if [ ! -f ${ORE_BIN} ]; then
 	exit 2
 fi
 
-solana config set --url localhost
+solana config set --url ${RPC1}
 
 # while true; do
 	echo -------------------------------------------------------------------------------

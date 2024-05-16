@@ -1,7 +1,11 @@
 #!/bin/bash
 #
-solana config set --url devnet
-#solana config set --url localhost
-# solana-keygen new
+source ./ore_env.priv.sh
+
+solana config set --url ${RPC1}
+# solana config set --url localhost
+if [ "$1" = "new" ]; then
+	solana-keygen new --force
+fi
 solana-keygen verify $(solana-keygen pubkey) ~/.config/solana/id.json
-solana airdrop 5
+solana airdrop 1

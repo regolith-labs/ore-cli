@@ -44,7 +44,7 @@ retval1=$?
 # retval2=$?
 
 # Display Balance: XXX Staked: XXXX
-echo "$(echo ${balance} | awk '{printf("%s %.10f %s %.10f", $1,$2,$4,$5)}')"
+echo "$(echo ${balance} | awk '{printf("%s %.11f %s %.11f", $1,$2,$4,$5)}')"
 
 # u=$(echo "${rewards}" | tr -dc '0-9.')
 # b=$(echo "${balance}" | tr -dc '0-9.')

@@ -43,8 +43,8 @@ cutoff=0.10
 # valueString=$(echo "${u} ${ORE_PRICE}" | awk '{print $1 * $2}')
 balance=$(${ORE_BIN} --rpc ${RPC_URL} --keypair ${KEY} balance)
 retval1=$?
-balanceVal=$(echo ${balance} | awk '{printf("%.10f", $2)}')
-stakedVal=$(echo ${balance} | awk '{printf("%.10f", $5)}')
+balanceVal=$(echo ${balance} | awk '{printf("%.11f", $2)}')
+stakedVal=$(echo ${balance} | awk '{printf("%.11f", $5)}')
 
 ./unclaimedbalance.sh
 echo "This wallet can currently withdraw ${stakedVal} staked ORE"

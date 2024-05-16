@@ -47,9 +47,9 @@ balanceVal=$(echo ${balance} | awk '{printf("%.11f", $2)}')
 stakedVal=$(echo ${balance} | awk '{printf("%.11f", $5)}')
 
 ./unclaimedbalance.sh
-echo "Wallet has ${balanceVal} ready to add to current stake ${stakedVal}"
+echo "Wallet balance=${balanceVal} staked=${stakedVal}"
 echo ------------------------------------------------------------------------------------------
-echo "Staking additional ${stakedVal} ORE...."
-balance=$(${ORE_BIN} --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE} stake)
+echo "Closing accounts...."
+balance=$(${ORE_BIN} --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE} close)
 echo ------------------------------------------------------------------------------------------
 ./unclaimedbalance.sh

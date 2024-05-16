@@ -1,4 +1,5 @@
 use std::time::Duration;
+use std::time::Instant;
 
 use colored::*;
 use solana_client::{
@@ -17,7 +18,6 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
-use chrono::prelude::*;
 
 use crate::Miner;
 
@@ -29,7 +29,7 @@ const GATEWAY_RETRIES: usize = 150;
 const CONFIRM_RETRIES: usize = 1;
 
 const CONFIRM_DELAY: u64 = 0;
-const GATEWAY_DELAY: u64 = 300;
+const GATEWAY_DELAY: u64 = 1300;
 
 pub enum ComputeBudget {
     Dynamic,
@@ -43,8 +43,7 @@ impl Miner {
         compute_budget: ComputeBudget,
         skip_confirm: bool,
     ) -> ClientResult<Signature> {
-        let progress_bar = spinner::new_progress_bar();
-        let signer = self.signer();
+		let signer = self.signer();
         let client = self.rpc_client.clone();
 
         // Return error, if balance is zero
@@ -94,13 +93,23 @@ impl Miner {
 
         // Submit tx
         let mut attempts = 0;
-        loop {
-            progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts));
+		let submit_start_time: Instant = Instant::now();
+		// let elapsed=submit_start_time.elapsed();
+		let progress_bar = spinner::new_progress_bar();
+		loop {
+			progress_bar.set_message(format!("[{}s] (attempt {}) Submitting transaction...",
+				submit_start_time.elapsed().as_secs().to_string(),
+				attempts,
+			));
             match client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
                     // Skip confirmation
                     if skip_confirm {
-                        progress_bar.finish_with_message(format!("Sent: {}", sig));
+                        progress_bar.finish_with_message(format!("[{}s] (attempt {}) Sent: {}",
+							submit_start_time.elapsed().as_secs().to_string(),
+							attempts,
+							sig.to_string().dimmed(),
+						));
                         return Ok(sig);
                     }
 
@@ -112,7 +121,19 @@ impl Miner {
                                 for status in signature_statuses.value {
                                     if let Some(status) = status {
                                         if let Some(err) = status.err {
-                                            progress_bar.set_message(format!("Error: {}", err));
+											// println!("  [{}s] (attempt {}) {} {}",
+											// 	submit_start_time.elapsed().as_secs().to_string(),
+											// 	attempts,
+											// 	"ERROR-A".bold().red(),
+											// 	err.to_string(),
+											// );
+                                            progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
+												submit_start_time.elapsed().as_secs().to_string(),
+												attempts,
+												"ERROR-A".bold().red(),
+												err.to_string(),
+											));
+											println!(""); // leave error visible
                                             return Err(ClientError {
                                                 request: None,
                                                 kind: ClientErrorKind::Custom(err.to_string()),
@@ -124,10 +145,11 @@ impl Miner {
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
                                                     progress_bar.finish_with_message(format!(
-                                                        "{} {} {}",
-														date_as_string,
-                                                        "OK".bold().green(),
-                                                        sig
+                                                        "[{}s] (attempt {}) {} txid: {}",
+														submit_start_time.elapsed().as_secs().to_string(),
+														attempts,
+                                                        "SUCCESS".bold().green(),
+                                                        sig.to_string().dimmed()
                                                     ));
                                                     return Ok(sig);
                                                 }
@@ -139,11 +161,19 @@ impl Miner {
 
                             // Handle confirmation errors
                             Err(err) => {
-                                progress_bar.set_message(format!(
-                                    "{}: {}",
-                                    "ERROR".bold().red(),
-                                    err.kind().to_string()
+								// println!("  [{}s] (attempt {}) {} {}",
+								// 	submit_start_time.elapsed().as_secs().to_string(),
+								// 	attempts,
+                                //     "ERROR".bold().red(),
+                                //     err.kind().to_string()
+								// );
+                                progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
+									submit_start_time.elapsed().as_secs().to_string(),
+									attempts,
+									"ERROR-B".bold().red(),
+									err.kind().to_string()
                                 ));
+								println!(""); // leave error visible
                             }
                         }
                     }
@@ -151,11 +181,19 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    progress_bar.set_message(format!(
-                        "{}: {}",
-                        "ERROR".bold().red(),
-                        err.kind().to_string()
+                    // println!("  [{}s] (attempt {}) {} {}",
+					// 	submit_start_time.elapsed().as_secs().to_string(),
+					// 	attempts,
+                    //     "ERROR".bold().red(),
+                    //     err.kind().to_string()
+                    // );
+                    progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
+						submit_start_time.elapsed().as_secs().to_string(),
+						attempts,
+						"ERROR-C".bold().red(),
+						err.kind().to_string()
                     ));
+					println!(""); // leave error visible
                 }
             }
 
@@ -163,7 +201,11 @@ impl Miner {
             std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
             attempts += 1;
             if attempts > GATEWAY_RETRIES {
-                progress_bar.finish_with_message(format!("{}: Max retries", "ERROR".bold().red()));
+                progress_bar.finish_with_message(format!("[{}s] (attempt {}) {}: Max retries",
+					submit_start_time.elapsed().as_secs().to_string(),
+					attempts,
+					"ERROR-D".bold().red()
+				));
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),
