@@ -103,7 +103,7 @@ impl Miner {
 				let mut last_pass_sol_used=current_sol_balance-last_sol_balance;
 				// Sol has been added to wallet so disregard the last passed sol_used as it is incorrect
 				if last_pass_sol_used>0.0 {
-					last_pass_sol_used=0.0;
+					last_pass_sol_used=-0.0;
 				}
 				// not sure how to detect a change in sol level after the start of the last pass that is not just a transaction fee.
 				session_sol_used-=last_pass_sol_used;	// Update the session sol used tally
