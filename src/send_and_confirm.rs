@@ -31,6 +31,7 @@ const CONFIRM_RETRIES: usize = 1;
 const CONFIRM_DELAY: u64 = 0;
 const GATEWAY_DELAY: u64 = 1300;
 
+
 pub enum ComputeBudget {
     Dynamic,
     Fixed(u32),
@@ -42,21 +43,24 @@ impl Miner {
         ixs: &[Instruction],
         compute_budget: ComputeBudget,
         skip_confirm: bool,
+		skip_sol_check: bool,
     ) -> ClientResult<Signature> {
 		let signer = self.signer();
         let client = self.rpc_client.clone();
 
         // Return error, if balance is zero
-        if let Ok(balance) = client.get_balance(&signer.pubkey()).await {
-            if balance <= sol_to_lamports(MIN_SOL_BALANCE) {
-                panic!(
-                    "{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
-                    "ERROR".bold().red(),
-                    lamports_to_sol(balance),
-                    MIN_SOL_BALANCE
-                );
-            }
-        }
+		if !skip_sol_check {
+			if let Ok(balance) = client.get_balance(&signer.pubkey()).await {
+				if balance <= sol_to_lamports(MIN_SOL_BALANCE) {
+					panic!(
+						"{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
+						"ERROR".bold().red(),
+						lamports_to_sol(balance),
+						MIN_SOL_BALANCE
+					);
+				}
+			}
+		}
 
         // Set compute units
         let mut final_ixs = vec![];
@@ -121,12 +125,6 @@ impl Miner {
                                 for status in signature_statuses.value {
                                     if let Some(status) = status {
                                         if let Some(err) = status.err {
-											// println!("  [{}s] (attempt {}) {} {}",
-											// 	submit_start_time.elapsed().as_secs().to_string(),
-											// 	attempts,
-											// 	"ERROR-A".bold().red(),
-											// 	err.to_string(),
-											// );
                                             progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
 												submit_start_time.elapsed().as_secs().to_string(),
 												attempts,
@@ -145,7 +143,7 @@ impl Miner {
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
                                                     progress_bar.finish_with_message(format!(
-                                                        "[{}s] (attempt {}) {} txid: {}",
+                                                        "[{}s] (attempt {}) {}\tTxid: {}",
 														submit_start_time.elapsed().as_secs().to_string(),
 														attempts,
                                                         "SUCCESS".bold().green(),
@@ -161,12 +159,6 @@ impl Miner {
 
                             // Handle confirmation errors
                             Err(err) => {
-								// println!("  [{}s] (attempt {}) {} {}",
-								// 	submit_start_time.elapsed().as_secs().to_string(),
-								// 	attempts,
-                                //     "ERROR".bold().red(),
-                                //     err.kind().to_string()
-								// );
                                 progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
 									submit_start_time.elapsed().as_secs().to_string(),
 									attempts,
@@ -181,12 +173,6 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    // println!("  [{}s] (attempt {}) {} {}",
-					// 	submit_start_time.elapsed().as_secs().to_string(),
-					// 	attempts,
-                    //     "ERROR".bold().red(),
-                    //     err.kind().to_string()
-                    // );
                     progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
 						submit_start_time.elapsed().as_secs().to_string(),
 						attempts,

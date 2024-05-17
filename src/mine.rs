@@ -1,5 +1,7 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Instant, Duration};
+use humantime::format_duration;
+use systemstat::{System, Platform};
 
 use colored::*;
 use drillx::{
@@ -8,15 +10,19 @@ use drillx::{
 };
 use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION};
 use rand::Rng;
-use solana_program::pubkey::Pubkey;
+use solana_program::{
+	pubkey::Pubkey,
+    native_token::{lamports_to_sol, sol_to_lamports},
+};
+
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
 use chrono::prelude::*;
 
 use crate::{
     args::MineArgs,
-    send_and_confirm::ComputeBudget,
-    utils::{amount_u64_to_string, get_clock, get_config, get_proof},
+	send_and_confirm::ComputeBudget,
+    utils::{amount_u64_to_f64, get_clock, get_config, get_proof},
     Miner,
 };
 
@@ -26,16 +32,56 @@ impl Miner {
         let signer = self.signer();
         self.register().await;
 
+		let sys = System::new();
+
         // Check num threads
         self.check_num_cores(args.threads);
+		let mining_start_time = Instant::now();
 		let mut pass=1;
+		let mut current_sol_balance: f64;
+		let mut current_staked_balance: f64;
+
+		let mut starting_sol_balance: f64 = 0.0;
+		let mut starting_staked_balance: f64 = 0.0;
+
+		let mut last_sol_balance: f64 = 0.0;
+		let mut last_staked_balance: f64 = 0.0;
 
         // Start mining loop
         loop {
 			let pass_start_time = Instant::now();
-			println!("\nPass {} started at {}",
+
+			// Lookup CPU stats
+			let mut load_avg_1min: f32=0.0;
+			let mut load_avg_5min: f32=0.0;
+			let mut load_avg_15min: f32=0.0;
+			let mut cpu_temp: f32=-1.0;
+			match sys.load_average() {
+				Ok(load_avg) => {
+					// println!("Load average (1 min): {:.2}", load_avg.one);
+					// println!("Load average (5 min): {:.2}", load_avg.five);
+					// println!("Load average (15 min): {:.2}", load_avg.fifteen);
+					load_avg_1min=load_avg.one;
+					load_avg_5min=load_avg.five;
+					load_avg_15min=load_avg.fifteen;
+				}
+				Err(err) => eprintln!("Error: {}", err),
+			}
+			match sys.cpu_temp() {
+				Ok(_cpu_temp) => {
+					cpu_temp=_cpu_temp;
+				}
+				Err(err) => eprintln!("Error: {}", err),
+			}
+
+			println!("Pass {} started at {}\tMined for {}\tCPU: {:.2}°C {:.2}/{:.2}/{:.2}",
 				pass,
 				Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
+				format_duration(Duration::from_secs(mining_start_time.elapsed().as_secs())),
+				cpu_temp,
+				load_avg_1min,
+				load_avg_5min,
+				load_avg_15min,
 			);
 
             // Fetch proof
@@ -44,11 +90,31 @@ impl Miner {
 			// Calc cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
 
-			println!("        Currently staked ORE: {}\tMining duration: {}s",
-                amount_u64_to_string(proof.balance),
-				cutoff_time,
-            );
+			current_sol_balance=self.get_sol_balance().await;
+			current_staked_balance=amount_u64_to_f64(proof.balance);
 
+			// log the initial sol/staked balances
+			if pass==1 {
+				starting_sol_balance=current_sol_balance;
+				starting_staked_balance=current_staked_balance;
+				last_sol_balance=current_sol_balance;
+				last_staked_balance=current_staked_balance;
+			}
+
+			println!("        Currently staked ORE: {:.11}\tWallet SOL:  {:.9}",
+				current_staked_balance,
+				current_sol_balance,
+            );
+			println!("        Last pass:   - Mined: {:.11}\t      Cost: {:.9}\tSession: {:.11} ORE\t{:.9} SOL",
+				current_staked_balance-last_staked_balance,
+				current_sol_balance-last_sol_balance,
+				current_staked_balance-starting_staked_balance,
+				current_sol_balance-starting_sol_balance,
+			);
+
+			// Store this pass's sol/staked balances for next pass
+			last_sol_balance=current_sol_balance;
+			last_staked_balance=current_staked_balance;
 
             // Run drillx
 			// let hash_start_time = Instant::now();
@@ -65,16 +131,17 @@ impl Miner {
                 find_bus(),
                 solution,
             ));
-			// let submit_start_time = Instant::now();
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false)
+            self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
                 .await
                 .ok();
-			// let submit_duration = submit_start_time.elapsed();
 
-			println!("  [{}s] Completed Pass {}",
+			println!("  {}[{}s] Completed Pass {}{}",
+				"".dimmed(),
 				pass_start_time.elapsed().as_secs().to_string(),
 				pass,
+				"".normal(),
 			);
+			println!("\n====================================================================================================\n");
 			pass+=1;
         }
     }
@@ -158,7 +225,7 @@ impl Miner {
 
         // Update log
 		progress_bar.finish_with_message(format!(
-            "[{}s] Best Difficulty: {} Hash: {} ",
+            "[{}s] Difficulty: {}\tHash: {} ",
 			timer.elapsed().as_secs().to_string(),
             best_difficulty.to_string().bold().yellow(),
             bs58::encode(best_hash.h).into_string().dimmed(),
@@ -202,6 +269,31 @@ impl Miner {
 		}
 		return retval;
     }
+
+	async fn get_sol_balance(&self) -> f64 {
+		const MIN_SOL_BALANCE: f64 = 0.005;
+		let signer = self.signer();
+		let client = self.rpc_client.clone();
+
+		// Return error, if balance is zero
+		if let Ok(lamports_balance) = client.get_balance(&signer.pubkey()).await {
+			let sol_balance:f64 = lamports_to_sol(lamports_balance);
+			if lamports_balance <= sol_to_lamports(MIN_SOL_BALANCE) {
+				panic!(
+					"{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
+					"ERROR".bold().red(),
+					sol_balance,
+					MIN_SOL_BALANCE
+				);
+			}
+			return sol_balance
+		} else {
+			panic!(
+				"{} Failed to lookup sol balance",
+				"ERROR".bold().red(),
+			);
+		}
+	}
 }
 
 // TODO Pick a better strategy (avoid draining bus)

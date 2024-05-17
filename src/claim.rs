@@ -42,9 +42,10 @@ impl Miner {
                 (clock.unix_timestamp.saturating_sub(proof.last_claim_at) as f64) / 60f64 / 64f64;
             let mins_to_go = t.saturating_sub(clock.unix_timestamp).saturating_div(60);
             if !ask_confirm(
-                format!("\n{} You are about to burn {}!\nClaiming more frequently than once per day is subject to a burn penalty.\nYour last claim was {:.2} hours ago. You must wait {} minutes to avoid this penalty.\n\nAre you sure you want to continue? [Y/n]", 
+                format!("\n{} {} {}!\nClaiming more frequently than once per day is subject to a burn penalty.\nYour last claim was {:.2} hours ago. You must wait {} minutes to avoid this penalty.\n\nAre you sure you want to continue? [Y/n]",
                     "WARNING".bold().yellow(),
-                    format!("{} ORE", amount_to_ui_amount(burn_amount, ore::TOKEN_DECIMALS)).bold(),
+					"You are about to burn".bold().yellow(),
+                    format!("{} ORE", amount_to_ui_amount(burn_amount, ore::TOKEN_DECIMALS)).bold().yellow(),
                     hours_ago,
                     mins_to_go
                 ).as_str()
@@ -54,7 +55,7 @@ impl Miner {
         }
 
         let ix = ore::instruction::claim(pubkey, beneficiary, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false, false)
             .await
             .ok();
     }
@@ -81,7 +82,7 @@ impl Miner {
             &ore::MINT_ADDRESS,
             &spl_token::id(),
         );
-        self.send_and_confirm(&[ix], ComputeBudget::Dynamic, false)
+        self.send_and_confirm(&[ix], ComputeBudget::Dynamic, false, false)
             .await
             .ok();
 

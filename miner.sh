@@ -20,21 +20,21 @@ if [ ! -f ${ORE_BIN} ]; then
 	exit 2
 fi
 
-solana config set --url ${RPC1}
+solana config set --url ${RPC1} >/dev/null
 
 # while true; do
-	echo -------------------------------------------------------------------------------
-	echo `date +'%Y-%m-%d %H:%M:%S'` Starting ${MINER_NAME}.....
-	echo `date +'%Y-%m-%d %H:%M:%S'` Wallet: ${KEY}
-	echo `date +'%Y-%m-%d %H:%M:%S'` RPC: ${RPC_URL}
-	echo `date +'%Y-%m-%d %H:%M:%S'` ore-cli: ${ORE_BIN}
+	echo ----------------------------------------------------------------------------------------------------
+	echo Starting	${MINER_NAME}
+	echo Wallet:	${KEY}
+	echo RPC:		${RPC_URL}
+	echo ore-cli:	${ORE_BIN}
 
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial SOL Price:	\$${SOL_PRICE}"
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial ORE Price:	\$${ORE_PRICE}"
-	echo -------------------------------------------------------------------------------
+	echo ----------------------------------------------------------------------------------------------------
 	# start the miner
 	COMMAND="${ORE_BIN} mine --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE} --threads ${THREADS} --buffer-time 2"
-	echo ${COMMAND}
+	# echo ${COMMAND}
 	eval $COMMAND
 	[ $? -eq 0 ] && break
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Restart in 5 seconds..."
