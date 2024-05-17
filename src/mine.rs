@@ -2,13 +2,15 @@ use std::sync::Arc;
 use std::time::{Instant, Duration};
 use humantime::format_duration;
 use systemstat::{System, Platform};
+use chrono::prelude::*;
 
 use colored::*;
 use drillx::{
     equix::{self},
     Hash, Solution,
 };
-use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION};
+use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, ONE_DAY};
+
 use rand::Rng;
 use solana_program::{
 	pubkey::Pubkey,
@@ -17,7 +19,7 @@ use solana_program::{
 
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
-use chrono::prelude::*;
+// use spl_token::amount_to_ui_amount;
 
 use crate::{
     args::MineArgs,
@@ -28,7 +30,9 @@ use crate::{
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) {
-        // Register, if needed.
+		const MIN_SOL_BALANCE: f64 = 0.005;
+
+		// Register, if needed.
         let signer = self.signer();
         self.register().await;
 
@@ -56,35 +60,63 @@ impl Miner {
 
             // Fetch proof
             let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
+
 			// Calc cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
 
 			// Determine Wallet ORE & SOL Balances
-			current_sol_balance=self.get_sol_balance().await;
+			current_sol_balance=self.get_sol_balance(false).await;
 			current_staked_balance=amount_u64_to_f64(proof.balance);
 
-			// Setup initial balances for the initial pass
-			// if pass==1 {
-			// 	// starting_sol_balance=current_sol_balance;
-			// 	// starting_staked_balance=current_staked_balance;
-			// 	last_sol_balance=current_sol_balance;
-			// 	last_staked_balance=current_staked_balance;
-			// }
+			// Determine if Staked ORE can be withdrawing without penalty or if ORE will be burned
+			let clock = get_clock(&self.rpc_client).await;
+			let t = proof.last_claim_at.saturating_add(ONE_DAY);
+			// let mut claimable=true;
+			let mut claim_text="No Withdrawal Penalty".green().to_string();
+			let last_claimed = (clock.unix_timestamp.saturating_sub(proof.last_claim_at) as f64) / 60f64 / 64f64;
+			if clock.unix_timestamp.lt(&t) {
+				// claimable=false;
+				// let burn_amount = proof.balance
+				// 	.saturating_mul(t.saturating_sub(clock.unix_timestamp) as u64)
+				// 	.saturating_div(ONE_DAY as u64);
+				let mins_to_go = t.saturating_sub(clock.unix_timestamp).saturating_div(60);
+				claim_text = format!("{} {} {}",
+						"Withdrawal Penalty for".bold().red(),
+						mins_to_go.to_string().bold().red(),
+						"mins".bold().red(),
+					);
+			}
 
 			// Summarize the results of the previous mining pass
 			if pass>1 {
-				let pass_ore_mined=current_staked_balance-last_staked_balance;
-				session_ore_mined+=pass_ore_mined;
-				let pass_sol_used=current_sol_balance-last_sol_balance;
-				session_sol_used-=pass_sol_used;
+				// Add the difference in staked ore from the previous pass to the session_ore_mined tally
+				let mut last_pass_ore_mined=current_staked_balance-last_staked_balance;
+				// If ore has been unstaked, then this value will be wrong for last pass so ignore it
+				if last_pass_ore_mined<0.0 {
+					last_pass_ore_mined=0.0;
+				}
+				// Not sure how to detect is additional ore has been staked
+				// possible to check with proof last claimed > last pass start time?
+				session_ore_mined+=last_pass_ore_mined;	// Update the session ore mined tally
+
+				// Add the difference in sol from the previous pass to the session_sol_used tally
+				let mut last_pass_sol_used=current_sol_balance-last_sol_balance;
+				// Sol has been added to wallet so disregard the last passed sol_used as it is incorrect
+				if last_pass_sol_used>0.0 {
+					last_pass_sol_used=0.0;
+				}
+				// not sure how to detect a change in sol level after the start of the last pass that is not just a transaction fee.
+				session_sol_used-=last_pass_sol_used;	// Update the session sol used tally
+
 				println!("    - Mined: {:.11}\t      Cost: {:.9}\tSession: {:.11} ORE\t{:.9} SOL",
-					pass_ore_mined,
-					pass_sol_used,
+					last_pass_ore_mined,
+					last_pass_sol_used,
 					session_ore_mined,
 					session_sol_used,
 				);
 				println!("\n{}\n", ("====================================================================================================").to_string().dimmed());
 			}
+
 			// Store this pass's sol/staked balances for use in the next pass
 			last_sol_balance=current_sol_balance;
 			last_staked_balance=current_staked_balance;
@@ -119,27 +151,48 @@ impl Miner {
 				load_avg_5min,
 				load_avg_15min,
 			);
-			println!("        Currently staked ORE: {:.11}\tWallet SOL:  {:.9}",
+			println!("        Currently staked ORE: {:.11}\tWallet SOL:  {:.9}\tLast Withdrawal: {:.1} hours ago {}",
 				current_staked_balance,
 				current_sol_balance,
+				last_claimed,
+				claim_text,
             );
 
-            // Run drillx
-			let solution = self.find_hash_par(proof, cutoff_time, args.threads).await;
+			if current_sol_balance<MIN_SOL_BALANCE {
+				// Pause mining for one minute - awaitin gSOL to be added to miner's wallet
+				let progress_bar = Arc::new(spinner::new_progress_bar());
+				for _ in 0..60 {
+					progress_bar.set_message(format!("[{}{}] {}",
+						(60-pass_start_time.elapsed().as_secs()).to_string().dimmed(),
+						("s to go").dimmed(),
+						("Not enough sol in wallet. Please deposit more to continue mining after the timeout.").yellow(),
+					));
+					std::thread::sleep(Duration::from_millis(1000));
+				}
+				progress_bar.finish_with_message(format!("[{}{}] {}",
+					(60-pass_start_time.elapsed().as_secs()).to_string().dimmed(),
+					("s").dimmed(),
+					("Not enough sol in wallet. Please deposit more to continue mining.").yellow(),
+				));
 
-            // Submit most difficult hash
-            let mut ixs = vec![];
-            if self.needs_reset().await {
-                ixs.push(ore::instruction::reset(signer.pubkey()));
-            }
-            ixs.push(ore::instruction::mine(
-                signer.pubkey(),
-                find_bus(),
-                solution,
-            ));
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
-                .await
-                .ok();
+			} else {
+				// Run drillx
+				let solution = self.find_hash_par(proof, cutoff_time, args.threads).await;
+
+				// Submit most difficult hash
+				let mut ixs = vec![];
+				if self.needs_reset().await {
+					ixs.push(ore::instruction::reset(signer.pubkey()));
+				}
+				ixs.push(ore::instruction::mine(
+					signer.pubkey(),
+					find_bus(),
+					solution,
+				));
+				self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
+					.await
+					.ok();
+			}
 
 			// Log how long this pass took to complete
 			print!("  [{}{}] Completed",
@@ -193,9 +246,10 @@ impl Miner {
 									let next_elapsed=timer.elapsed().as_secs();
 									if next_elapsed != last_elapsed {
 										progress_bar.set_message(format!(
-											"[{}{}] Mining... Difficulty so far: {}",
+											"[{}{}] Mining... {} {}",
 											cutoff_time.saturating_sub(next_elapsed).to_string().dimmed(),
 											"s to go".dimmed(),
+											"Difficulty so far:".dimmed(),
 											best_difficulty.to_string().yellow(),
 										));
 										last_elapsed=next_elapsed;
@@ -276,7 +330,7 @@ impl Miner {
 		return retval;
     }
 
-	async fn get_sol_balance(&self) -> f64 {
+	async fn get_sol_balance(&self, panic: bool) -> f64 {
 		const MIN_SOL_BALANCE: f64 = 0.005;
 		let signer = self.signer();
 		let client = self.rpc_client.clone();
@@ -285,19 +339,25 @@ impl Miner {
 		if let Ok(lamports_balance) = client.get_balance(&signer.pubkey()).await {
 			let sol_balance:f64 = lamports_to_sol(lamports_balance);
 			if lamports_balance <= sol_to_lamports(MIN_SOL_BALANCE) {
-				panic!(
-					"{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
-					"ERROR".bold().red(),
-					sol_balance,
-					MIN_SOL_BALANCE
-				);
+				if panic {
+					panic!(
+						"{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
+						"ERROR".bold().red(),
+						sol_balance,
+						MIN_SOL_BALANCE
+					);
+				}
 			}
 			return sol_balance
 		} else {
-			panic!(
-				"{} Failed to lookup sol balance",
-				"ERROR".bold().red(),
-			);
+			if panic {
+				panic!(
+					"{} Failed to lookup sol balance",
+					"ERROR".bold().red(),
+				);
+			} else {
+				return 0.0 as f64
+			}
 		}
 	}
 }
