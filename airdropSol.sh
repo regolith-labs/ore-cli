@@ -8,4 +8,4 @@ if [ "$1" = "new" ]; then
 	solana-keygen new --force
 fi
 solana-keygen verify $(solana-keygen pubkey) ~/.config/solana/id.json
-solana airdrop 1
+solana airdrop $2
