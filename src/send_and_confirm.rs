@@ -101,16 +101,18 @@ impl Miner {
 		// let elapsed=submit_start_time.elapsed();
 		let progress_bar = spinner::new_progress_bar();
 		loop {
-			progress_bar.set_message(format!("[{}s] (attempt {}) Submitting transaction...",
-				submit_start_time.elapsed().as_secs().to_string(),
+			progress_bar.set_message(format!("[{}{}] (attempt {}) Submitting transaction...",
+				submit_start_time.elapsed().as_secs().to_string().dimmed(),
+				"s".dimmed(),
 				attempts,
 			));
             match client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
                     // Skip confirmation
                     if skip_confirm {
-                        progress_bar.finish_with_message(format!("[{}s] (attempt {}) Sent: {}",
-							submit_start_time.elapsed().as_secs().to_string(),
+                        progress_bar.finish_with_message(format!("[{}{}] (attempt {}) Sent: {}",
+							submit_start_time.elapsed().as_secs().to_string().dimmed(),
+							"s".dimmed(),
 							attempts,
 							sig.to_string().dimmed(),
 						));
@@ -125,8 +127,9 @@ impl Miner {
                                 for status in signature_statuses.value {
                                     if let Some(status) = status {
                                         if let Some(err) = status.err {
-                                            progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
-												submit_start_time.elapsed().as_secs().to_string(),
+                                            progress_bar.set_message(format!("[{}{}] (attempt {}) {} {}",
+												submit_start_time.elapsed().as_secs().to_string().dimmed(),
+												"s".dimmed(),
 												attempts,
 												"ERROR-A".bold().red(),
 												err.to_string(),
@@ -143,8 +146,9 @@ impl Miner {
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
                                                     progress_bar.finish_with_message(format!(
-                                                        "[{}s] (attempt {}) {}\tTxid: {}",
-														submit_start_time.elapsed().as_secs().to_string(),
+                                                        "[{}{}] (attempt {}) {}\tTxid: {}",
+														submit_start_time.elapsed().as_secs().to_string().dimmed(),
+														"s".dimmed(),
 														attempts,
                                                         "SUCCESS".bold().green(),
                                                         sig.to_string().dimmed()
@@ -159,8 +163,9 @@ impl Miner {
 
                             // Handle confirmation errors
                             Err(err) => {
-                                progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
-									submit_start_time.elapsed().as_secs().to_string(),
+                                progress_bar.set_message(format!("[{}{}] (attempt {}) {} {}",
+									submit_start_time.elapsed().as_secs().to_string().dimmed(),
+									"s".dimmed(),
 									attempts,
 									"ERROR-B".bold().red(),
 									err.kind().to_string()
@@ -173,8 +178,9 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    progress_bar.set_message(format!("[{}s] (attempt {}) {} {}",
-						submit_start_time.elapsed().as_secs().to_string(),
+                    progress_bar.set_message(format!("[{}{}] (attempt {}) {} {}",
+						submit_start_time.elapsed().as_secs().to_string().dimmed(),
+						"s".dimmed(),
 						attempts,
 						"ERROR-C".bold().red(),
 						err.kind().to_string()
@@ -187,8 +193,9 @@ impl Miner {
             std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
             attempts += 1;
             if attempts > GATEWAY_RETRIES {
-                progress_bar.finish_with_message(format!("[{}s] (attempt {}) {}: Max retries",
-					submit_start_time.elapsed().as_secs().to_string(),
+                progress_bar.finish_with_message(format!("[{}{}] (attempt {}) {}: Max retries",
+					submit_start_time.elapsed().as_secs().to_string().dimmed(),
+					"s".dimmed(),
 					attempts,
 					"ERROR-D".bold().red()
 				));

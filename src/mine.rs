@@ -41,85 +41,91 @@ impl Miner {
 		let mut current_sol_balance: f64;
 		let mut current_staked_balance: f64;
 
-		let mut starting_sol_balance: f64 = 0.0;
-		let mut starting_staked_balance: f64 = 0.0;
+		// let mut starting_sol_balance: f64 = 0.0;
+		// let mut starting_staked_balance: f64 = 0.0;
 
 		let mut last_sol_balance: f64 = 0.0;
 		let mut last_staked_balance: f64 = 0.0;
+
+		let mut session_ore_mined: f64 = 0.0;
+		let mut session_sol_used: f64 = 0.0;
 
         // Start mining loop
         loop {
 			let pass_start_time = Instant::now();
 
-			// Lookup CPU stats
+            // Fetch proof
+            let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
+			// Calc cutoff time
+            let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
+
+			// Determine Wallet ORE & SOL Balances
+			current_sol_balance=self.get_sol_balance().await;
+			current_staked_balance=amount_u64_to_f64(proof.balance);
+
+			// Setup initial balances for the initial pass
+			// if pass==1 {
+			// 	// starting_sol_balance=current_sol_balance;
+			// 	// starting_staked_balance=current_staked_balance;
+			// 	last_sol_balance=current_sol_balance;
+			// 	last_staked_balance=current_staked_balance;
+			// }
+
+			// Summarize the results of the previous mining pass
+			if pass>1 {
+				let pass_ore_mined=current_staked_balance-last_staked_balance;
+				session_ore_mined+=pass_ore_mined;
+				let pass_sol_used=current_sol_balance-last_sol_balance;
+				session_sol_used-=pass_sol_used;
+				println!("    - Mined: {:.11}\t      Cost: {:.9}\tSession: {:.11} ORE\t{:.9} SOL",
+					pass_ore_mined,
+					pass_sol_used,
+					session_ore_mined,
+					session_sol_used,
+				);
+				println!("\n{}\n", ("====================================================================================================").to_string().dimmed());
+			}
+			// Store this pass's sol/staked balances for use in the next pass
+			last_sol_balance=current_sol_balance;
+			last_staked_balance=current_staked_balance;
+
+			// Lookup CPU stats for 1min, 5 mins and 15 mins
 			let mut load_avg_1min: f32=0.0;
 			let mut load_avg_5min: f32=0.0;
 			let mut load_avg_15min: f32=0.0;
-			let mut cpu_temp: f32=-1.0;
 			match sys.load_average() {
 				Ok(load_avg) => {
-					// println!("Load average (1 min): {:.2}", load_avg.one);
-					// println!("Load average (5 min): {:.2}", load_avg.five);
-					// println!("Load average (15 min): {:.2}", load_avg.fifteen);
-					load_avg_1min=load_avg.one;
-					load_avg_5min=load_avg.five;
-					load_avg_15min=load_avg.fifteen;
+					load_avg_1min=load_avg.one;			// 1 min
+					load_avg_5min=load_avg.five;		// 5 min
+					load_avg_15min=load_avg.fifteen;	// 15 min
 				}
-				Err(err) => eprintln!("Error: {}", err),
+				Err(err) => eprintln!("Error (load_average): {}", err),
 			}
+			// This will not report anything if in WSL2 on windows
+			let cpu_temp: f32;
 			match sys.cpu_temp() {
-				Ok(_cpu_temp) => {
-					cpu_temp=_cpu_temp;
-				}
-				Err(err) => eprintln!("Error: {}", err),
-			}
+				Ok(t) => { cpu_temp=t; },
+				Err(_err) => { cpu_temp=-99.0; },
+					// eprintln!("Error (cpu_temp): {}", err),
+			};
 
-			println!("Pass {} started at {}\tMined for {}\tCPU: {:.2}°C {:.2}/{:.2}/{:.2}",
+			// Write log details to console to summarize this miner's wallet
+			println!("Pass {} started at {}\tMined for {}\tCPU: {}°C   {:.2}/{:.2}/{:.2}",
 				pass,
 				Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
 				format_duration(Duration::from_secs(mining_start_time.elapsed().as_secs())),
-				cpu_temp,
+				cpu_temp.to_string(),
 				load_avg_1min,
 				load_avg_5min,
 				load_avg_15min,
 			);
-
-            // Fetch proof
-            let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
-
-			// Calc cutoff time
-            let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
-
-			current_sol_balance=self.get_sol_balance().await;
-			current_staked_balance=amount_u64_to_f64(proof.balance);
-
-			// log the initial sol/staked balances
-			if pass==1 {
-				starting_sol_balance=current_sol_balance;
-				starting_staked_balance=current_staked_balance;
-				last_sol_balance=current_sol_balance;
-				last_staked_balance=current_staked_balance;
-			}
-
 			println!("        Currently staked ORE: {:.11}\tWallet SOL:  {:.9}",
 				current_staked_balance,
 				current_sol_balance,
             );
-			println!("        Last pass:   - Mined: {:.11}\t      Cost: {:.9}\tSession: {:.11} ORE\t{:.9} SOL",
-				current_staked_balance-last_staked_balance,
-				current_sol_balance-last_sol_balance,
-				current_staked_balance-starting_staked_balance,
-				current_sol_balance-starting_sol_balance,
-			);
-
-			// Store this pass's sol/staked balances for next pass
-			last_sol_balance=current_sol_balance;
-			last_staked_balance=current_staked_balance;
 
             // Run drillx
-			// let hash_start_time = Instant::now();
 			let solution = self.find_hash_par(proof, cutoff_time, args.threads).await;
-			// let hash_duration = hash_start_time.elapsed();
 
             // Submit most difficult hash
             let mut ixs = vec![];
@@ -135,13 +141,11 @@ impl Miner {
                 .await
                 .ok();
 
-			println!("  {}[{}s] Completed Pass {}{}",
-				"".dimmed(),
-				pass_start_time.elapsed().as_secs().to_string(),
-				pass,
-				"".normal(),
+			// Log how long this pass took to complete
+			print!("  [{}{}] Completed",
+				pass_start_time.elapsed().as_secs().to_string().dimmed(),
+				"s".dimmed(),
 			);
-			println!("\n====================================================================================================\n");
 			pass+=1;
         }
     }
@@ -189,9 +193,10 @@ impl Miner {
 									let next_elapsed=timer.elapsed().as_secs();
 									if next_elapsed != last_elapsed {
 										progress_bar.set_message(format!(
-											"[{}s to go] Mining... Difficulty so far: {}",
-											cutoff_time.saturating_sub(next_elapsed),
-											best_difficulty,
+											"[{}{}] Mining... Difficulty so far: {}",
+											cutoff_time.saturating_sub(next_elapsed).to_string().dimmed(),
+											"s to go".dimmed(),
+											best_difficulty.to_string().yellow(),
 										));
 										last_elapsed=next_elapsed;
 									}
@@ -225,8 +230,9 @@ impl Miner {
 
         // Update log
 		progress_bar.finish_with_message(format!(
-            "[{}s] Difficulty: {}\tHash: {} ",
-			timer.elapsed().as_secs().to_string(),
+            "[{}{}] Difficulty: {}\t    Hash: {} ",
+			timer.elapsed().as_secs().to_string().dimmed(),
+			"s".dimmed(),
             best_difficulty.to_string().bold().yellow(),
             bs58::encode(best_hash.h).into_string().dimmed(),
         ));

@@ -24,10 +24,12 @@ solana config set --url ${RPC1} >/dev/null
 
 # while true; do
 	echo ----------------------------------------------------------------------------------------------------
-	echo Starting	${MINER_NAME}
-	echo Wallet:	${KEY}
-	echo RPC:		${RPC_URL}
-	echo ore-cli:	${ORE_BIN}
+	echo Starting		${MINER_NAME}
+	echo ----------------------------------------------------------------------------------------------------
+	echo Wallet:		${KEY}
+	echo RPC:			${RPC_URL}
+	echo Priority fee:	${FEE}
+	echo ore-cli:		${ORE_BIN}
 
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial SOL Price:	\$${SOL_PRICE}"
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial ORE Price:	\$${ORE_PRICE}"
