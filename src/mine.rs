@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::collections::BTreeMap;
 use std::time::{Instant, Duration};
 use humantime::format_duration;
 use systemstat::{System, Platform};
@@ -7,7 +8,7 @@ use chrono::prelude::*;
 use colored::*;
 use drillx::{
     equix::{self},
-    Hash, Solution,
+    Hash
 };
 use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, ONE_DAY};
 
@@ -40,29 +41,35 @@ impl Miner {
 
         // Check num threads
         self.check_num_cores(args.threads);
-		let mining_start_time = Instant::now();
-		let mut pass=1;
-		let mut current_sol_balance: f64;
-		let mut current_staked_balance: f64;
 
-		// let mut starting_sol_balance: f64 = 0.0;
-		// let mut starting_staked_balance: f64 = 0.0;
-
-		let mut last_sol_balance: f64 = 0.0;
-		let mut last_staked_balance: f64 = 0.0;
-
-		let mut session_ore_mined: f64 = 0.0;
-		let mut session_sol_used: f64 = 0.0;
+		let mut cutoff_time: u64=60;						// How long each pass will mine for
+		let mining_start_time = Instant::now();	// When the miner was initially started
+		let mut pass=1;								// This represents how many times the miner has tried to mine
+		let mut current_sol_balance: f64;					// The amount of SOL in the wallet
+		let mut current_staked_balance: f64;				// The amount of staked ORE in the wallet
+		let mut last_sol_balance: f64 = 0.0;				// The amount of SOL in the wallet in the previous mining pass
+		let mut last_staked_balance: f64 = 0.0;				// The amount of ORE in the wallet in the previous mining pass
+		let mut session_ore_mined: f64 = 0.0;				// A running tally of the ORE mined in all passes (session)
+		let mut session_sol_used: f64 = 0.0;				// A running tally of the SOL spent in all passes (session)
+		let mut difficulties_solved: BTreeMap<u32, usize> = BTreeMap::new();	// An array that counts how many of each difficulty has been solved in this session
 
         // Start mining loop
         loop {
 			let pass_start_time = Instant::now();
 
+			// Download the SOL prices from coinmarketcap to display prices in $
+			// self.download_sol_price();
+
             // Fetch proof
             let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
 
 			// Calc cutoff time
-            let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
+			if pass==1 {
+            	cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
+				println!("Initial pass cutoff time: {}s\n",
+					cutoff_time,
+				);
+			}
 
 			// Determine Wallet ORE & SOL Balances
 			current_sol_balance=self.get_sol_balance(false).await;
@@ -114,7 +121,44 @@ impl Miner {
 					session_ore_mined,
 					session_sol_used,
 				);
-				println!("\n{}\n", ("====================================================================================================").to_string().dimmed());
+
+				// Show a summary of the difficulties solved for this mining session every 5 passes
+				// This will indicate the most common difficulty solved by this miner
+				if (pass-1) % 5 == 0 {
+					println!("\n{}", ("========================================================================================================================").to_string().dimmed());
+					println!("| Difficulties solved in {} passes:", pass-1);
+
+					let mut max_count: u32 = 0;
+					let mut most_popular_difficulty: u32 = 0;
+					for (difficulty, count) in &difficulties_solved {
+						if (*count as u32) >= max_count {
+							max_count=*count as u32;
+							most_popular_difficulty=*difficulty;
+						}
+						print!("|----");
+					}
+					println!("|");
+					for (difficulty, _count) in &difficulties_solved {
+						if *difficulty == most_popular_difficulty {
+							print!("|{:>4}", difficulty.to_string().bold().yellow());
+						} else {
+							print!("|{:>4}", difficulty);
+						}
+					}
+					println!("|");
+					for (_difficulty, count) in &difficulties_solved {
+						if (*count as u32) == max_count {
+							print!("|{:>4}", (*count as u32).to_string().bold().yellow());
+						} else {
+							print!("|{:>4}", count);
+						}
+					}
+					println!("|");
+				} else {
+					// Add a blank line if no summary is shown
+					println!("")
+				}
+				println!("{}\n", ("========================================================================================================================").to_string().dimmed());
 			}
 
 			// Store this pass's sol/staked balances for use in the next pass
@@ -140,13 +184,16 @@ impl Miner {
 				Err(_err) => { cpu_temp=-99.0; },
 					// eprintln!("Error (cpu_temp): {}", err),
 			};
-
+			let mut cpu_temp_txt=format!("{}°C   ", cpu_temp.to_string());
+			if cpu_temp==-99.0 {
+				cpu_temp_txt="".to_string();
+			}
 			// Write log details to console to summarize this miner's wallet
-			println!("Pass {} started at {}\tMined for {}\tCPU: {}°C   {:.2}/{:.2}/{:.2}",
+			println!("Pass {} started at {}\tMined for {}\tCPU: {}{:.2}/{:.2}/{:.2}",
 				pass,
 				Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
 				format_duration(Duration::from_secs(mining_start_time.elapsed().as_secs())),
-				cpu_temp.to_string(),
+				cpu_temp_txt,
 				load_avg_1min,
 				load_avg_5min,
 				load_avg_15min,
@@ -158,8 +205,9 @@ impl Miner {
 				claim_text,
             );
 
+			// Pause mining for one minute if no SOL available for transaction fee
+			// This keeps the miner looping and will restart mining when enough SOL is added to miner's wallet
 			if current_sol_balance<MIN_SOL_BALANCE {
-				// Pause mining for one minute - awaitin gSOL to be added to miner's wallet
 				let progress_bar = Arc::new(spinner::new_progress_bar());
 				for _ in 0..60 {
 					progress_bar.set_message(format!("[{}{}] {}",
@@ -174,10 +222,12 @@ impl Miner {
 					("s").dimmed(),
 					("Not enough sol in wallet. Please deposit more to continue mining.").yellow(),
 				));
+			}
 
-			} else {
+			// The proof of work processing for this individual mining pass
+			if current_sol_balance>=MIN_SOL_BALANCE {
 				// Run drillx
-				let solution = self.find_hash_par(proof, cutoff_time, args.threads).await;
+				let (solution, best_difficulty) = self.find_hash_par(proof, cutoff_time, args.threads).await;
 
 				// Submit most difficult hash
 				let mut ixs = vec![];
@@ -192,6 +242,9 @@ impl Miner {
 				self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
 					.await
 					.ok();
+
+				// Log the difficulty solved to hashMap to record progress
+				*difficulties_solved.entry(best_difficulty).or_insert(0) += 1;
 			}
 
 			// Log how long this pass took to complete
@@ -203,7 +256,7 @@ impl Miner {
         }
     }
 
-    async fn find_hash_par(&self, proof: Proof, cutoff_time: u64, threads: u64) -> Solution {
+    async fn find_hash_par(&self, proof: Proof, cutoff_time: u64, threads: u64) -> (Solution, u32) {
         // Dispatch job to each thread
 		let timer = Instant::now();
 		let progress_bar = Arc::new(spinner::new_progress_bar());
@@ -291,7 +344,7 @@ impl Miner {
             bs58::encode(best_hash.h).into_string().dimmed(),
         ));
 
-        Solution::new(best_hash.d, best_nonce.to_le_bytes())
+        (Solution::new(best_hash.d, best_nonce.to_le_bytes()), best_difficulty)
     }
 
     pub fn check_num_cores(&self, threads: u64) {
@@ -330,6 +383,15 @@ impl Miner {
 		return retval;
     }
 
+	// Request the price of SOL from coinmarketcap
+	// async fn download_sol_price(&self) {
+	// 	let url = "https://api.coinmarketcap.com/data/price?ids=solana&convert=USD&x_cg_demo_api_key=CG-DWoujcLEMj2Pk6omqJaJsKLZ";
+	// 	// SOL_PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd&x_cg_demo_api_key=${COINGECKO_APIKEY}" | jq '.solana.usd')
+	// 	// let resp = reqwest::blocking::get(url)?.text()?;
+	// 	// println!("Coinmarketcap SOL price: {}", resp);
+	// }
+
+	// QUery the wallet for the amount of SOL present and panic if less than a minimum amount
 	async fn get_sol_balance(&self, panic: bool) -> f64 {
 		const MIN_SOL_BALANCE: f64 = 0.005;
 		let signer = self.signer();
