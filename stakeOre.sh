@@ -49,7 +49,11 @@ stakedVal=$(echo ${balance} | awk '{printf("%.11f", $5)}')
 ./unclaimedbalance.sh
 echo "Wallet has ${balanceVal} ready to add to current stake ${stakedVal}"
 echo ------------------------------------------------------------------------------------------
-echo "Staking additional ${stakedVal} ORE...."
-balance=$(${ORE_BIN} --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE} stake)
+if [ "${balanceVal}" = "0.00000000000" ]; then
+	echo "No ORE in wallet to stake"
+else
+	echo "Staking additional ${balanceVal} ORE...."
+	balance=$(${ORE_BIN} --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE} stake)
+fi
 echo ------------------------------------------------------------------------------------------
 ./unclaimedbalance.sh
