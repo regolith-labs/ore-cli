@@ -37,9 +37,27 @@ Each miner needs a wallet to mine to. For testing purposes, you can create a new
 ```sh
 ./createwallet.sh ~/.config/solana/wallet_devnet_test1.json
 ```
-This will lead you through creating a keypair file called whatever you like. It does not have to match the above example. Remember and store your seed phrase in case you need to recreate it at a later date or import it into some other solana wallet app.
+This will lead you through creating a keypair file called whatever you like. It does not have to match the above example. Remember and store your seed phrase
+in case you need to recreate it at a later date or import it into some other solana wallet app.
 
-Once you have the keypair file, you need to ensure it is set to the KEY1 variable in ```ore_env.prv.sh```. This is used as the default wallet in the scripts presented alongside ore-cli.
+Once you have the keypair file, you need to ensure it is set to the KEY1 variable in ```ore_env.prv.sh```. This is used as the default wallet in the scripts
+presented alongside ore-cli.
+
+## Funding your mining wallet
+ORE mining is free. Your only charge for mining is the SOL transaction fees to submit your hashes each minute and also for staking/withdrawing your mined ORE.
+Oh and also your electric bill - you are taxing your computer harder than normal so it will be HOT, NOISY and cost more than normal to have powered on when mining.
+
+You will need to transfer SOL into your mining waller. Documenting this step is outwith the remit of this document but a pointer is to use something like the
+Phantom Wallet plugin to transfer SOL from your main Solana wallet to your mining wallet.
+
+If you are testing on devnet then you can airdrop yourself some SOL for free. The create wallet.sh script above will show you an exact command to do this. It will
+be something like:
+```sh
+./airdropDevnetSol.sh 1 ~/.config/solana/wallet_devnet_test1.json
+```
+You can alter the value but be aware that your RPC will usually rate limit this and limit the actual amount you can airdrop. ORE now uses very little SOL every minute
+and it will cost around 0.000005 SOL * 60 mins * 24 hours = 0.0072 SOL for an entire day's mining. If 1 SOL costs $200 then that is about $1.44 per day. This calculation
+is assuming your transaction priority fee is 0. If you are submitting with a crazy high number then your costs can skyrocket quickly.
 
 ## Manually starting a mining session
 Execute the command:
