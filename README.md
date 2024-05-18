@@ -120,6 +120,13 @@ the same hardware may get a range of difficulties returned. Sometimes you get lu
 
 You can stop the miner at any time without losing any rewards. On most computer this can be accomplished by pressing CTRL+C
 
+## Checking on your Wallet Balance
+You can check on the state of a wallet by:
+```sh
+./unclaimedbalance.sh
+```
+This will show the amount of ORE unstaked and staked for that particular wallet. You do not have a mining session running to see the wallet balances.
+
 ## Withdrawing Staked ORE
 TO DO
 
