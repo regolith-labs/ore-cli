@@ -37,7 +37,7 @@ You can add as many variants to this file as your like. The ```ore_env.sh``` fil
 these scripts.
 
 ## Setting up a wallet
-Each miner needs a wallet to mine to. For testing purposes, you can create a new wallet for use with ore-cli.
+Each miner requires a unique wallet to mine to. For testing purposes, you can create a new wallet for use with ore-cli.
 ```sh
 ./createwallet.sh ~/.config/solana/wallet_devnet_test1.json
 ```
@@ -70,7 +70,8 @@ Execute the command:
 ```sh
 ./miner.sh
 ```
-This will start up a miner process that will use the wallet & RPC details configured in the ore_env.sh file. You should see the miner start up and see it mine its first hash. After 1 minute, you should get a transaction and a completed log message
+This will start up a miner process that will use the wallet & RPC details configured in the ```ore_env.sh``` file. You will see the miner start up and
+watch it mine its first hash. After 1 minute, you should get a transaction and a completed log message:
 ```sh
 ----------------------------------------------------------------------------------------------------
 Starting Miner 1
@@ -89,18 +90,21 @@ Pass 1 started at 22:30:07 on 2024-05-18        Mined for 0s    CPU: 3.05/3.26/3
   [55s] Completed    - Mined: 0.00142957542           Cost: -0.000005000        Session: 0.00142957542 ORE      0.000005000 SOL
 ```
 
-Congratulations, you have mined your first ORE.
+Congratulations, you have mined your first ORE. Large wallets start with humble rewards...
 
-The miner will keep looping until your wallet runs out of SOL. After each pass, any SOL mined is added to you staked ORE which will increase your
+The miner will keep looping indefinitely until your wallet runs out of SOL. After each pass, any SOL mined is added to you staked ORE which will increase your
 earnings from subsequent mining passes.
+
+If you have run out of SOL, the miner will pause for 1 minute then check again to see if you have deposited more SOL. If you have, the miner will start
+mining again or keep waiting.
 
 The difficulty of the hash your miner has resolved will determine how much ORE is rewarded to all miners that submit a hash at that difficulty level.
 You will receive your share of the total for that difficulty. A higher difficulty level solved will get you a higher amount of ORE rewarded.
 The amount you receive is variable each time so you will not usually get the same amount each time you solve the same difficulty level. There is a
 highly complex algorithm that calculates this but you will need an enormous brain to understand how it is computed and if you think it is wrong then
-tough luck as that is what you are getting whether you like it or not.
+tough luck as that is what you are getting rewarded whether you like it or not.
 
-The miner will keep track of your Session Total for ORE mined and SOL spent.
+The miner will keep track of your Session Totals for ORE mined and SOL spent.
 
 At regular intervals, you will get a summary of how many hashes this miner has mined at each difficulty level. This will indicate how powerful the
 hardware you are using to mine is. Comparing this between different computers may lead you to mine on your fastest or your most efficient. Note that
@@ -113,6 +117,8 @@ the same hardware may get a range of difficulties returned. Sometimes you get lu
 |   1|   4|   2|   1|   1|   1|
 ========================================================================================================================
 ```
+
+You can stop the miner at any time without losing any rewards. On most computer this can be accomplished by pressing CTRL+C
 
 ## Withdrawing Staked ORE
 TO DO
