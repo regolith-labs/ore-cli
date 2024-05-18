@@ -4,6 +4,8 @@ A command line interface for the Ore program.
 ## Building the utility
 To build the Ore CLI, you will need to have the Rust programming language installed. You can install Rust by following the instructions on the [Rust website](https://www.rust-lang.org/tools/install).
 
+These instructions are for using a linux environment but also work on WSL2 on windows. I suspect they will work on most MAC computers as well.
+
 Once you have Rust installed, you can build the Ore CLI by running the following command in the ore-cli folder:
 ```sh
 ./build_and_mine.sh nomine
