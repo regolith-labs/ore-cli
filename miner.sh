@@ -22,7 +22,7 @@ fi
 
 solana config set --url ${RPC1} >/dev/null
 
-# while true; do
+while true; do
 	echo ----------------------------------------------------------------------------------------------------
 	echo Starting		${MINER_NAME}
 	echo ----------------------------------------------------------------------------------------------------
@@ -41,4 +41,4 @@ solana config set --url ${RPC1} >/dev/null
 	[ $? -eq 0 ] && break
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Restart in 5 seconds..."
 	# sleep 5
-# done
+done

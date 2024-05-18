@@ -8,7 +8,7 @@ use chrono::prelude::*;
 use colored::*;
 use drillx::{
     equix::{self},
-    Hash
+    Hash, Solution
 };
 use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, ONE_DAY};
 
