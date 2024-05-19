@@ -20,7 +20,7 @@ use solana_program::{
 
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
-// use spl_token::amount_to_ui_amount;
+use solana_sdk::clock::Clock;
 
 use crate::{
     args::MineArgs,
@@ -42,16 +42,19 @@ impl Miner {
         // Check num threads
         self.check_num_cores(args.threads);
 
-		let mut cutoff_time: u64=60;						// How long each pass will mine for
+		let mut cutoff_time: u64;						// How long each pass will mine for
 		let mining_start_time = Instant::now();	// When the miner was initially started
 		let mut pass=1;								// This represents how many times the miner has tried to mine
 		let mut current_sol_balance: f64;					// The amount of SOL in the wallet
 		let mut current_staked_balance: f64;				// The amount of staked ORE in the wallet
 		let mut last_sol_balance: f64 = 0.0;				// The amount of SOL in the wallet in the previous mining pass
 		let mut last_staked_balance: f64 = 0.0;				// The amount of ORE in the wallet in the previous mining pass
+		let mut last_pass_difficulty: u32= 0;				// The best difficulty solved in the last pass
 		let mut session_ore_mined: f64 = 0.0;				// A running tally of the ORE mined in all passes (session)
 		let mut session_sol_used: f64 = 0.0;				// A running tally of the SOL spent in all passes (session)
 		let mut difficulties_solved: BTreeMap<u32, usize> = BTreeMap::new();	// An array that counts how many of each difficulty has been solved in this session
+		let mut max_reward: f64 = 0.0;						// What has been the highest reward mined in this session
+		let mut max_reward_text: String = "".to_string();	// A text string detailing the maximum reward pass
 
         // Start mining loop
         loop {
@@ -63,29 +66,18 @@ impl Miner {
             // Fetch proof
             let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
 
-			// Calc cutoff time
-			if pass==1 {
-            	cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
-				println!("Initial pass cutoff time: {}s\n",
-					cutoff_time,
-				);
-			}
-
 			// Determine Wallet ORE & SOL Balances
 			current_sol_balance=self.get_sol_balance(false).await;
 			current_staked_balance=amount_u64_to_f64(proof.balance);
 
-			// Determine if Staked ORE can be withdrawing without penalty or if ORE will be burned
+			// Calc cutoff time
 			let clock = get_clock(&self.rpc_client).await;
+           	cutoff_time = self.get_cutoff(proof, args.buffer_time, &clock).await;
+
+			// Determine if Staked ORE can be withdrawing without penalty or if ORE will be burned
 			let t = proof.last_claim_at.saturating_add(ONE_DAY);
-			// let mut claimable=true;
 			let mut claim_text="No Withdrawal Penalty".green().to_string();
-			let last_claimed = (clock.unix_timestamp.saturating_sub(proof.last_claim_at) as f64) / 60f64 / 64f64;
-			if clock.unix_timestamp.lt(&t) {
-				// claimable=false;
-				// let burn_amount = proof.balance
-				// 	.saturating_mul(t.saturating_sub(clock.unix_timestamp) as u64)
-				// 	.saturating_div(ONE_DAY as u64);
+			if clock.unix_timestamp.lt(&t) {	// Clock is reused from above
 				let mins_to_go = t.saturating_sub(clock.unix_timestamp).saturating_div(60);
 				claim_text = format!("{} {} {}",
 						"Withdrawal Penalty for".bold().red(),
@@ -105,6 +97,18 @@ impl Miner {
 				// Not sure how to detect is additional ore has been staked
 				// possible to check with proof last claimed > last pass start time?
 				session_ore_mined+=last_pass_ore_mined;	// Update the session ore mined tally
+
+				// Log if this pass is your maximum reward for this session
+				if last_pass_ore_mined>max_reward {
+					max_reward = last_pass_ore_mined;
+					max_reward_text = format!("Max session reward: {:.11} ORE at difficulty {} during pass {}.   {:.0} mins ago",
+						pass,
+						max_reward,
+						last_pass_difficulty,
+						((60-pass_start_time.elapsed().as_secs())/60).to_string().dimmed(),
+					);
+				}
+
 
 				// Add the difference in sol from the previous pass to the session_sol_used tally
 				let mut last_pass_sol_used=current_sol_balance-last_sol_balance;
@@ -126,7 +130,14 @@ impl Miner {
 				// This will indicate the most common difficulty solved by this miner
 				if (pass-1) % 5 == 0 {
 					println!("\n{}", ("========================================================================================================================").to_string().dimmed());
-					println!("| Difficulties solved in {} passes:", pass-1);
+					println!("| {}",
+						max_reward_text,
+					);
+					println!("| Average reward:     {:.11} ORE over {} passes.",
+						session_ore_mined / (pass-1) as f64,
+						pass-1,
+					);
+					println!("| Difficulties solved during {} passes:", pass-1);
 
 					let mut max_count: u32 = 0;
 					let mut most_popular_difficulty: u32 = 0;
@@ -201,7 +212,7 @@ impl Miner {
 			println!("        Currently staked ORE: {:.11}\tWallet SOL:  {:.9}\tLast Withdrawal: {:.1} hours ago {}",
 				current_staked_balance,
 				current_sol_balance,
-				last_claimed,
+				proof.last_claim_at,
 				claim_text,
             );
 
@@ -245,6 +256,7 @@ impl Miner {
 
 				// Log the difficulty solved to hashMap to record progress
 				*difficulties_solved.entry(best_difficulty).or_insert(0) += 1;
+				last_pass_difficulty=best_difficulty;
 			}
 
 			// Log how long this pass took to complete
@@ -360,6 +372,7 @@ impl Miner {
         }
     }
 
+	// Determine if a reset is required ()
     async fn needs_reset(&self) -> bool {
         let clock = get_clock(&self.rpc_client).await;
         let config = get_config(&self.rpc_client).await;
@@ -370,12 +383,15 @@ impl Miner {
             .le(&clock.unix_timestamp)
     }
 
-    async fn get_cutoff(&self, proof: Proof, buffer_time: u64) -> u64 {
-        let clock = get_clock(&self.rpc_client).await;
+	// Calculate how long to mine for
+	// Based upon (last_hash_at time) + (1 minute) - (desired buffer_time) - (clock time)
+    async fn get_cutoff(&self, proof: Proof, buffer_time: u64, clock: &Clock) -> u64 {
+        // clock is passed in to prevent calling get_clock() twice in quick succession from RPC
+		// let clock = get_clock(&self.rpc_client).await;
         let mut retval=proof.last_hash_at
             .saturating_add(60)
             .saturating_sub(buffer_time as i64)
-            .saturating_sub(clock.unix_timestamp)
+            .saturating_sub(clock.unix_timestamp.clone())
             .max(0) as u64;
 		if retval==0 {
 			retval=(60 as i64).saturating_sub(buffer_time as i64).max(0) as u64;

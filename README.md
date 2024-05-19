@@ -118,7 +118,7 @@ the same hardware may get a range of difficulties returned. Sometimes you get lu
 ========================================================================================================================
 ```
 
-You can stop the miner at any time without losing any rewards. On most computer this can be accomplished by pressing CTRL+C
+You can stop the miner at any time without losing any rewards. On most computers this can be accomplished by pressing CTRL+C in the terminal where the miner is running.
 
 ## Checking on your Wallet Balance
 You can check on the state of a wallet by:

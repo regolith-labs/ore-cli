@@ -28,8 +28,10 @@ if [ "$1" = "nomine" ]; then
 	exit $buildexitcode
 fi
 
-echo Creating a link
-ln -s ./target/release/ore ./ore
+if [ ! -f ./ore ]; then
+	echo Creating a link to the ore executable
+	ln -s ./target/release/ore ./ore
+fi
 
 if [ $buildexitcode -eq 0 ]; then
 	echo ========================================================
