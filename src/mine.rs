@@ -106,7 +106,7 @@ impl Miner {
 				// Log if this pass is your maximum reward for this session
 				if last_pass_ore_mined>max_reward {
 					max_reward = last_pass_ore_mined;
-					max_reward_text = format!("Max session reward: {:.11} ORE (${:.2}) at difficulty {} during pass {}.",
+					max_reward_text = format!("Max session reward: {:.11} ORE (${:.4}) at difficulty {} during pass {}.",
 						last_pass_ore_mined,
 						last_pass_ore_mined * _current_ore_price,
 						last_pass_difficulty,
@@ -132,17 +132,21 @@ impl Miner {
 
 				// Show a summary of the difficulties solved for this mining session every 5 passes
 				// This will indicate the most common difficulty solved by this miner
-				if (pass-1) % 1 == 0 {
+				if (pass-1) % 5 == 0 {
 					_current_ore_price=self.load_ore_price();
 					_current_sol_price=self.load_sol_price();
 					println!("\n{}", ("========================================================================================================================").to_string().dimmed());
+					println!("| Current ORE Price: ${:.2}\tCurrent SOL Price: ${:.2}",
+						_current_ore_price,
+						_current_sol_price,
+					);
 					println!("| {}", max_reward_text);
-					println!("| Average reward:     {:.11} ORE (${:.2}) over {} passes.",
+					println!("| Average reward:     {:.11} ORE (${:.4}) over {} passes.",
 						(session_ore_mined / (pass-1) as f64),
 						(session_ore_mined / (pass-1) as f64) * _current_ore_price,
 						pass-1,
 					);
-					println!("| Session Summary:\tProfit: ${:.2} ORE\t      Cost: ${:.2} SOL\tProfitablility: ${:.2}",
+					println!("| Session Summary:\tProfit: ${:.4} ORE\t      Cost: ${:.4} SOL\tProfitablility: ${:.4}",
 						session_ore_mined * _current_ore_price,
 						session_sol_used * _current_sol_price,
 						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price),
@@ -473,10 +477,7 @@ impl Miner {
 	fn load_ore_price(&self) -> f64 {
 		let file_path = "./currentPriceOfOre.txt";
 		match self.read_f64_from_file(&file_path) {
-			Ok(value) => {
-				// println!("ORE Price: ${:.2}", value);
-				value
-			}
+			Ok(value) => value,
 			Err(err) => {
 				eprintln!("Error: failed to read ORE price from {}: {}", file_path, err);
 				0.0
@@ -488,10 +489,7 @@ impl Miner {
 	fn load_sol_price(&self) -> f64 {
 		let file_path = "./currentPriceOfSol.txt";
 		match self.read_f64_from_file(&file_path) {
-			Ok(value) => {
-				// println!("SOL Price: ${:.2}", value);
-				value
-			}
+			Ok(value) => value,
 			Err(err) => {
 				eprintln!("Error: failed to read SOL price from {}: {}", file_path, err);
 				0.0
