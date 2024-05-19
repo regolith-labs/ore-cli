@@ -1,10 +1,26 @@
 # Ore CLI
 A command line interface for the Ore program.
 
+## Cloning the repositories
+You will need to have git installed on your computer to clone, build and test this software.
+
+First create a suitable folder to clone the 3 git repositories to:
+```sh
+mkdir ~/ore2; cd ~/ore2
+git clone https://github.com/hardhatchad/ore
+git clone https://github.com/hardhatchad/ore-cli
+git clone https://github.com/hardhatchad/drillx
+cd ~/ore2/ore && git checkout hardhat/v2
+cd ~/ore2/ore-cli && git checkout hardhat/v2
+cd ~/ore2/ore && git checkout hardhat/v2
+```
+Execute each command separately one after the other watching for errors on the way.
+
+
 ## Building the utility
 To build the Ore CLI, you will need to have the Rust programming language installed. You can install Rust by following the instructions on the [Rust website](https://www.rust-lang.org/tools/install).
 
-These instructions are for using a linux environment but also work on WSL2 on windows (I suspect they will work on most MAC computers as well).
+The instructions presented here are for using a linux environment but also work on WSL2 on windows (I suspect they will work on most MAC computers as well).
 
 Once you have Rust installed, you can build the Ore CLI by running the following command in the ore-cli folder:
 ```sh
