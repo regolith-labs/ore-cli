@@ -121,17 +121,24 @@ the same hardware may get a range of difficulties returned. Sometimes you get lu
 You can stop the miner at any time without losing any rewards. On most computers this can be accomplished by pressing CTRL+C in the terminal where the miner is running.
 
 ## Checking on your Wallet Balance
-You can check on the state of a wallet by:
+You do not have a mining session running to see the wallet balances. You can check on the state of a wallet at any time by:
 ```sh
-./unclaimedbalance.sh
+./walletBalance.sh 1
 ```
-This will show the amount of ORE unstaked and staked for that particular wallet. You do not have a mining session running to see the wallet balances.
+This will show the amount of unstaked and staked ORE for that particular wallet number as specified in your ore_env.priv.sh.
+In the above example this would use the key specified by KEY1.
+
+## Staking Additional ORE
+If you have unstaked ORE stored in your wallet then you can opt to stake it to increase your rewards multiplier when mining with that key file.
+You can add staked ore at any time even whilst mining. To stake ORE, execute the following command:
+```sh
+./stakeOre.sh
+```
+
 
 ## Withdrawing Staked ORE
 TO DO
 
-## Staking Additional ORE
-TO DO
 
 ## Close Accounts
 TO DO - I have no idea what the purpose of this is yet.

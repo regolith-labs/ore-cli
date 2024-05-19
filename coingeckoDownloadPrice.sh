@@ -3,7 +3,7 @@
 
 source ./ore_env.priv.sh
 
-if [ $# -ne 1 ]; then
+if [ $# -lt 1 ]; then
 	echo "USAGE: $0 [Ore|Sol]"
 	exit 1
 fi
@@ -39,5 +39,7 @@ do
 		break
 	fi
 done
-echo Current $1 price: writing \$${PRICE} to ${FILENAME}
+if [ $# -lt 2 ]; then
+	echo Current $1 price: writing \$${PRICE} to ${FILENAME}
+fi
 echo ${PRICE} > ${FILENAME}

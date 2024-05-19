@@ -1,9 +1,13 @@
 #!/bin/bash
 #
-source ./ore_env.sh
-KEY=${1:-$DEFAULT_KEY}
+if [ $# -ne 1 ]; then
+	echo "USAGE: $0 [wallet/miner integer]"
+	exit 1
+fi
+source ./ore_env.sh $1
+
 while true; do
 	# echo ----------------------------------------------------------------------------------------
-	./unclaimedbalance.sh -k=${KEY}
+	./walletBalance.sh $1
 	sleep 60
 done
