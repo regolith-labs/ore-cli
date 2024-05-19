@@ -1,24 +1,14 @@
 #!/bin/bash
 #
 #devnet config
-source ./ore_env.sh
 
-RPC_URL=$DEFAULT_RPC_URL
-KEY=$DEFAULT_KEY
-FEE=$DEFAULT_FEE
-THREADS=$DEFAULT_THREADS
+if [ $# -ne 1 ]; then
+	echo "USAGE: $0 [integer representing the miner number in ore_env.priv.sh]"
+	exit 1
+fi
+source ./ore_env.sh $1
 
 MINER_NAME="Miner ${1:-1}"
-
-if [ ! -f ${KEY} ]; then
-	echo "Sorry, the key file does not exist: ${KEY}"
-	exit 2
-fi
-
-if [ ! -f ${ORE_BIN} ]; then
-	echo "Sorry, the ore-cli file does not exist: ${ORE_BIN}"
-	exit 2
-fi
 
 solana config set --url ${RPC1} >/dev/null
 
@@ -28,9 +18,12 @@ while true; do
 	echo ----------------------------------------------------------------------------------------------------
 	echo Wallet:		${KEY}
 	echo RPC:			${RPC_URL}
+	echo Threads:		${THREADS}
 	echo Priority fee:	${FEE}
 	echo ore-cli:		${ORE_BIN}
 
+	./coingeckoDownloadPrice.sh Ore
+	./coingeckoDownloadPrice.sh Sol
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial SOL Price:	\$${SOL_PRICE}"
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial ORE Price:	\$${ORE_PRICE}"
 	echo ----------------------------------------------------------------------------------------------------

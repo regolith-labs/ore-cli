@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::{BufRead, BufReader, Result};
 use std::sync::Arc;
 use std::collections::BTreeMap;
 use std::time::{Instant, Duration};
@@ -56,6 +58,9 @@ impl Miner {
 		let mut max_reward: f64 = 0.0;						// What has been the highest reward mined in this session
 		let mut max_reward_text: String = "".to_string();	// A text string detailing the maximum reward pass
 
+		let mut _current_ore_price:f64=self.load_ore_price();
+		let mut _current_sol_price:f64=self.load_sol_price();
+
         // Start mining loop
         loop {
 			let pass_start_time = Instant::now();
@@ -101,14 +106,13 @@ impl Miner {
 				// Log if this pass is your maximum reward for this session
 				if last_pass_ore_mined>max_reward {
 					max_reward = last_pass_ore_mined;
-					max_reward_text = format!("Max session reward: {:.11} ORE at difficulty {} during pass {}.   {:.0} mins ago",
-						pass,
-						max_reward,
+					max_reward_text = format!("Max session reward: {:.11} ORE (${:.2}) at difficulty {} during pass {}.",
+						last_pass_ore_mined,
+						last_pass_ore_mined * _current_ore_price,
 						last_pass_difficulty,
-						((60-pass_start_time.elapsed().as_secs())/60).to_string().dimmed(),
+						pass,
 					);
 				}
-
 
 				// Add the difference in sol from the previous pass to the session_sol_used tally
 				let mut last_pass_sol_used=current_sol_balance-last_sol_balance;
@@ -128,15 +132,22 @@ impl Miner {
 
 				// Show a summary of the difficulties solved for this mining session every 5 passes
 				// This will indicate the most common difficulty solved by this miner
-				if (pass-1) % 5 == 0 {
+				if (pass-1) % 1 == 0 {
+					_current_ore_price=self.load_ore_price();
+					_current_sol_price=self.load_sol_price();
 					println!("\n{}", ("========================================================================================================================").to_string().dimmed());
-					println!("| {}",
-						max_reward_text,
-					);
-					println!("| Average reward:     {:.11} ORE over {} passes.",
-						session_ore_mined / (pass-1) as f64,
+					println!("| {}", max_reward_text);
+					println!("| Average reward:     {:.11} ORE (${:.2}) over {} passes.",
+						(session_ore_mined / (pass-1) as f64),
+						(session_ore_mined / (pass-1) as f64) * _current_ore_price,
 						pass-1,
 					);
+					println!("| Session Summary:\tProfit: ${:.2} ORE\t      Cost: ${:.2} SOL\tProfitablility: ${:.2}",
+						session_ore_mined * _current_ore_price,
+						session_sol_used * _current_sol_price,
+						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price),
+					);
+
 					println!("| Difficulties solved during {} passes:", pass-1);
 
 					let mut max_count: u32 = 0;
@@ -407,7 +418,7 @@ impl Miner {
 	// 	// println!("Coinmarketcap SOL price: {}", resp);
 	// }
 
-	// QUery the wallet for the amount of SOL present and panic if less than a minimum amount
+	// Query the wallet for the amount of SOL present and panic if less than a minimum amount
 	async fn get_sol_balance(&self, panic: bool) -> f64 {
 		const MIN_SOL_BALANCE: f64 = 0.005;
 		let signer = self.signer();
@@ -438,6 +449,56 @@ impl Miner {
 			}
 		}
 	}
+
+	// Read a file to get a f64 value from the first line of the file
+	pub fn read_f64_from_file(&self, file_path: &str) -> Result<f64> {
+		let file = File::open(file_path)?;
+		let reader = BufReader::new(file);
+
+		if let Some(first_line) = reader.lines().next() {
+			if let Ok(line) = first_line {
+				if let Ok(value) = line.trim().parse::<f64>() {
+					return Ok(value);
+				}
+			}
+		}
+
+		Err(std::io::Error::new(
+			std::io::ErrorKind::InvalidData,
+			"Failed to read or parse f64 from the first line.",
+		))
+	}
+
+	// read the current ORE price in from text file
+	fn load_ore_price(&self) -> f64 {
+		let file_path = "./currentPriceOfOre.txt";
+		match self.read_f64_from_file(&file_path) {
+			Ok(value) => {
+				// println!("ORE Price: ${:.2}", value);
+				value
+			}
+			Err(err) => {
+				eprintln!("Error: failed to read ORE price from {}: {}", file_path, err);
+				0.0
+			}
+		}
+	}
+
+	// read the current SOL price in from text file
+	fn load_sol_price(&self) -> f64 {
+		let file_path = "./currentPriceOfSol.txt";
+		match self.read_f64_from_file(&file_path) {
+			Ok(value) => {
+				// println!("SOL Price: ${:.2}", value);
+				value
+			}
+			Err(err) => {
+				eprintln!("Error: failed to read SOL price from {}: {}", file_path, err);
+				0.0
+			}
+		}
+	}
+
 }
 
 // TODO Pick a better strategy (avoid draining bus)

@@ -24,7 +24,7 @@ echo
 echo ========================================================
 cargo build --release
 buildexitcode=$?
-if [ "$1" = "nomine" ]; then
+if [ $# -ne 1 ]; then
 	exit $buildexitcode
 fi
 
@@ -35,7 +35,7 @@ fi
 
 if [ $buildexitcode -eq 0 ]; then
 	echo ========================================================
-	echo Starting new miner...
+	echo Starting miner $1...
 	echo ========================================================
-	./miner.sh
+	./miner.sh $1
 fi
