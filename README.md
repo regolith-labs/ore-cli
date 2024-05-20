@@ -2,7 +2,7 @@
 A command line interface for the Ore program.
 
 ## Cloning the repositories
-You will need to have git installed on your computer to clone, build and test this software.
+You will need to have git installed on your computer to clone, build and test this software. On debian/ubuntu this can usualy be done with ```sudo apt install git```. If this does not work, please google how to install git on your OS.
 
 First create a suitable folder to clone the 3 git repositories to:
 ```sh
