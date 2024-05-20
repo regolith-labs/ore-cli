@@ -228,10 +228,11 @@ impl Miner {
 				load_avg_5min,
 				load_avg_15min,
 			);
-			println!("        Currently staked ORE: {:.11}\tWallet SOL:  {:.9}\tLast Withdrawal: {:.1} hours ago {}",
+			let last_withdrawn_hours_ago = (clock.unix_timestamp.saturating_sub(proof.last_claim_at) as f64) / 60f64 / 64f64;
+            println!("        Currently staked ORE: {:.11}\tWallet SOL:  {:.9}\tLast Withdrawal: {:.1} hours ago {}",
 				current_staked_balance,
 				current_sol_balance,
-				proof.last_claim_at,
+				last_withdrawn_hours_ago,
 				claim_text,
             );
 
