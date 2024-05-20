@@ -22,7 +22,8 @@ solana-keygen verify $(solana-keygen pubkey ${WALLET_PATH}) ${WALLET_PATH}
 echo ------------------------------------------------------------------
 echo Wallet has $(solana -k ${WALLET_PATH} balance) available
 echo If you are connected to devnet, you can get airdropped some Sol after configuring your ore_env.priv.sh to use the new wallet for a miner:
-echo "./airdropDevnetSol.sh 1 [wallet/miner number]"
+echo "./airdropDevnetSol.sh [wallet/miner number] [amount_of_sol]"
+echo "e.g    ./airdropDevnetSol.sh 1 0.5"
 echo
 echo ------------------------------------------------------------------
 echo Write down and store the seed phrase above if you want to import and use this wallet somewhere else e.g. Phantom Wallet

@@ -23,6 +23,8 @@ NOTE: IF PULL REQUEST IS MERGED then link above should read git clone ```https:/
 ## Building the utility
 To build the Ore CLI, you will need to have the Rust programming language installed. You can install Rust by following the instructions on the [Rust website](https://www.rust-lang.org/tools/install).
 
+Another prerequisite for these scripts is to install the solana cli from their [website](https://docs.solanalabs.com/cli/install)
+
 The instructions presented here are for using a linux environment but also work on WSL2 on windows (I suspect they will work on most MAC computers as well).
 
 Once you have Rust installed, you can build the Ore CLI by running the following command in the ore-cli folder:
@@ -83,7 +85,7 @@ customised for your new wallet keypair file. It will be something like:
 ```sh
 ./airdropDevnetSol.sh 1 1.5
 ```
-The command above will attempt to airdrop 1.5 SOL to miner 1's wallet. Be aware that your RPC will usually rate limit this and limit the actual amount you can airdrop and how oftem you can do it.
+The command above will attempt to airdrop 1.5 SOL to miner 1's wallet. Be aware that your RPC will usually rate limit this and limit the actual amount you can airdrop and how often you can do it. You may need to try a few times perhaps decreasing the amount of SOL asked for. You could also try https://faucet.solana.com/ to airdrop your wallet address which is shown in the ```createwallet.sh``` output from the previous step.
 
 ORE uses very little SOL every minute and it will cost around 0.000005 SOL * 60 mins * 24 hours = 0.0072 SOL for an entire day's mining. If 1 SOL costs \$200 then that is about \$1.44 per day per miner.
 
