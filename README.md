@@ -12,7 +12,6 @@ git clone https://github.com/hardhatchad/ore-cli
 git clone https://github.com/hardhatchad/drillx
 cd ~/ore2/ore && git checkout hardhat/v2
 cd ~/ore2/ore-cli && git checkout hardhat/v2
-cd ~/ore2/ore && git checkout hardhat/v2
 ```
 Execute each command separately one after the other watching for errors on the way.
 
