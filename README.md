@@ -52,7 +52,7 @@ Threads should be set to a value less that or equal to the number of cores in yo
 
 There are 2 other settings:
 COINGECKO_APIKEY: This will be used to lookup the ORE & SOL price from coingecko to convert the value of your wallet into dollars.
-ELECTRICITY_CODE_PER_KILOWATT_HOUR: This will be used to calculate the cost of electricity for each miner if the have a MINER_WATTAGE setting specified.
+ELECTRICITY_COST_PER_KILOWATT_HOUR: This will be used to calculate the cost of electricity for each miner if the have a MINER_WATTAGE setting specified.
 
 ## Setting up a wallet
 Each miner requires a unique wallet to mine to because of the staking mechanism. It is pointless to mine the same wallet on multiple miners. You can create a new wallet for use with ore-cli using the script below. Note that devnet wallet are not interchangeable with mainnet wallets and your RPC URL dictates what network the new wallet will be valid on.

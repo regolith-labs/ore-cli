@@ -6,7 +6,7 @@
 # Your personal coingecko API key to allow looking up ORE & SOL prices to estimate profitablility
 COINGECKO_APIKEY=CG-XXXXXXXXXXXXXXXXXXXXXXXX
 # Cost in dollars for using 1000W of energy every hour (from electric bill)
-ELECTRICITY_CODE_PER_KILOWATT_HOUR=0.40
+ELECTRICITY_COST_PER_KILOWATT_HOUR=0.40
 
 # Miner 1 Config
 #======================================================================================================

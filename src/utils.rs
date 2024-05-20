@@ -16,7 +16,7 @@ pub async fn _get_treasury(client: &RpcClient) -> Treasury {
     let data = client
         .get_account_data(&TREASURY_ADDRESS)
         .await
-        .expect("[get_treasury] Failed to get treasury account");
+        .expect("Failed to get treasury account");
     *Treasury::try_from_bytes(&data).expect("Failed to parse treasury account")
 }
 
@@ -24,7 +24,7 @@ pub async fn get_config(client: &RpcClient) -> Config {
     let data = client
         .get_account_data(&CONFIG_ADDRESS)
         .await
-        .expect("[get_config] Failed to get config account");
+        .expect("Failed to get config account");
     *Config::try_from_bytes(&data).expect("Failed to parse config account")
 }
 
@@ -33,7 +33,7 @@ pub async fn get_proof(client: &RpcClient, authority: Pubkey) -> Proof {
     let data = client
         .get_account_data(&proof_address)
         .await
-        .expect("[get_proof] Failed to get miner account");
+        .expect("Failed to get miner account");
     *Proof::try_from_bytes(&data).expect("Failed to parse miner account")
 }
 
@@ -41,7 +41,7 @@ pub async fn get_clock(client: &RpcClient) -> Clock {
     let data = client
         .get_account_data(&sysvar::clock::ID)
         .await
-        .expect("[get_clock] Failed to get miner account");
+        .expect("Failed to get miner account");
     bincode::deserialize::<Clock>(&data).expect("Failed to deserialize clock")
 }
 

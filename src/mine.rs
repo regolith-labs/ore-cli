@@ -146,9 +146,13 @@ impl Miner {
 						(session_ore_mined / (pass-1) as f64) * _current_ore_price,
 						pass-1,
 					);
-					println!("| Session Summary:\tProfit: ${:.4} ORE\t      Cost: ${:.4} SOL\tProfitablility: ${:.4}",
-						session_ore_mined * _current_ore_price,
-						session_sol_used * _current_sol_price,
+					println!("| Session Summary:\tProfit: ${:.4} ORE\t      Cost: ${:.4} SOL\tElectric Cost: ${:.4}",
+						(session_ore_mined * _current_ore_price),
+						(session_sol_used * _current_sol_price),
+						// ELECTRICITY_COST_PER_KILOWATT_HOUR * MINER_WATTAGE_X / 1000
+						0.00
+					);
+					println!("| Overall Profitablility: ${:.4}",
 						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price),
 					);
 
@@ -413,14 +417,6 @@ impl Miner {
 		}
 		return retval;
     }
-
-	// Request the price of SOL from coinmarketcap
-	// async fn download_sol_price(&self) {
-	// 	let url = "https://api.coinmarketcap.com/data/price?ids=solana&convert=USD&x_cg_demo_api_key=CG-DWoujcLEMj2Pk6omqJaJsKLZ";
-	// 	// SOL_PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd&x_cg_demo_api_key=${COINGECKO_APIKEY}" | jq '.solana.usd')
-	// 	// let resp = reqwest::blocking::get(url)?.text()?;
-	// 	// println!("Coinmarketcap SOL price: {}", resp);
-	// }
 
 	// Query the wallet for the amount of SOL present and panic if less than a minimum amount
 	async fn get_sol_balance(&self, panic: bool) -> f64 {
