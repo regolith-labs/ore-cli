@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Result};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+// use std::sync::atomic::AtomicU32;
 use std::collections::BTreeMap;
 use std::time::{Instant, Duration};
 use humantime::format_duration;
@@ -123,7 +124,7 @@ impl Miner {
 				// not sure how to detect a change in sol level after the start of the last pass that is not just a transaction fee.
 				session_sol_used-=last_pass_sol_used;	// Update the session sol used tally
 
-				println!("    - Mined: {:.11}\t      Cost: {:.9}\tSession: {:.11} ORE\t{:.9} SOL",
+				println!("      Mined: {:.11}\t      Cost: {:.9}\tSession: {:.11} ORE\t{:.9} SOL",
 					last_pass_ore_mined,
 					last_pass_sol_used,
 					session_ore_mined,
@@ -146,14 +147,29 @@ impl Miner {
 						(session_ore_mined / (pass-1) as f64) * _current_ore_price,
 						pass-1,
 					);
-					println!("| Session Summary:\tProfit: ${:.4} ORE\t      Cost: ${:.4} SOL\tElectric Cost: ${:.4}",
+					println!("| Session Summary:    Profit (ORE)\t\tCost (SOL)\tCost (Electric)");
+					let rig_wattage=100.0;		// This should be read from config
+					let cost_per_kw_hour=0.40;	// This should be read from config
+					// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
+					let session_kwatts_used=(rig_wattage/1000.0) * (pass-1) as f64 / 60.0;
+					println!("|          Tokens:    ${:.11} ORE\t${:.4} SOL\t{:.3}kW for {:.0}W rig",
+						session_ore_mined,
+						session_sol_used,
+						// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
+						session_kwatts_used,
+						rig_wattage,
+					);
+					println!("|      In dollars:    ${:.4} ORE\t\t${:.4} SOL\t${:.4} @ ${:.2} per kW/Hr",
 						(session_ore_mined * _current_ore_price),
 						(session_sol_used * _current_sol_price),
-						// ELECTRICITY_COST_PER_KILOWATT_HOUR * MINER_WATTAGE_X / 1000
-						0.00
+						// Cost per minute * watts used * number of minutes mined for
+						// (ELECTRICITY_COST_PER_KILOWATT_HOUR/60) * (MINER_WATTAGE_X/1000.0) * passes/ number of passes per hour
+						cost_per_kw_hour * session_kwatts_used,
+						cost_per_kw_hour,
 					);
 					println!("| Overall Profitablility: ${:.4}",
-						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price),
+						// Mined Ore - SOL Spent - Electic Cost
+						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price) - (cost_per_kw_hour * session_kwatts_used),
 					);
 
 					println!("| Difficulties solved during {} passes:", pass-1);
@@ -292,21 +308,30 @@ impl Miner {
         // Dispatch job to each thread
 		let timer = Instant::now();
 		let progress_bar = Arc::new(spinner::new_progress_bar());
-        progress_bar.set_message(format!("[{}s to go] Mining...", cutoff_time));
+		let global_max_difficulty = Arc::new(Mutex::new(u32::MIN));
+		let global_max_difficulty_took = Arc::new(Mutex::new(u64::MIN));
+		let global_hashes = Arc::new(Mutex::new(u64::MIN));
+		progress_bar.set_message(format!("[{}s to go] Mining...", cutoff_time));
 		let handles: Vec<_> = (0..threads)
             .map(|i| {
-                std::thread::spawn({
+				std::thread::spawn({
                     let proof = proof.clone();
                     let progress_bar = progress_bar.clone();
                     let mut memory = equix::SolverMemory::new();
-                    move || {
+					let thread_max_difficulty = Arc::clone(&global_max_difficulty);
+					let thread_max_difficulty_took = Arc::clone(&global_max_difficulty_took);
+					let thread_hashes = Arc::clone(&global_hashes);
+					move || {
                         let mut nonce = u64::MAX.saturating_div(threads).saturating_mul(i);
                         let mut best_nonce = nonce;
                         let mut best_difficulty = 0;
                         let mut best_hash = Hash::default();
 						let mut last_elapsed:u64 = 0;
+						let mut hashes=0;
                         loop {
-		                    // Create hash
+							hashes+=1;
+
+							// Create hash
                             if let Ok(hx) = drillx::hash_with_memory(
                                 &mut memory,
                                 &proof.challenge,
@@ -317,27 +342,43 @@ impl Miner {
                                     best_nonce = nonce;
                                     best_difficulty = difficulty;
                                     best_hash = hx;
+									{	// Update the global max difficulty counter
+										let mut global_max_difficulty=thread_max_difficulty.lock().unwrap();
+										if difficulty>*global_max_difficulty {
+											*global_max_difficulty = difficulty+0;
+											let mut global_max_difficult_took=thread_max_difficulty_took.lock().unwrap();
+											*global_max_difficult_took = timer.elapsed().as_secs();
+										}
+									}
                                 }
                             }
 
-                            // Exit if time has elapsed
+                            // Exit thread if reached cutoff for mining time
                             if nonce % 100 == 0 {
-                                if timer.elapsed().as_secs().ge(&cutoff_time) {
+								let elapsed_secs=timer.elapsed().as_secs();
+                                if elapsed_secs.ge(&cutoff_time) {
                                     if best_difficulty.gt(&ore::MIN_DIFFICULTY) {
                                         // Mine until min difficulty has been met
                                         break;
                                     }
-                                } else if i == 0 {
-									let next_elapsed=timer.elapsed().as_secs();
-									if next_elapsed != last_elapsed {
-										progress_bar.set_message(format!(
-											"[{}{}] Mining... {} {}",
-											cutoff_time.saturating_sub(next_elapsed).to_string().dimmed(),
-											"s to go".dimmed(),
-											"Difficulty so far:".dimmed(),
-											best_difficulty.to_string().yellow(),
-										));
-										last_elapsed=next_elapsed;
+                                } else {
+									if i == 0 { // Only log for first thread - other threads are silent
+										if elapsed_secs != last_elapsed {
+											last_elapsed=elapsed_secs;
+											{ // This is required to release lock on thread_max_difficulty_all_threads
+												let global_max_difficulty=thread_max_difficulty.lock().unwrap();
+												let global_max_difficult_took=thread_max_difficulty_took.lock().unwrap();
+												progress_bar.set_message(format!(
+													"[{}{}] Mining... {} {} after {} secs",
+													cutoff_time.saturating_sub(elapsed_secs).to_string().dimmed(),
+													"s to go".dimmed(),
+													"Difficulty so far:".dimmed(),
+													// best_difficulty,
+													global_max_difficulty,
+													global_max_difficult_took
+												));
+											}
+										}
 									}
                                 }
                             }
@@ -345,6 +386,11 @@ impl Miner {
                             // Increment nonce
                             nonce += 1;
                         }
+
+						{
+							let mut global_hashes=thread_hashes.lock().unwrap();
+							*global_hashes += hashes;
+						}
 
                         // Return the best nonce
                         (best_nonce, best_difficulty, best_hash)
@@ -368,12 +414,16 @@ impl Miner {
         }
 
         // Update log
+		let hashes=global_hashes.lock().unwrap();
 		progress_bar.finish_with_message(format!(
-            "[{}{}] Difficulty: {}\t    Hash: {} ",
+            "[{}{}] Difficulty: {} after {} secs\t    Hash: {}\tHashes: {} {:.6}n%",
 			timer.elapsed().as_secs().to_string().dimmed(),
 			"s".dimmed(),
             best_difficulty.to_string().bold().yellow(),
+			global_max_difficulty_took.lock().unwrap().to_string().bold().yellow(),
             bs58::encode(best_hash.h).into_string().dimmed(),
+			*hashes,
+			100.0* (*hashes as f64)/(u64::MAX as f64) *1000000000.0
         ));
 
         (Solution::new(best_hash.d, best_nonce.to_le_bytes()), best_difficulty)
