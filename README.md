@@ -7,13 +7,15 @@ You will need to have git installed on your computer to clone, build and test th
 First create a suitable folder to clone the 3 git repositories to:
 ```sh
 mkdir ~/ore2; cd ~/ore2
+git clone https://github.com/pmcochrane/ore-cli
 git clone https://github.com/hardhatchad/ore
-git clone https://github.com/hardhatchad/ore-cli
 git clone https://github.com/hardhatchad/drillx
 cd ~/ore2/ore && git checkout hardhat/v2
 cd ~/ore2/ore-cli && git checkout hardhat/v2
 ```
 Execute each command separately one after the other watching for errors on the way.
+
+NOTE: IF PULL REQUEST IS MERGED then link above should read git clone ```https://github.com/hardhatchad/ore-cli```
 
 
 ## Building the utility
@@ -29,6 +31,8 @@ cd ~/ore2/ore-cli
 The first build can be slow so please be patient while each library is compiled. Subsequent rebuilds will be significantly quicker. If the compilation fails, errors will be shown on screen for you to rectify.
 
 The build process creates a compiled ore cli executable in the path ```./target/release/ore``` as well as a link to it in ```./ore```. This is the ore cli utility that you have compiled.
+
+To test if the build was successful try running the command ```./ore``` and you should see some help from the ore-cli.
 
 ## Rebuilding & debugging the ore-cli utility
 Save your edits to the source code then execute ```./build_and_mine.sh 1```. If the build is successful, a mining session will automatically be started for the first miner configured in ```ore_env.priv.sh```. Obviously, you need to follow the rest of the instructions here before attempting to do this as it does not know anything about your miner configuration yet.

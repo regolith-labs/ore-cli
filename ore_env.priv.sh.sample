@@ -1,7 +1,7 @@
 # This is just a sample file to show what is expected
 # to be in ore_env.priv.sh
 # Copy or rename this and fill in according to your miners
-# At least 1 miner must be
+# At least 1 miner must be configured for the scripts to operate.
 
 # Your personal coingecko API key to allow looking up ORE & SOL prices to estimate profitablility
 COINGECKO_APIKEY=CG-XXXXXXXXXXXXXXXXXXXXXXXX
