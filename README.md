@@ -4,6 +4,8 @@ A command line interface for the Ore program.
 ## Cloning the repositories
 You will need to have git installed on your computer to clone, build and test this software. On debian/ubuntu this can usualy be done with ```sudo apt install git```. If this does not work, please google how to install git on your OS.
 
+You will need to have build tools installed on your computer to enable compilation of some of the rust libraries. On debian/ubuntu this can usualy be done with ```sudo apt install build-essential```. Please google how to install development tools for your OS.
+
 First create a suitable folder to clone the 3 git repositories to:
 ```sh
 mkdir ~/ore2; cd ~/ore2
