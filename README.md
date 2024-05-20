@@ -2,19 +2,22 @@
 A command line interface for the Ore program.
 
 ## Cloning the repositories
-You will need to have git installed on your computer to clone, build and test this software.
+You will need to have git installed on your computer to clone, build and test this software. On debian/ubuntu this can usualy be done with ```sudo apt install git```. If this does not work, please google how to install git on your OS.
+
+You will need to have build tools installed on your computer to enable compilation of some of the rust libraries. On debian/ubuntu this can usualy be done with ```sudo apt install build-essential```. Please google how to install development tools for your OS.
 
 First create a suitable folder to clone the 3 git repositories to:
 ```sh
 mkdir ~/ore2; cd ~/ore2
+git clone https://github.com/pmcochrane/ore-cli
 git clone https://github.com/hardhatchad/ore
-git clone https://github.com/hardhatchad/ore-cli
 git clone https://github.com/hardhatchad/drillx
 cd ~/ore2/ore && git checkout hardhat/v2
 cd ~/ore2/ore-cli && git checkout hardhat/v2
-cd ~/ore2/ore && git checkout hardhat/v2
 ```
 Execute each command separately one after the other watching for errors on the way.
+
+NOTE: IF PULL REQUEST IS MERGED then link above should read git clone ```https://github.com/hardhatchad/ore-cli```
 
 
 ## Building the utility
@@ -24,11 +27,14 @@ The instructions presented here are for using a linux environment but also work 
 
 Once you have Rust installed, you can build the Ore CLI by running the following command in the ore-cli folder:
 ```sh
+cd ~/ore2/ore-cli
 ./build_and_mine.sh
 ```
 The first build can be slow so please be patient while each library is compiled. Subsequent rebuilds will be significantly quicker. If the compilation fails, errors will be shown on screen for you to rectify.
 
 The build process creates a compiled ore cli executable in the path ```./target/release/ore``` as well as a link to it in ```./ore```. This is the ore cli utility that you have compiled.
+
+To test if the build was successful try running the command ```./ore``` and you should see some help from the ore-cli.
 
 ## Rebuilding & debugging the ore-cli utility
 Save your edits to the source code then execute ```./build_and_mine.sh 1```. If the build is successful, a mining session will automatically be started for the first miner configured in ```ore_env.priv.sh```. Obviously, you need to follow the rest of the instructions here before attempting to do this as it does not know anything about your miner configuration yet.
