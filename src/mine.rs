@@ -108,7 +108,7 @@ impl Miner {
 				// Log if this pass is your maximum reward for this session
 				if last_pass_ore_mined>max_reward {
 					max_reward = last_pass_ore_mined;
-					max_reward_text = format!("Max session reward: {:.11} ORE (${:.4}) at difficulty {} during pass {}.",
+		       		max_reward_text = format!("|     Max session reward: {:>17.11} ORE  (${:.2}) at difficulty {} during pass {}.",
 						last_pass_ore_mined,
 						last_pass_ore_mined * _current_ore_price,
 						last_pass_difficulty,
@@ -124,8 +124,8 @@ impl Miner {
 				}
 				// not sure how to detect a change in sol level after the start of the last pass that is not just a transaction fee.
 				session_sol_used-=last_pass_sol_used;	// Update the session sol used tally
-
-				println!("      Mined: {:.11}\t      Cost: {:.9}\tSession: {:.11} ORE\t{:.9} SOL",
+			
+				println!("  Mined: {:>17.11} ORE     Cost: {:>11.6} SOL    Session: {:>17.11} ORE    {:11.6} SOL",
 					last_pass_ore_mined,
 					last_pass_sol_used,
 					session_ore_mined,
@@ -138,29 +138,29 @@ impl Miner {
 					_current_ore_price=self.load_ore_price();
 					_current_sol_price=self.load_sol_price();
 					println!("\n{}", ("========================================================================================================================").to_string().dimmed());
-					println!("| Current ORE Price: ${:.2}\tCurrent SOL Price: ${:.2}",
+					println!("| Current ORE Price: ${:>.2}\tCurrent SOL Price: ${:>.2}",
 						_current_ore_price,
 						_current_sol_price,
 					);
-					println!("| {}", max_reward_text);
-					println!("| Average reward:     {:.11} ORE (${:.4}) over {} passes.",
+					println!("{}", max_reward_text);
+  				    println!("|         Average reward: {:>17.11} ORE  (${:>.4}) over {} passes.",
 						(session_ore_mined / (pass-1) as f64),
 						(session_ore_mined / (pass-1) as f64) * _current_ore_price,
 						pass-1,
 					);
-					println!("| Session Summary:    Profit (ORE)\t\tCost (SOL)\tCost (Electric)");
-					let rig_wattage=100.0;		// This should be read from config
-					let cost_per_kw_hour=0.40;	// This should be read from config
+					println!("|        Session Summary: {:>17}               {:>11}        Cost (Electric)", "Profit", "Cost");
+					let rig_wattage=100.0;		// This should be read from config/environment
+					let cost_per_kw_hour=0.40;	// This should be read from config/environment
 					// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
 					let session_kwatts_used=(rig_wattage/1000.0) * (pass-1) as f64 / 60.0;
-					println!("|          Tokens:    {:.11} ORE\t{:.4} SOL\t{:.3}kW for {:.0}W rig",
+					println!("|                 Tokens: {:>17.11} ORE           {:>11.6} SOL    {:.3}kW for {:.0}W rig",
 						session_ore_mined,
 						session_sol_used,
 						// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
 						session_kwatts_used,
 						rig_wattage,
 					);
-					println!("|      In dollars:    ${:.4} ORE\t\t${:.4} SOL\t${:.4} @ ${:.2} per kW/Hr",
+					println!("|             In dollars: {:>17.02} USD           {:>11.2} USD    {:.2} @ ${:.2} per kW/Hr",
 						(session_ore_mined * _current_ore_price),
 						(session_sol_used * _current_sol_price),
 						// Cost per minute * watts used * number of minutes mined for
@@ -168,7 +168,7 @@ impl Miner {
 						cost_per_kw_hour * session_kwatts_used,
 						cost_per_kw_hour,
 					);
-					println!("|   Profitablility: ${:.2}",
+					println!("|         Profitablility: {:>17.2} USD",
 						// Mined Ore - SOL Spent - Electic Cost
 						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price) - (cost_per_kw_hour * session_kwatts_used),
 					);
@@ -240,7 +240,7 @@ impl Miner {
 				cpu_temp_txt="".to_string();
 			}
 			// Write log details to console to summarize this miner's wallet
-			println!("Pass {} started at {}\tMined for {}\tCPU: {}{:.2}/{:.2}/{:.2}",
+			println!("Pass {} started at {}\t\tMined for {}\tCPU: {}{:.2}/{:.2}/{:.2}",
 				pass,
 				Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
 				format_duration(Duration::from_secs(mining_start_time.elapsed().as_secs())),
@@ -250,7 +250,7 @@ impl Miner {
 				load_avg_15min,
 			);
 			let last_withdrawn_hours_ago = (clock.unix_timestamp.saturating_sub(proof.last_claim_at) as f64) / 60f64 / 64f64;
-            println!("        Currently staked ORE: {:.11}\tWallet SOL:  {:.9}\tLast Withdrawal: {:.1} hours ago {}",
+            println!("        Currently Staked: {:>17.11} ORE   Wallet: {:>11.6} SOL    Last Withdrawal: {:.1} hours ago {}",
 				current_staked_balance,
 				current_sol_balance,
 				last_withdrawn_hours_ago,
