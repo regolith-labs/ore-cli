@@ -123,36 +123,40 @@ If you have run out of SOL, the miner will pause for 1 minute then check again t
 
 The difficulty of the hash your miner has resolved will determine how much ORE is rewarded to all miners that submit a hash at that difficulty level. You will receive your share of the total rewards for that difficulty. A higher difficulty level solved will get you a higher amount of ORE rewarded.
 
-The amount you receive is variable each pass so you will not usually get the same amount each time you solve the same difficulty level. There is a
-highly complex algorithm that calculates this but you will need an enormous brain to understand how it is computed and if you think it is wrong then
-tough luck as that is what you are getting rewarded whether you like it or not.
+The ORE rewarded is variable each pass so you will not usually get the same amount even if you solve the same difficulty level. There is a highly complex algorithm that calculates the rewards for each difficulty but you will need an enormous brain to understand how it is computed and if you think it is wrong then tough luck as that is what you are getting rewarded whether you like it or not. The idiots guide is the more ore you have staked, the longer it has been staked & how many other people submitted hashes at all difficulty levels all alter the payout structure. It is widely believed that the phase of the moon, the colour of the led on your mouse and your pets first name are all taken into account when calculating your reward.
 
-The miner will keep track of your Session Totals for ORE mined and SOL spent.
+The miner will keep track of your ORE mined, SOL spent and hashes calculated for your mining session.
 
-At regular intervals, you will get a summary of how many hashes this miner has mined at each difficulty level.
+At regular intervals, you will get a summary page detailing the progress of your mining session.
 ```sh
 ========================================================================================================================
-| Current ORE Price: $279.60    Current SOL Price: $171.02
-| Max session reward: 0.00423792143 ORE ($1.1849) at difficulty 14 during pass 3.
-| Average reward:     0.00273952412 ORE ($0.7660) over 5 passes.
-| Session Summary:      Profit: $3.8299 ORE           Cost: $0.0043 SOL Profitablility: $3.8256
+| Current ORE Price: $333.37    Current SOL Price: $186.53
+| Max session reward: 0.03639313835 ORE ($12.1324) at difficulty 19 during pass 4.
+| Average reward:     0.01364779576 ORE ($4.5498) over 5 passes.
+| Session Summary:    Profit (ORE)              Cost (SOL)      Cost (Electric)
+|          Tokens:    $0.06823897878 ORE        $0.0000 SOL     0.008kW for 100W rig
+|      In dollars:    $22.7488 ORE              $0.0047 SOL     $0.0033 @ $0.40 per kW/Hr
+|   Profitablility: $22.74
+| Total Hashes in session: 338815               Average Hashes per pass: 67763
 | Difficulties solved during 5 passes:
-|----|----|----|----|
-|  11|  13|  14|  17|
-|   1|   2|   1|   1|
+|----|----|----|
+|  15|  16|  19|
+|   3|   1|   1|
 ========================================================================================================================
 ```
-You are shown the current ORE and SOL prices in dollars if you have setup the coingecko api key in your config.
+You are shown the current ORE and SOL prices in dollars if you have setup the coingecko api key in your config. See https://www.coingecko.com/en/api and look for the demo account option which is free.
 
-You are presented with your maximum session reward so far and how much that is worth in dollars.
+You are presented with your maximum session reward gained in one pass and how much that is worth in dollars.
 
 You are also shown your average amount of ORE earned per mining pass.
 
-It then summarises your profit & costs for the session.
+It then summarises your profit & costs for the session in tokens & dollars and give a profitability amount for this miner. Long may the rewards stay as high as they are currently on devnet. We will all be rich beyond our wildest dreams.
 
-The difficulty table indicates approximately how powerful the hardware you are using run this miner on. Note that the same hardware may get a range of difficulties returned. Sometimes you get lucky and solve a more complex one in the 1 minute allowed and get a better reward! Comparing this data between different computers may lead you to mine on your fastest or your most efficient. It's up to you to decide.
+It will report how many hashes you have undertaken inthe session and provide an average number or hashes per minute. This can be used to estimate how powerful your miner is whilst perfoming actual ORE proof of work.
 
-You can stop the miner at any time without losing any rewards. On most computers this can be accomplished by pressing CTRL+C in the terminal where the miner is running. The next time you start your miner with the same wallet you will see that your staked sol is preserved between mining session.
+The difficulty table details how many of each difficulty level you have mined over the course of the session. Note that the same hardware may get a range of difficulties returned giving you a spread of results. Sometimes you get lucky and solve a more complex one in the 1 minute allowed and get a better reward! Over time the spread will gravitate to 2 or 3 difficulty levels which this miner can achieve. Comparing this table and the average hash rate for different computers/miners may lead you to decide to mine on your fastest or your most efficient. It's up to you to decide. You may decide to lower your threads to see if it adversely affect your spread of results.
+
+You can safely stop the miner at any time without losing any staked rewards apart from the last pass you are mining when you stop the miner. On most computers this can be accomplished by pressing CTRL+C in the terminal where the miner is running. The next time you start your miner with the same wallet you will see that your staked ORE is preserved between mining sessions.
 
 ## Checking your Wallet Balance
 You do not need to have a mining session running to see the wallet balances. You can check on the state of a wallet at any time by:
@@ -174,17 +178,17 @@ The second example will stake an additional 2 ORE in wallet 1
 
 
 ## Withdrawing Staked ORE
-==Please be careful when staking ore - there is a penalty if you unstake it within 24 hours. You could lose part of your staked ORE if you withdraw too early. After 24 hours you will get the entire amount unstaked.==
+**Please be careful when staking ore - there is a penalty if you unstake it within 24 hours. You could lose part of your staked ORE if you withdraw too early. 24 hours after staking will return the entire staked amount to your wallet.**
 
-You can withdraw your staked ORE at any point and move it to your wallet as ORE. This can the be transferred to another wallet or converted to another token (eg. to USDC or SOL).
+You can withdraw your staked ORE at any point and move it to your wallet as ORE. This can then be transferred to another wallet or converted to another token (eg. to USDC or SOL).
 ```sh
 ./withdrawStakedOre.sh 1 all
 ./withdrawStakedOre.sh 1 15
 ```
-Example 1 will unstaked all your ORE for wallet 1.
+Example 1 will unstaked all your staked ORE in wallet 1.
 Example 2 will unstake 15 ORE from wallet 1 (if it has 15 ORE or more staked)
 
-If you are trying to unstake too soon after mining or manually staking ORE then you will receive a warning and be told how much you ORE will permanently lose. You can opt out at this point which is nice.
+If you are trying to unstake too soon after mining or manually staking ORE then you will receive a warning and be told how much you ORE will permanently lose. You can opt out at this point and the ORE will all be left staked.
 ```sh
 paul@paulsExtWin10:~/ore2/ore-cli$ ./withdrawStakedOre.sh 2 0.00189869703
 20240519223218 wallet_devnet2.json Wallet 2 ORE balance: 0.00000000000 ORE ($0.00)      Staked: 0.10189869705 ORE ($28.77)
@@ -204,4 +208,4 @@ The wallet balance after withdrawing the staked ore is:
 ```
 
 ## Close Accounts
-TO DO - I have no idea what the purpose of this is yet.
+TO DO - I have no idea what the purpose of this is yet so I cannot write this section yet.
