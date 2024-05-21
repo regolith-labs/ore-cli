@@ -153,7 +153,7 @@ impl Miner {
 					let cost_per_kw_hour=0.40;	// This should be read from config
 					// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
 					let session_kwatts_used=(rig_wattage/1000.0) * (pass-1) as f64 / 60.0;
-					println!("|          Tokens:    ${:.11} ORE\t${:.4} SOL\t{:.3}kW for {:.0}W rig",
+					println!("|          Tokens:    {:.11} ORE\t{:.4} SOL\t{:.3}kW for {:.0}W rig",
 						session_ore_mined,
 						session_sol_used,
 						// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
