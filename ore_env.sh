@@ -19,10 +19,10 @@ KEY=${!KEYNO}
 THREADS=${!THREADSNO}
 FEE=${!FEENO}
 
-# echo RPC_URL: ${RPC_URL}
-# echo KEY: ${KEY}
-# echo THREADS: ${THREADS}
-# echo FEE: ${FEE}
+echo RPC_URL: ${RPC_URL}
+echo KEY: ${KEY}
+echo THREADS: ${THREADS}
+echo FEE: ${FEE}
 
 # Check that all required parameters have been specified for the miner number passed
 if [ -v ${RPC_URL} ]; then
@@ -37,7 +37,7 @@ if [ ! -f ${KEY} ]; then
 	echo "ERROR: the keyfile could not be located: ${KEY}. Please configure KEY$1 in your ore_env.priv.sh file."
 	exit 4
 fi
-if [ -v ${THREADS} ]; then
+if [ ${THREADS} -lt 1 ]; then
 	echo "ERROR: No number of threads has been detected for miner $1. Please configure THREADS$1 in your ore_env.priv.sh file."
 	exit 5
 fi
