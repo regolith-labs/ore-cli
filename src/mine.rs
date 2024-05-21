@@ -55,6 +55,7 @@ impl Miner {
 		let mut last_pass_difficulty: u32= 0;				// The best difficulty solved in the last pass
 		let mut session_ore_mined: f64 = 0.0;				// A running tally of the ORE mined in all passes (session)
 		let mut session_sol_used: f64 = 0.0;				// A running tally of the SOL spent in all passes (session)
+		let mut session_hashes: u64 = 0;					// A running tally of the number of hashes in all passes (session)
 		let mut difficulties_solved: BTreeMap<u32, usize> = BTreeMap::new();	// An array that counts how many of each difficulty has been solved in this session
 		let mut max_reward: f64 = 0.0;						// What has been the highest reward mined in this session
 		let mut max_reward_text: String = "".to_string();	// A text string detailing the maximum reward pass
@@ -167,11 +168,15 @@ impl Miner {
 						cost_per_kw_hour * session_kwatts_used,
 						cost_per_kw_hour,
 					);
-					println!("| Overall Profitablility: ${:.4}",
+					println!("|   Profitablility: ${:.2}",
 						// Mined Ore - SOL Spent - Electic Cost
 						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price) - (cost_per_kw_hour * session_kwatts_used),
 					);
 
+					println!("| Total Hashes in session: {}\t\tAverage Hashes per pass: {:.0}",
+						session_hashes,
+						session_hashes as f64 / (pass-1) as f64,
+					);
 					println!("| Difficulties solved during {} passes:", pass-1);
 
 					let mut max_count: u32 = 0;
@@ -274,7 +279,7 @@ impl Miner {
 			// The proof of work processing for this individual mining pass
 			if current_sol_balance>=MIN_SOL_BALANCE {
 				// Run drillx
-				let (solution, best_difficulty) = self.find_hash_par(proof, cutoff_time, args.threads).await;
+				let (solution, best_difficulty, num_hashes) = self.find_hash_par(proof, cutoff_time, args.threads).await;
 
 				// Submit most difficult hash
 				let mut ixs = vec![];
@@ -286,13 +291,19 @@ impl Miner {
 					find_bus(),
 					solution,
 				));
-				self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
-					.await
-					.ok();
+				match self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
+					.await {
+						Ok(_sig) => {
+							// Log the difficulty solved to hashMap to record progress
+							*difficulties_solved.entry(best_difficulty).or_insert(0) += 1;
+							last_pass_difficulty=best_difficulty;
+						},
+						Err(err) => {
+							eprintln!("ERROR submitting transaction: {}", err.to_string().bold().red());
+						},
+					};
 
-				// Log the difficulty solved to hashMap to record progress
-				*difficulties_solved.entry(best_difficulty).or_insert(0) += 1;
-				last_pass_difficulty=best_difficulty;
+				session_hashes+=num_hashes;
 			}
 
 			// Log how long this pass took to complete
@@ -304,7 +315,7 @@ impl Miner {
         }
     }
 
-    async fn find_hash_par(&self, proof: Proof, cutoff_time: u64, threads: u64) -> (Solution, u32) {
+    async fn find_hash_par(&self, proof: Proof, cutoff_time: u64, threads: u64) -> (Solution, u32, u64) {
         // Dispatch job to each thread
 		let timer = Instant::now();
 		let progress_bar = Arc::new(spinner::new_progress_bar());
@@ -426,7 +437,7 @@ impl Miner {
 			100.0* (*hashes as f64)/(u64::MAX as f64) *1000000000.0
         ));
 
-        (Solution::new(best_hash.d, best_nonce.to_le_bytes()), best_difficulty)
+        (Solution::new(best_hash.d, best_nonce.to_le_bytes()), best_difficulty, *hashes)
     }
 
     pub fn check_num_cores(&self, threads: u64) {
