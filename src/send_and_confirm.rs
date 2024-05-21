@@ -101,7 +101,7 @@ impl Miner {
 		// let elapsed=submit_start_time.elapsed();
 		let progress_bar = spinner::new_progress_bar();
 		loop {
-			progress_bar.set_message(format!("[{}{}] (attempt {}) Submitting transaction...",
+			progress_bar.set_message(format!("[{}{}] Attempt {}: Submitting transaction...",
 				submit_start_time.elapsed().as_secs().to_string().dimmed(),
 				"s".dimmed(),
 				attempts,
@@ -110,7 +110,7 @@ impl Miner {
                 Ok(sig) => {
                     // Skip confirmation
                     if skip_confirm {
-                        progress_bar.finish_with_message(format!("[{}{}] (attempt {}) Sent: {}",
+                        progress_bar.finish_with_message(format!("[{}{}] Attempt {}: Sent: {}",
 							submit_start_time.elapsed().as_secs().to_string().dimmed(),
 							"s".dimmed(),
 							attempts,
@@ -127,7 +127,7 @@ impl Miner {
                                 for status in signature_statuses.value {
                                     if let Some(status) = status {
                                         if let Some(err) = status.err {
-                                            progress_bar.set_message(format!("[{}{}] (attempt {}) {} {}",
+                                            progress_bar.set_message(format!("[{}{}] Attempt {}: {} {}",
 												submit_start_time.elapsed().as_secs().to_string().dimmed(),
 												"s".dimmed(),
 												attempts,
@@ -146,7 +146,7 @@ impl Miner {
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
                                                     progress_bar.finish_with_message(format!(
-                                                        "[{}{}] (attempt {}) {}\tTxid: {}",
+                                                        "[{}{}] Attempt {}: {}\t\tTxid: {}",
 														submit_start_time.elapsed().as_secs().to_string().dimmed(),
 														"s".dimmed(),
 														attempts,
@@ -163,7 +163,7 @@ impl Miner {
 
                             // Handle confirmation errors
                             Err(err) => {
-                                progress_bar.set_message(format!("[{}{}] (attempt {}) {} {}",
+                                progress_bar.set_message(format!("[{}{}] Attempt {}: {} {}",
 									submit_start_time.elapsed().as_secs().to_string().dimmed(),
 									"s".dimmed(),
 									attempts,
@@ -178,7 +178,7 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    progress_bar.set_message(format!("[{}{}] (attempt {}) {} {}",
+                    progress_bar.set_message(format!("[{}{}] Attempt {}: {} {}",
 						submit_start_time.elapsed().as_secs().to_string().dimmed(),
 						"s".dimmed(),
 						attempts,
