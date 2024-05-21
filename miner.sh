@@ -8,30 +8,36 @@ if [ $# -ne 1 ]; then
 fi
 source ./ore_env.sh $1
 
-MINER_NAME="Miner ${1:-1}"
 
 solana config set --url ${RPC1} >/dev/null
 
 while true; do
-	echo ----------------------------------------------------------------------------------------------------
-	echo Starting		${MINER_NAME}
-	echo ----------------------------------------------------------------------------------------------------
-	echo Wallet:		${KEY}
-	echo RPC:			${RPC_URL}
-	echo Threads:		${THREADS}
-	echo Priority fee:	${FEE}
-	echo ore-cli:		${ORE_BIN}
+	echo ------------------------------------------------------------------------------------------------------------------------
+	echo Initialising:		${MINER_NAME}
+	echo ------------------------------------------------------------------------------------------------------------------------
+	echo Wallet:			${KEY}
+	echo RPC:				${RPC_URL}
+	echo Priority fee:		${FEE}
+	echo Threads:			${THREADS}
+	# echo Wattage Idle:		${MINER_WATTAGE_IDLE}W
+	# echo Wattage Busy:		${MINER_WATTAGE_BUSY}W
+	# echo Electricity Cost:	\$${MINER_COST_PER_KILOWATT_HOUR} / kWHr
+	echo ore-cli:			${ORE_BIN}
 
-	./coingeckoDownloadPrice.sh Ore
-	./coingeckoDownloadPrice.sh Sol
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial SOL Price:	\$${SOL_PRICE}"
 	# echo `date +'%Y-%m-%d %H:%M:%S'` "Initial ORE Price:	\$${ORE_PRICE}"
-	echo ----------------------------------------------------------------------------------------------------
+	echo ------------------------------------------------------------------------------------------------------------------------
+	export MINER_NAME
+	export MINER_WATTAGE_IDLE
+	export MINER_WATTAGE_BUSY
+	export MINER_COST_PER_KILOWATT_HOUR 
 	# start the miner
 	COMMAND="${ORE_BIN} mine --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE} --threads ${THREADS} --buffer-time 2"
 	# echo ${COMMAND}
 	eval $COMMAND
 	[ $? -eq 0 ] && break
-	# echo `date +'%Y-%m-%d %H:%M:%S'` "Restart in 5 seconds..."
-	# sleep 5
+
+	echo ------------------------------------------------------------------------------------------------------------------------
+	echo `date +'%Y-%m-%d %H:%M:%S'` "Restarting miner process in 10 seconds..."
+	sleep 10
 done

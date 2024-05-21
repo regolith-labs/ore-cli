@@ -50,7 +50,7 @@ An example of this file is included in ```ore_env.priv.sh.sample``` and you can 
 
 You will need to configure at least 1 miner in this script to allow the other scripts in this application to work properly.
 
-For each miner you need to specify RPC1, KEY1, THREADS1, PRIORITY_FEE1 and optionally MINER_WATTAGE_1.
+For each miner you need to specify RPC1, KEY1, THREADS1, PRIORITY_FEE1 and optionally MINER_WATTAGE_IDLE1 and MINER_WATTAGE_BUSY1.
 
 A public RPC URL should work but I have generally found them to be quite unreliable for ORE mining. It is best to sign up for your own personal solana RPC endpoint from one of the providers such as QuickNode, Helius or any of the others.
 
@@ -58,7 +58,13 @@ A key file can be setup as described in the section ```Setting up a wallet```.
 
 Threads should be set to a value less that or equal to the number of cores in your computer. Personally, I leave at least one thread free so the operating system can find time to respond whilst mining. eg. if you have 4 cores in your CPU then set threads to 3. This will lower your hashing power but means the computer does not grind to a halt for doing any other task whilst mining.
 
-There are 2 other settings:
+A priority fee is an extra cost that you can choose to append to a solana transaction to attempt to give your transaction more priority at your RPC server. Raising this can help you succeed in landing a transaction if the solana network is congested but comes with the side effect that EVERY transaction you use for meteor will have this additional cost attached. This can be left at 0 and should only be raised if you are continuously receiving submission errors whilst mining.
+
+MINER_WATTAGE_IDLE1 is intended to be used to calculate energy consumption of your mining PC when it is not mining (idle).
+MINER_WATTAGE_BUSY1 is intended to be used to calculate energy consumption of your mining PC when it is mining at the number of threads you intend to mine on (busy).
+Both of these value can either be left to the defaults and ignore or you can use a watt meter to measure the power consumption of your PC's in both states. Hopefully, the stats page will reflect roughly how much electricity is costing for your mining session (see ELECTRICITY_COST_PER_KILOWATT_HOUR below).
+
+There are 2 other global settings to configure:
 COINGECKO_APIKEY: This will be used to lookup the ORE & SOL price from coingecko to convert the value of your wallet into dollars.
 ELECTRICITY_COST_PER_KILOWATT_HOUR: This will be used to calculate the cost of electricity for each miner if the have a MINER_WATTAGE setting specified.
 

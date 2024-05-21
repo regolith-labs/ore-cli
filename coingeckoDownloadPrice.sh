@@ -4,7 +4,7 @@
 source ./ore_env.priv.sh
 
 if [ $# -lt 1 ]; then
-	echo "USAGE: $0 [Ore|Sol]"
+	echo "USAGE: $0 [Ore|Sol] [quiet]"
 	exit 1
 fi
 
@@ -40,6 +40,6 @@ do
 	fi
 done
 if [ $# -lt 2 ]; then
-	echo Current $1 price: writing \$${PRICE} to ${FILENAME}
+	echo Downloading current $1 price: writing \$${PRICE} to ${FILENAME}
 fi
 echo ${PRICE} > ${FILENAME}

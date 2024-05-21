@@ -1,9 +1,10 @@
 use std::fs::File;
 use std::io::{BufRead, BufReader, Result};
 use std::sync::{Arc, Mutex};
-// use std::sync::atomic::AtomicU32;
+use std::env;
 use std::collections::BTreeMap;
 use std::time::{Instant, Duration};
+use std::process::Command;
 use humantime::format_duration;
 use systemstat::{System, Platform};
 use chrono::prelude::*;
@@ -63,6 +64,25 @@ impl Miner {
 		let mut _current_ore_price:f64=self.load_ore_price();
 		let mut _current_sol_price:f64=self.load_sol_price();
 
+		let miner_name=env::var("MINER_NAME").unwrap_or("Unnamed Miner".to_string());
+		let rig_wattage_idle: f64 = env::var("MINER_WATTAGE_IDLE").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(10.0);
+		let rig_wattage_busy: f64 = env::var("MINER_WATTAGE_BUSY").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(100.0);
+		let cost_per_kw_hour: f64 = env::var("MINER_COST_PER_KILOWATT_HOUR").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.30);
+
+		let separator_line = ("=======================================================================================================================================").to_string().dimmed();
+
+		println!("\n{}", separator_line);
+		println!("| Starting {}...", miner_name.bold());
+		println!("{}", separator_line);
+		println!("| Rig Wattage When Idle: {}W", rig_wattage_idle.to_string().bold());
+		println!("| Rig Wattage When Busy: {}W", rig_wattage_busy.to_string().bold());
+		println!("| Cost of electric per kWHr: ${}", cost_per_kw_hour.to_string().bold());
+		self.lookup_updated_token_price("Ore");
+		self.lookup_updated_token_price("Sol");
+		_current_ore_price=self.load_ore_price();
+		_current_sol_price=self.load_sol_price();
+		println!("{}", separator_line);
+
         // Start mining loop
         loop {
 			let pass_start_time = Instant::now();
@@ -108,7 +128,7 @@ impl Miner {
 				// Log if this pass is your maximum reward for this session
 				if last_pass_ore_mined>max_reward {
 					max_reward = last_pass_ore_mined;
-		       		max_reward_text = format!("|     Max session reward: {:>17.11} ORE  (${:.2}) at difficulty {} during pass {}.",
+		       		max_reward_text = format!("|      Max session reward: {:>17.11} ORE  (${:.2}) at difficulty {} during pass {}.",
 						last_pass_ore_mined,
 						last_pass_ore_mined * _current_ore_price,
 						last_pass_difficulty,
@@ -135,32 +155,37 @@ impl Miner {
 				// Show a summary of the difficulties solved for this mining session every 5 passes
 				// This will indicate the most common difficulty solved by this miner
 				if (pass-1) % 5 == 0 {
+					println!("\n{}", separator_line);
+					self.lookup_updated_token_price("Ore");
+					self.lookup_updated_token_price("Sol");
 					_current_ore_price=self.load_ore_price();
 					_current_sol_price=self.load_sol_price();
-					println!("\n{}", ("========================================================================================================================").to_string().dimmed());
+					println!("| Stats for {} at {}", 
+						miner_name.bold(), 
+						Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
+					);
 					println!("| Current ORE Price: ${:>.2}\tCurrent SOL Price: ${:>.2}",
 						_current_ore_price,
 						_current_sol_price,
 					);
-					println!("{}", max_reward_text);
-  				    println!("|         Average reward: {:>17.11} ORE  (${:>.4}) over {} passes.",
+					if max_reward_text != "" {
+						println!("{}", max_reward_text);
+					}
+  				    println!("|          Average reward: {:>17.11} ORE  (${:>.4}) over {} passes.",
 						(session_ore_mined / (pass-1) as f64),
 						(session_ore_mined / (pass-1) as f64) * _current_ore_price,
 						pass-1,
 					);
-					println!("|        Session Summary: {:>17}               {:>11}        Cost (Electric)", "Profit", "Cost");
-					let rig_wattage=100.0;		// This should be read from config/environment
-					let cost_per_kw_hour=0.40;	// This should be read from config/environment
-					// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
-					let session_kwatts_used=(rig_wattage/1000.0) * (pass-1) as f64 / 60.0;
-					println!("|                 Tokens: {:>17.11} ORE           {:>11.6} SOL    {:.3}kW for {:.0}W rig",
+					println!("|         Session Summary: {:>17}               {:>11}        Cost (Electric)", "Profit", "Cost");
+					let session_kwatts_used=(rig_wattage_busy/1000.0) * (pass-1) as f64 / 60.0;	// (MINER_WATTAGE_BUSY/1000.0) * (pass-1) / number of passes per hour
+					println!("|                  Tokens: {:>17.11} ORE           {:>11.6} SOL    {:.3}kW for {:.0}W rig",
 						session_ore_mined,
 						session_sol_used,
 						// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
 						session_kwatts_used,
-						rig_wattage,
+						rig_wattage_busy,
 					);
-					println!("|             In dollars: {:>17.02} USD           {:>11.2} USD    {:.2} @ ${:.2} per kW/Hr",
+					println!("|              In dollars: {:>17.02} USD           {:>11.2} USD    {:.2} @ ${:.2} per kW/Hr",
 						(session_ore_mined * _current_ore_price),
 						(session_sol_used * _current_sol_price),
 						// Cost per minute * watts used * number of minutes mined for
@@ -168,19 +193,20 @@ impl Miner {
 						cost_per_kw_hour * session_kwatts_used,
 						cost_per_kw_hour,
 					);
-					println!("|         Profitablility: {:>17.2} USD",
+					println!("|          Profitablility: {:>17.2} USD",
 						// Mined Ore - SOL Spent - Electic Cost
 						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price) - (cost_per_kw_hour * session_kwatts_used),
 					);
-
-					println!("| Total Hashes in session: {}\t\tAverage Hashes per pass: {:.0}",
-						session_hashes,
-						session_hashes as f64 / (pass-1) as f64,
+					println!("| Total Hashes in session: {:.1}M\t\tAverage Hashes per pass: {:.0}\t\tThreads: {}",
+						(session_hashes as f64) / 1048576.0,		// Calc Mega Hashes
+						session_hashes as f64 / (pass-1) as f64,	
+						args.threads,
 					);
 					println!("| Difficulties solved during {} passes:", pass-1);
 
 					let mut max_count: u32 = 0;
-					let mut most_popular_difficulty: u32 = 0;
+					let mut most_popular_difficulty: u32 = 0;					
+					print!("|------------");	// Difficulty title row
 					for (difficulty, count) in &difficulties_solved {
 						if (*count as u32) >= max_count {
 							max_count=*count as u32;
@@ -189,6 +215,8 @@ impl Miner {
 						print!("|----");
 					}
 					println!("|");
+					
+					print!("| Difficulty ");	// solved difficulty levels
 					for (difficulty, _count) in &difficulties_solved {
 						if *difficulty == most_popular_difficulty {
 							print!("|{:>4}", difficulty.to_string().bold().yellow());
@@ -197,19 +225,53 @@ impl Miner {
 						}
 					}
 					println!("|");
+					
+					print!("| Solves     ");	// solved difficulty counts
+					let mut total_solves=0;
 					for (_difficulty, count) in &difficulties_solved {
 						if (*count as u32) == max_count {
 							print!("|{:>4}", (*count as u32).to_string().bold().yellow());
 						} else {
 							print!("|{:>4}", count);
 						}
+						total_solves+=*count as u32;
+					}
+					println!("|");
+					
+					print!("| Percentage ");	// solved percentage row
+					let mut cumulative=0;
+					for (_difficulty, count) in &difficulties_solved {
+						let percent=f64::trunc((*count as f64)*100.0/(total_solves as f64)) as u32;
+						if (*count as u32) == max_count {
+							print!("|{:>3}%", percent.to_string().bold().yellow());
+						} else if cumulative<20 || cumulative>85 {
+							print!("|{:>3}%", percent.to_string().dimmed());
+						} else {
+							print!("|{:>3}%", percent);
+						}
+						cumulative += percent;
+					}
+					println!("|");
+
+					print!("| Cumulative ");	// solved cumulative percentage Row
+					cumulative=0;
+					for (_difficulty, count) in &difficulties_solved {
+						let percent=f64::trunc((*count as f64)*100.0/(total_solves as f64)) as u32;
+						if (*count as u32) == max_count {
+							print!("|{:>3}%", percent.to_string().bold().yellow());
+						} else if (cumulative+percent)<20 || cumulative>85 {
+							print!("|{:>3}%", percent.to_string().dimmed());
+						} else {
+							print!("|{:>3}%", percent);
+						}
+						cumulative += percent;
 					}
 					println!("|");
 				} else {
 					// Add a blank line if no summary is shown
 					println!("")
 				}
-				println!("{}\n", ("========================================================================================================================").to_string().dimmed());
+				println!("{}\n", separator_line);
 			}
 
 			// Store this pass's sol/staked balances for use in the next pass
@@ -315,6 +377,7 @@ impl Miner {
         }
     }
 
+	// This is the main hashing functio for the ORE mining loop
     async fn find_hash_par(&self, proof: Proof, cutoff_time: u64, threads: u64) -> (Solution, u32, u64) {
         // Dispatch job to each thread
 		let timer = Instant::now();
@@ -427,19 +490,20 @@ impl Miner {
         // Update log
 		let hashes=global_hashes.lock().unwrap();
 		progress_bar.finish_with_message(format!(
-            "[{}{}] Difficulty: {} after {} secs\t    Hash: {}\tHashes: {} {:.6}n%",
+            "[{}{}] Difficulty: {} after {} secs   Hashes: {}   Hash: {}",
 			timer.elapsed().as_secs().to_string().dimmed(),
 			"s".dimmed(),
             best_difficulty.to_string().bold().yellow(),
 			global_max_difficulty_took.lock().unwrap().to_string().bold().yellow(),
-            bs58::encode(best_hash.h).into_string().dimmed(),
 			*hashes,
-			100.0* (*hashes as f64)/(u64::MAX as f64) *1000000000.0
+			// 100.0* (*hashes as f64)/(u64::MAX as f64) *1000000000.0,
+            bs58::encode(best_hash.h).into_string().dimmed(),
         ));
 
         (Solution::new(best_hash.d, best_nonce.to_le_bytes()), best_difficulty, *hashes)
     }
 
+	// Ensure that the requested number of threads is not above the number of CPU cores
     pub fn check_num_cores(&self, threads: u64) {
         // Check num threads
         let num_cores = num_cpus::get() as u64;
@@ -553,6 +617,20 @@ impl Miner {
 				0.0
 			}
 		}
+	}
+
+	// lookup updated prices for token from coingecko
+	fn lookup_updated_token_price(&self, tokenname: &str) {
+		let mut command = Command::new("./coingeckoDownloadPrice.sh");
+    	command.arg(tokenname);
+		command.arg("quiet");
+		// command.arg(format!("pwd();"));
+		// let current_dir = env::current_dir().expect("Failed to get current directory");
+		// command.current_dir(current_dir);
+    	let status = command.status().expect(format!("Failed to execute command to download {} price", tokenname).as_str());
+    	if ! status.success() {
+        	println!("{} {}", "ERROR: coingeckoDownloadPrice.sh failed to execute.".bold().red(), status);
+    	}
 	}
 
 }
