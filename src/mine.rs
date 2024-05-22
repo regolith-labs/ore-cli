@@ -68,7 +68,8 @@ impl Miner {
 		let rig_wattage_idle: f64 = env::var("MINER_WATTAGE_IDLE").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(10.0);
 		let rig_wattage_busy: f64 = env::var("MINER_WATTAGE_BUSY").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(100.0);
 		let cost_per_kw_hour: f64 = env::var("MINER_COST_PER_KILOWATT_HOUR").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.30);
-
+		let rig_desired_difficulty_level: u32 = env::var("MINER_DESIRED_DIFFICULTY_LEVEL").ok().and_then(|x| x.parse::<u32>().ok()).unwrap_or(13);
+		
 		let separator_line = ("=======================================================================================================================================").to_string().dimmed();
 
 		println!("\n{}", separator_line);
@@ -122,11 +123,24 @@ impl Miner {
 			let clock = get_clock(&self.rpc_client).await;
            	cutoff_time = self.get_cutoff(proof, args.buffer_time, &clock).await;
 
+			if pass==1 {
+				println!("| The first submission may be treated as spam or give you a liveness penalty resulting in no reward.");
+				println!("| Reducing it's duration to compensate and stop you crying if it's a high difficulty.");
+				println!("{}", separator_line);
+				cutoff_time=3;
+			}
+				
+			// Testing for tr
+			// cutoff_time += 4;		// No Liveness penalty but borderline 
+			// cutoff_time += 10;		// Causes Liveness penalty- no reward for mining
+			// cutoff_time=60*60*24;	// This causes hash time to be too long  - Liveness penalty applied - no reward
+			// cutoff_time=5; 			// this causes hash time to be too short - SPAM penalty applied - no reward
+
 			// Determine if Staked ORE can be withdrawing without penalty or if ORE will be burned
-			let t = proof.last_claim_at.saturating_add(ONE_DAY);
+			let no_penalty_time = proof.last_claim_at.saturating_add(ONE_DAY);
 			let mut claim_text="No Withdrawal Penalty".green().to_string();
-			if clock.unix_timestamp.lt(&t) {	// Clock is reused from above
-				let mins_to_go = t.saturating_sub(clock.unix_timestamp).saturating_div(60);
+			if clock.unix_timestamp.lt(&no_penalty_time) {	// Clock is reused from above
+				let mins_to_go = no_penalty_time.saturating_sub(clock.unix_timestamp).saturating_div(60);
 				claim_text = format!("{} {} {}",
 						"Withdrawal Penalty for".bold().red(),
 						mins_to_go.to_string().bold().red(),
@@ -317,6 +331,11 @@ impl Miner {
 				claim_text,
             );
 
+			// println!("Time since last stake: {}\tTime since last hash: {}",
+			// 	clock.unix_timestamp-proof.last_stake_at,
+			// 	clock.unix_timestamp-proof.last_hash_at,
+			// );
+
 			// Pause mining for one minute if no SOL available for transaction fee
 			// This keeps the miner looping and will restart mining when enough SOL is added to miner's wallet
 			if current_sol_balance<MIN_SOL_BALANCE {
@@ -339,7 +358,7 @@ impl Miner {
 			// The proof of work processing for this individual mining pass
 			if current_sol_balance>=MIN_SOL_BALANCE {
 				// Run drillx
-				let (solution, best_difficulty, num_hashes) = self.find_hash_par(proof, cutoff_time, args.threads).await;
+				let (solution, best_difficulty, num_hashes) = self.find_hash_par(proof, cutoff_time, args.threads, rig_desired_difficulty_level).await;
 
 				// Submit most difficult hash
 				let mut ixs = vec![];
@@ -351,7 +370,7 @@ impl Miner {
 					find_bus(),
 					solution,
 				));
-				// std::thread::sleep(Duration::from_millis(1000)); // debug submitting transactions too late
+				// std::thread::sleep(Duration::from_millis(60000)); // debug submitting transactions too late
 				match self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
 					.await {
 						Ok(_sig) => {
@@ -377,16 +396,17 @@ impl Miner {
     }
 
 	// This is the main hashing functio for the ORE mining loop
-    async fn find_hash_par(&self, proof: Proof, cutoff_time: u64, threads: u64) -> (Solution, u32, u64) {
+    async fn find_hash_par(&self, proof: Proof, cutoff_time: u64, threads: u64, rig_desired_difficulty_level: u32) -> (Solution, u32, u64) {
         // Dispatch job to each thread
 		let timer = Instant::now();
 		let progress_bar = Arc::new(spinner::new_progress_bar());
 		let global_max_difficulty = Arc::new(Mutex::new(u32::MIN));
 		let global_max_difficulty_took = Arc::new(Mutex::new(u64::MIN));
 		let global_hashes = Arc::new(Mutex::new(u64::MIN));
+		let stop_all_threads = Arc::new(Mutex::new(false));
 		progress_bar.set_message(format!("[{}s to go] Mining...", cutoff_time));
 		let handles: Vec<_> = (0..threads)
-            .map(|i| {
+            .map(|thread_number| {
 				std::thread::spawn({
                     let proof = proof.clone();
                     let progress_bar = progress_bar.clone();
@@ -394,13 +414,15 @@ impl Miner {
 					let thread_max_difficulty = Arc::clone(&global_max_difficulty);
 					let thread_max_difficulty_took = Arc::clone(&global_max_difficulty_took);
 					let thread_hashes = Arc::clone(&global_hashes);
+					let thread_stop_all_threads = Arc::clone(&stop_all_threads);
 					move || {
-                        let mut nonce = u64::MAX.saturating_div(threads).saturating_mul(i);
+                        let mut nonce = u64::MAX.saturating_div(threads).saturating_mul(thread_number);
                         let mut best_nonce = nonce;
                         let mut best_difficulty = 0;
                         let mut best_hash = Hash::default();
 						let mut last_elapsed:u64 = 0;
 						let mut hashes=0;
+
                         loop {
 							hashes+=1;
 
@@ -429,31 +451,69 @@ impl Miner {
                             // Exit thread if reached cutoff for mining time
                             if nonce % 100 == 0 {
 								let elapsed_secs=timer.elapsed().as_secs();
-                                if elapsed_secs.ge(&cutoff_time) {
-                                    if best_difficulty.gt(&ore::MIN_DIFFICULTY) {
-                                        // Mine until min difficulty has been met
-                                        break;
-                                    }
-                                } else {
-									if i == 0 { // Only log for first thread - other threads are silent
-										if elapsed_secs != last_elapsed {
-											last_elapsed=elapsed_secs;
-											{ // This is required to release lock on thread_max_difficulty_all_threads
-												let global_max_difficulty=thread_max_difficulty.lock().unwrap();
-												let global_max_difficult_took=thread_max_difficulty_took.lock().unwrap();
-												progress_bar.set_message(format!(
-													"[{}{}] Mining... {} {} after {} secs",
-													cutoff_time.saturating_sub(elapsed_secs).to_string().dimmed(),
-													"s to go".dimmed(),
-													"Difficulty so far:".dimmed(),
-													// best_difficulty,
-													global_max_difficulty,
-													global_max_difficult_took
-												));
-											}
-										}
+								let global_max_difficulty=thread_max_difficulty.lock().unwrap();
+								let mut global_stop_all_threads=thread_stop_all_threads.lock().unwrap();
+								let over_time=elapsed_secs.ge(&cutoff_time);
+								
+								// Check if this thread has been asked to stop
+								if *global_stop_all_threads {
+									// this thread has been asked to terminate by another thread
+									break;
+								}	
+
+								// Check if we have mined for the appropriate length of time
+								if over_time {
+									// Ask all other threads to stop if we have attained a desired difficulty level
+									if global_max_difficulty.ge(&rig_desired_difficulty_level) {
+										println!("{} Reached desired difficulty of {}", thread_number, rig_desired_difficulty_level);
+										*global_stop_all_threads = true;
+										break;
 									}
-                                }
+									// Terminate this thread if we have attained a desired difficulty level
+									if best_difficulty.gt(&ore::MIN_DIFFICULTY) {
+									// if best_difficulty.gt(&ore::MIN_DIFFICULTY) && global_max_difficulty.ge(&rig_desired_difficulty_level) {
+										// Mine until min difficulty has been met
+										break;
+									}
+								} 
+									
+								if thread_number == 0 { // Only log for first thread - other threads are silent
+									if elapsed_secs != last_elapsed {
+										last_elapsed=elapsed_secs;
+	
+										let countdown_text;
+										let mut extended_hashing_txt="";
+										if elapsed_secs<cutoff_time {
+											countdown_text=format!("{}{}", 
+												cutoff_time.saturating_sub(elapsed_secs).to_string().dimmed(),
+												"s to go".dimmed(),
+											);
+										} else {
+											countdown_text=format!("{}{}", 
+												(elapsed_secs-cutoff_time).to_string().dimmed(),
+												"s over".dimmed(),
+											);
+											extended_hashing_txt="[Extended hashing period]";
+										}								
+										
+										let mut attained_desired_difficulty="";
+										if global_max_difficulty.ge(&rig_desired_difficulty_level) {
+											attained_desired_difficulty="*";
+										}
+
+										let global_max_difficult_took=thread_max_difficulty_took.lock().unwrap();
+										progress_bar.set_message(format!(
+											"[{}] Mining... {} {}{} after {} secs\tApprox Hashes: {} {}",
+											countdown_text,
+											"Difficulty so far:".dimmed(),
+											global_max_difficulty,
+											attained_desired_difficulty,
+											global_max_difficult_took,
+											hashes*threads,
+											extended_hashing_txt,
+										));
+									}
+								}
                             }
 
                             // Increment nonce
@@ -488,11 +548,16 @@ impl Miner {
 
         // Update log
 		let hashes=global_hashes.lock().unwrap();
+		let mut attained_desired_difficulty="";
+		if best_difficulty.ge(&rig_desired_difficulty_level) {
+			attained_desired_difficulty="*";
+		}
 		progress_bar.finish_with_message(format!(
-            "[{}{}] Difficulty: {} after {} secs   Hashes: {}   Hash: {}",
+            "[{}{}] Difficulty: {}{} after {} secs   Hashes: {}   Hash: {}",
 			timer.elapsed().as_secs().to_string().dimmed(),
 			"s".dimmed(),
             best_difficulty.to_string().bold().yellow(),
+			attained_desired_difficulty,
 			global_max_difficulty_took.lock().unwrap().to_string().bold().yellow(),
 			*hashes,
 			// 100.0* (*hashes as f64)/(u64::MAX as f64) *1000000000.0,

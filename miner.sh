@@ -29,6 +29,7 @@ while true; do
 	export MINER_WATTAGE_IDLE
 	export MINER_WATTAGE_BUSY
 	export MINER_COST_PER_KILOWATT_HOUR 
+	export MINER_DESIRED_DIFFICULTY_LEVEL 
 	# start the miner
 	COMMAND="${ORE_BIN} mine --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE:-0} --threads ${THREADS:-1} --buffer-time ${BUFFER_TIME:-2}"
 	# echo ${COMMAND}
