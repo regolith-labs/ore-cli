@@ -69,7 +69,7 @@ impl Miner {
 		let rig_wattage_busy: f64 = env::var("MINER_WATTAGE_BUSY").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(100.0);
 		let cost_per_kw_hour: f64 = env::var("MINER_COST_PER_KILOWATT_HOUR").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.30);
 		let rig_desired_difficulty_level: u32 = env::var("MINER_DESIRED_DIFFICULTY_LEVEL").ok().and_then(|x| x.parse::<u32>().ok()).unwrap_or(13);
-		
+
 		let separator_line = ("=======================================================================================================================================").to_string().dimmed();
 
 		println!("\n{}", separator_line);
@@ -93,14 +93,6 @@ impl Miner {
 
 			// Determine Wallet ORE & SOL Balances
 			current_sol_balance=self.get_sol_balance(false).await;
-			if current_sol_balance==0.0 {
-				for _ in 0..50 {
-					current_sol_balance=self.get_sol_balance(false).await;
-					if current_sol_balance>=0.0 {
-						break
-					}
-				}				
-			}
 			current_staked_balance=amount_u64_to_f64(proof.balance);
 
 			// Lookup CPU stats for 1min, 5 mins and 15 mins
@@ -115,7 +107,7 @@ impl Miner {
 				}
 				Err(err) => eprintln!("Error (load_average): {}", err),
 			}
-			// CPU Temp - this will not report anything if in WSL2 on windows 
+			// CPU Temp - this will not report anything if in WSL2 on windows
 			let cpu_temp: f32;
 			match sys.cpu_temp() {
 				Ok(t) => { cpu_temp=t; },
@@ -137,9 +129,9 @@ impl Miner {
 				println!("{}", separator_line);
 				cutoff_time=3;
 			}
-				
+
 			// Testing for tr
-			// cutoff_time += 4;		// No Liveness penalty but borderline 
+			// cutoff_time += 4;		// No Liveness penalty but borderline
 			// cutoff_time += 10;		// Causes Liveness penalty- no reward for mining
 			// cutoff_time=60*60*24;	// This causes hash time to be too long  - Liveness penalty applied - no reward
 			// cutoff_time=5; 			// this causes hash time to be too short - SPAM penalty applied - no reward
@@ -187,7 +179,7 @@ impl Miner {
 				}
 				// not sure how to detect a change in sol level after the start of the last pass that is not just a transaction fee.
 				session_sol_used-=last_pass_sol_used;	// Update the session sol used tally
-			
+
 				println!("  Mined: {:>17.11} ORE     Cost: {:>11.6} SOL    Session: {:>17.11} ORE    {:11.6} SOL",
 					last_pass_ore_mined,
 					last_pass_sol_used,
@@ -203,8 +195,8 @@ impl Miner {
 					self.lookup_updated_token_price("Sol");
 					_current_ore_price=self.load_ore_price();
 					_current_sol_price=self.load_sol_price();
-					println!("| Stats for {} at {}", 
-						miner_name.bold(), 
+					println!("| Stats for {} at {}",
+						miner_name.bold(),
 						Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
 					);
 					println!("| Current ORE Price: ${:>.2}\tCurrent SOL Price: ${:>.2}",
@@ -242,13 +234,13 @@ impl Miner {
 					);
 					println!("| Total Hashes in session: {:.1}M\t\tAverage Hashes per pass: {:.0}\t\tThreads: {}",
 						(session_hashes as f64) / 1048576.0,		// Calc Mega Hashes
-						session_hashes as f64 / (pass-1) as f64,	
+						session_hashes as f64 / (pass-1) as f64,
 						args.threads,
 					);
 					println!("| Difficulties solved during {} passes:", pass-1);
 
 					let mut max_count: u32 = 0;
-					let mut most_popular_difficulty: u32 = 0;					
+					let mut most_popular_difficulty: u32 = 0;
 					print!("|------------");	// Difficulty title row
 					for (difficulty, count) in &difficulties_solved {
 						if (*count as u32) >= max_count {
@@ -258,7 +250,7 @@ impl Miner {
 						print!("|----");
 					}
 					println!("|");
-					
+
 					print!("| Difficulty ");	// solved difficulty levels
 					for (difficulty, _count) in &difficulties_solved {
 						if *difficulty == most_popular_difficulty {
@@ -268,7 +260,7 @@ impl Miner {
 						}
 					}
 					println!("|");
-					
+
 					print!("| Solves     ");	// solved difficulty counts
 					let mut total_solves=0;
 					for (_difficulty, count) in &difficulties_solved {
@@ -280,7 +272,7 @@ impl Miner {
 						total_solves+=*count as u32;
 					}
 					println!("|");
-					
+
 					print!("| Percentage ");	// solved percentage row
 					let mut cumulative=0;
 					for (_difficulty, count) in &difficulties_solved {
@@ -462,12 +454,12 @@ impl Miner {
 								let global_max_difficulty=thread_max_difficulty.lock().unwrap();
 								let mut global_stop_all_threads=thread_stop_all_threads.lock().unwrap();
 								let over_time=elapsed_secs.ge(&cutoff_time);
-								
+
 								// Check if this thread has been asked to stop
 								if *global_stop_all_threads {
 									// this thread has been asked to terminate by another thread
 									break;
-								}	
+								}
 
 								// Check if we have mined for the appropriate length of time
 								if over_time {
@@ -483,28 +475,28 @@ impl Miner {
 										// Mine until min difficulty has been met
 										break;
 									}
-								} 
-									
+								}
+
 								// Only log for first thread - other threads are silent
-								if thread_number == 0 { 
+								if thread_number == 0 {
 									if elapsed_secs != last_elapsed {
 										last_elapsed=elapsed_secs;
-	
+
 										let countdown_text;
 										let mut extended_hashing_txt="";
 										if elapsed_secs<cutoff_time {
-											countdown_text=format!("{}{}", 
+											countdown_text=format!("{}{}",
 												cutoff_time.saturating_sub(elapsed_secs).to_string().dimmed(),
 												"s to go".dimmed(),
 											);
 										} else {
-											countdown_text=format!("{}{}", 
+											countdown_text=format!("{}{}",
 												(elapsed_secs-cutoff_time).to_string().dimmed(),
 												"s over".dimmed(),
 											);
 											extended_hashing_txt="[Extended hashing period]";
-										}								
-										
+										}
+
 										let mut attained_desired_difficulty="";
 										if global_max_difficulty.ge(&rig_desired_difficulty_level) {
 											attained_desired_difficulty="*";
@@ -617,8 +609,21 @@ impl Miner {
 		return retval;
     }
 
-	// Query the wallet for the amount of SOL present and panic if less than a minimum amount
 	async fn get_sol_balance(&self, panic: bool) -> f64 {
+		current_sol_balance=self.get_sol_balance_tx(false).await;
+		if current_sol_balance==0.0 {
+			for _ in 0..50 {
+				std::thread::sleep(Duration::from_millis(50));
+				current_sol_balance=self.get_sol_balance_tx(false).await;
+				if current_sol_balance>=0.0 {
+					break;
+				}
+			}
+		}
+	}
+
+	// Query the wallet for the amount of SOL present and panic if less than a minimum amount
+	async fn get_sol_balance_tx(&self, panic: bool) -> f64 {
 		const MIN_SOL_BALANCE: f64 = 0.005;
 		let signer = self.signer();
 		let client = self.rpc_client.clone();
