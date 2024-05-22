@@ -610,16 +610,17 @@ impl Miner {
     }
 
 	async fn get_sol_balance(&self, panic: bool) -> f64 {
-		current_sol_balance=self.get_sol_balance_tx(false).await;
+		let mut current_sol_balance=self.get_sol_balance_tx(panic).await;
 		if current_sol_balance==0.0 {
 			for _ in 0..50 {
 				std::thread::sleep(Duration::from_millis(50));
-				current_sol_balance=self.get_sol_balance_tx(false).await;
+				current_sol_balance=self.get_sol_balance_tx(panic).await;
 				if current_sol_balance>=0.0 {
-					break;
+					return current_sol_balance
 				}
 			}
 		}
+		return current_sol_balance
 	}
 
 	// Query the wallet for the amount of SOL present and panic if less than a minimum amount
