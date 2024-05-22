@@ -87,15 +87,36 @@ impl Miner {
         loop {
 			let pass_start_time = Instant::now();
 
-			// Download the SOL prices from coinmarketcap to display prices in $
-			// self.download_sol_price();
-
             // Fetch proof
             let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
 
 			// Determine Wallet ORE & SOL Balances
 			current_sol_balance=self.get_sol_balance(false).await;
 			current_staked_balance=amount_u64_to_f64(proof.balance);
+
+			// Lookup CPU stats for 1min, 5 mins and 15 mins
+			let mut load_avg_1min: f32=0.0;
+			let mut load_avg_5min: f32=0.0;
+			let mut load_avg_15min: f32=0.0;
+			match sys.load_average() {
+				Ok(load_avg) => {
+					load_avg_1min=load_avg.one;			// 1 min
+					load_avg_5min=load_avg.five;		// 5 min
+					load_avg_15min=load_avg.fifteen;	// 15 min
+				}
+				Err(err) => eprintln!("Error (load_average): {}", err),
+			}
+			// CPU Temp - this will not report anything if in WSL2 on windows 
+			let cpu_temp: f32;
+			match sys.cpu_temp() {
+				Ok(t) => { cpu_temp=t; },
+				Err(_err) => { cpu_temp=-99.0; },
+					// eprintln!("Error (cpu_temp): {}", err),
+			};
+			let mut cpu_temp_txt=format!("{}°C   ", cpu_temp.to_string());
+			if cpu_temp==-99.0 {
+				cpu_temp_txt="".to_string();
+			}
 
 			// Calc cutoff time
 			let clock = get_clock(&self.rpc_client).await;
@@ -278,29 +299,6 @@ impl Miner {
 			last_sol_balance=current_sol_balance;
 			last_staked_balance=current_staked_balance;
 
-			// Lookup CPU stats for 1min, 5 mins and 15 mins
-			let mut load_avg_1min: f32=0.0;
-			let mut load_avg_5min: f32=0.0;
-			let mut load_avg_15min: f32=0.0;
-			match sys.load_average() {
-				Ok(load_avg) => {
-					load_avg_1min=load_avg.one;			// 1 min
-					load_avg_5min=load_avg.five;		// 5 min
-					load_avg_15min=load_avg.fifteen;	// 15 min
-				}
-				Err(err) => eprintln!("Error (load_average): {}", err),
-			}
-			// This will not report anything if in WSL2 on windows
-			let cpu_temp: f32;
-			match sys.cpu_temp() {
-				Ok(t) => { cpu_temp=t; },
-				Err(_err) => { cpu_temp=-99.0; },
-					// eprintln!("Error (cpu_temp): {}", err),
-			};
-			let mut cpu_temp_txt=format!("{}°C   ", cpu_temp.to_string());
-			if cpu_temp==-99.0 {
-				cpu_temp_txt="".to_string();
-			}
 			// Write log details to console to summarize this miner's wallet
 			println!("Pass {} started at {}\t\tMined for {}\tCPU: {}{:.2}/{:.2}/{:.2}",
 				pass,
@@ -329,7 +327,7 @@ impl Miner {
 						("s to go").dimmed(),
 						("Not enough sol in wallet. Please deposit more to continue mining after the timeout.").yellow(),
 					));
-					std::thread::sleep(Duration::from_millis(1000));
+					std::thread::sleep(Duration::from_millis(5000));
 				}
 				progress_bar.finish_with_message(format!("[{}{}] {}",
 					(60-pass_start_time.elapsed().as_secs()).to_string().dimmed(),
@@ -353,6 +351,7 @@ impl Miner {
 					find_bus(),
 					solution,
 				));
+				// std::thread::sleep(Duration::from_millis(1000)); // debug submitting transactions too late
 				match self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
 					.await {
 						Ok(_sig) => {
@@ -361,7 +360,7 @@ impl Miner {
 							last_pass_difficulty=best_difficulty;
 						},
 						Err(err) => {
-							eprintln!("ERROR submitting transaction: {}", err.to_string().bold().red());
+							eprintln!("        {} {}", "Transaction failed:".yellow(), err.to_string().yellow());
 						},
 					};
 
