@@ -448,7 +448,7 @@ impl Miner {
                                 }
                             }
 
-                            // Exit thread if reached cutoff for mining time
+                            // Thread processing every 100 hashes (saves CPU & triggers every second or so)
                             if nonce % 100 == 0 {
 								let elapsed_secs=timer.elapsed().as_secs();
 								let global_max_difficulty=thread_max_difficulty.lock().unwrap();
@@ -465,7 +465,7 @@ impl Miner {
 								if over_time {
 									// Ask all other threads to stop if we have attained a desired difficulty level
 									if global_max_difficulty.ge(&rig_desired_difficulty_level) {
-										println!("{} Reached desired difficulty of {}", thread_number, rig_desired_difficulty_level);
+										// println!("{} Reached desired difficulty of {}", thread_number, rig_desired_difficulty_level);
 										*global_stop_all_threads = true;
 										break;
 									}
@@ -477,7 +477,8 @@ impl Miner {
 									}
 								} 
 									
-								if thread_number == 0 { // Only log for first thread - other threads are silent
+								// Only log for first thread - other threads are silent
+								if thread_number == 0 { 
 									if elapsed_secs != last_elapsed {
 										last_elapsed=elapsed_secs;
 	
