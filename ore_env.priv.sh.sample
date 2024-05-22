@@ -19,7 +19,12 @@ THREADS1=3
 # Assign you overpayment amount of LAMPORTS (SOL) to assist tranactions landing successfully
 PRIORITY_FEE1=0
 # The energy that this miner uses on average. Read from a watt meter and used to calculate how much electric costs are required to mine
-MINER_WATTAGE_1=75
+MINER_WATTAGE_IDLE1=15
+MINER_WATTAGE_BUSY1=80
+# The amount of time per minute that you want to all for non-mining activities
+BUFFER_TIME1=1
+# The difficulty level you would expect this miner to achieve
+DESIRED_DIFFICULTY_LEVEL1=17
 
 # Miner 2 config
 #======================================================================================================
@@ -27,7 +32,10 @@ RPC2=https://url.to.rpc.here
 KEY2=~/.config/solana/wallet_devnet2.json
 PRIORITY_FEE2=40
 THREADS2=2
-MINER_WATTAGE_2=75
+MINER_WATTAGE_IDLE2=15
+MINER_WATTAGE_BUSY2=80
+BUFFER_TIME2=2
+DESIRED_DIFFICULTY_LEVEL2=13
 
 # Miner 3 config
 #======================================================================================================
@@ -36,3 +44,8 @@ KEY3=~/.config/solana/wallet_devnet3.json
 PRIORITY_FEE3=4000
 THREADS3=4
 MINER_WATTAGE_3=75
+MINER_WATTAGE_IDLE3=15
+MINER_WATTAGE_BUSY3=80
+BUFFER_TIME3=2
+DESIRED_DIFFICULTY_LEVEL3=13
+

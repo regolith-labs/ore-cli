@@ -93,6 +93,14 @@ impl Miner {
 
 			// Determine Wallet ORE & SOL Balances
 			current_sol_balance=self.get_sol_balance(false).await;
+			if current_sol_balance==0.0 {
+				for _ in 0..50 {
+					current_sol_balance=self.get_sol_balance(false).await;
+					if current_sol_balance>=0.0 {
+						break
+					}
+				}				
+			}
 			current_staked_balance=amount_u64_to_f64(proof.balance);
 
 			// Lookup CPU stats for 1min, 5 mins and 15 mins
