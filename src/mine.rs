@@ -274,32 +274,34 @@ impl Miner {
 					println!("|");
 
 					print!("| Percentage ");	// solved percentage row
-					let mut cumulative=0;
+					let mut cumulative=0.0;
 					for (_difficulty, count) in &difficulties_solved {
-						let percent=f64::trunc((*count as f64)*100.0/(total_solves as f64)) as u32;
-						if (*count as u32) == max_count {
-							print!("|{:>3}%", percent.to_string().bold().yellow());
-						} else if cumulative<20 || cumulative>85 {
-							print!("|{:>3}%", percent.to_string().dimmed());
-						} else {
-							print!("|{:>3}%", percent);
-						}
+						let percent=(*count as f64)*100.0/(total_solves as f64);
 						cumulative += percent;
+						let display_val=f64::trunc(percent) as u32;
+						if (*count as u32) == max_count {
+							print!("|{:>3}{}", display_val.to_string().bold().yellow(), "%".dimmed());
+						} else if cumulative<20.0 || (cumulative-percent)>85.0 {
+							print!("|{:>3}{}", display_val.to_string().dimmed(), "%".dimmed());
+						} else {
+							print!("|{:>3}{}", display_val, "%".dimmed());
+						}
 					}
 					println!("|");
 
 					print!("| Cumulative ");	// solved cumulative percentage Row
-					cumulative=0;
+					cumulative=0.0;
 					for (_difficulty, count) in &difficulties_solved {
-						let percent=f64::trunc((*count as f64)*100.0/(total_solves as f64)) as u32;
-						if (*count as u32) == max_count {
-							print!("|{:>3}%", percent.to_string().bold().yellow());
-						} else if (cumulative+percent)<20 || cumulative>85 {
-							print!("|{:>3}%", percent.to_string().dimmed());
-						} else {
-							print!("|{:>3}%", percent);
-						}
+						let percent=(*count as f64)*100.0/(total_solves as f64);
 						cumulative += percent;
+						let display_val=f64::trunc(cumulative) as u32;
+						if (*count as u32) == max_count {
+							print!("|{:>3}{}", display_val.to_string().bold().yellow(), "%".dimmed());
+						} else if cumulative<20.0 || (cumulative-percent)>85.0 {
+							print!("|{:>3}{}", display_val.to_string().dimmed(), "%".dimmed());
+						} else {
+							print!("|{:>3}{}", display_val, "%".dimmed());
+						}
 					}
 					println!("|");
 				} else {
