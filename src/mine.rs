@@ -211,10 +211,10 @@ impl Miner {
 					);
 				}
 
-				// Show a summary of the difficulties solved for this mining session every 5 passes
+				// Show a status page of the difficulties solved for this mining session every X passes
 				// This will indicate the most common difficulty solved by this miner
 				if (pass-1) % 5 == 0 {
-					println!("\n{}", separator_line);
+					println!("\n{}", green_separator_line);
 					_current_ore_price=self.load_ore_price();
 					_current_sol_price=self.load_sol_price();
 					println!("| Stats for {} at {}\t[{}]",
@@ -222,10 +222,16 @@ impl Miner {
 						Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
 						wallet_name.bold(),
 					);
-					println!("| Current ORE Price: ${:>.2}\tCurrent SOL Price: ${:>.2}",
-						_current_ore_price,
-						_current_sol_price,
-					);
+					println!("{}", green_separator_line);
+					// Display Ore & sol price
+					if _current_ore_price!=0.00 || _current_sol_price !=0.00 {
+						println!("|       Current ORE Price: {:>17.2} USD\t\tCurrent SOL Price: ${:>.2} USD",
+							_current_ore_price,
+							_current_sol_price,
+						);
+					} else {
+						println!("| No prices are available for ORE & SOL so setting them to $0.00. Consider setting up a coingecko api key as described in the README");
+					}
 					if max_reward_text != "" {
 						println!("{}", max_reward_text);
 					}
@@ -260,6 +266,7 @@ impl Miner {
 						session_hashes as f64 / (pass-1) as f64,
 						args.threads,
 					);
+					println!("|");
 					println!("| Difficulties solved during {} passes:", pass-1);
 
 					let mut max_count: u32 = 0;
@@ -331,7 +338,7 @@ impl Miner {
 					// Add a blank line if no summary is shown
 					println!("")
 				}
-				println!("{}\n", separator_line);
+				println!("{}\n", green_separator_line);
 			}
 
 			// Store this pass's sol/staked balances for use in the next pass
@@ -355,11 +362,6 @@ impl Miner {
 				last_withdrawn_hours_ago,
 				claim_text,
             );
-
-			// println!("Time since last stake: {}\tTime since last hash: {}",
-			// 	clock.unix_timestamp-proof.last_stake_at,
-			// 	clock.unix_timestamp-proof.last_hash_at,
-			// );
 
 			// Pause mining for one minute if no SOL available for transaction fee
 			// This keeps the miner looping and will restart mining when enough SOL is added to miner's wallet
