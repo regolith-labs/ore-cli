@@ -33,7 +33,7 @@ const GATEWAY_RETRIES: usize = 40;	// How many times to retry a failed transacti
 const GATEWAY_DELAY: u64 = 250;		// Delay in ms before retrying a failed transaction
 
 // Time spent waiting for confirmation of transaction = CONFIRM_RETRIES * CONFIRM_DELAY = 1 * 50 = 50ms
-const CONFIRM_RETRIES: usize = 5;	// try to get transaction confirmation this many times
+const CONFIRM_RETRIES: usize = 9;	// try to get transaction confirmation this many times
 const CONFIRM_DELAY: u64 = 50;		// Delay in ms between reach confirmation check
 
 
