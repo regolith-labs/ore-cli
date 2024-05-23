@@ -31,7 +31,9 @@ fi
 # Lookup the current price
 for i in 1 2 3 4 5
 do
-	PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=${TOKENNAME}&vs_currencies=usd&x_cg_demo_api_key=${COINGECKO_APIKEY}" | jq ".${TOKENNAME}.usd")
+	# echo "https://api.coingecko.com/api/v3/simple/price?ids=${TOKENNAME}&vs_currencies=usd&x_cg_demo_api_key=${COINGECKO_APIKEY}"
+	# PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=${TOKENNAME}&vs_currencies=usd&x_cg_demo_api_key=${COINGECKO_APIKEY}" | jq ".${TOKENNAME}.usd")
+	PRICE=$(curl -s "https://api.coingecko.com/api/v3/simple/price?ids=${TOKENNAME}&vs_currencies=usd&x_cg_demo_api_key=${COINGECKO_APIKEY}" | grep -o '"usd":[0-9.]*' | awk -F: '{print $2}')
 	if [ "${PRICE}" == "null" ]; then
 		echo "`date +'%Y-%m-%d %H:%M:%S'` Failed to download the current $1 price :("
 		PRICE="0.00"
