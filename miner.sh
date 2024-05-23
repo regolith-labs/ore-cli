@@ -24,8 +24,11 @@ while true; do
 	# echo Electricity Cost:	\$${MINER_COST_PER_KILOWATT_HOUR} / kWHr
 	echo ore-cli:			${ORE_BIN}
 
+	WALLET_NAME=${KEY##*/}
+	WALLET_NAME=${WALLET_NAME%.*}
 	echo ------------------------------------------------------------------------------------------------------------------------
 	export MINER_NAME
+	export WALLET_NAME
 	export MINER_WATTAGE_IDLE
 	export MINER_WATTAGE_BUSY
 	export MINER_COST_PER_KILOWATT_HOUR 

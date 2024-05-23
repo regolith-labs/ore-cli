@@ -61,28 +61,29 @@ impl Miner {
 		let mut max_reward: f64 = 0.0;						// What has been the highest reward mined in this session
 		let mut max_reward_text: String = "".to_string();	// A text string detailing the maximum reward pass
 
-		let mut _current_ore_price:f64=self.load_ore_price();
-		let mut _current_sol_price:f64=self.load_sol_price();
+		let mut _current_ore_price:f64;
+		let mut _current_sol_price:f64;
 
 		let miner_name=env::var("MINER_NAME").unwrap_or("Unnamed Miner".to_string());
+		let wallet_name=env::var("WALLET_NAME").unwrap_or("Unnamed Wallet".to_string());
 		let rig_wattage_idle: f64 = env::var("MINER_WATTAGE_IDLE").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(10.0);
 		let rig_wattage_busy: f64 = env::var("MINER_WATTAGE_BUSY").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(100.0);
 		let cost_per_kw_hour: f64 = env::var("MINER_COST_PER_KILOWATT_HOUR").ok().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.30);
 		let rig_desired_difficulty_level: u32 = env::var("MINER_DESIRED_DIFFICULTY_LEVEL").ok().and_then(|x| x.parse::<u32>().ok()).unwrap_or(13);
-
+	
 		let separator_line = ("=======================================================================================================================================").to_string().dimmed();
+		let green_separator_line=separator_line.clone().green();
 
-		println!("\n{}", separator_line);
-		println!("| Starting {}...", miner_name.bold());
-		println!("{}", separator_line);
+		println!("\n{}", green_separator_line);
+		println!("| {} {}...", "Starting".bold().green(), miner_name.bold().green());
+		println!("{}", green_separator_line);
 		println!("| Rig Wattage When Idle: {}W", rig_wattage_idle.to_string().bold());
 		println!("| Rig Wattage When Busy: {}W", rig_wattage_busy.to_string().bold());
 		println!("| Cost of electric per kWHr: ${}", cost_per_kw_hour.to_string().bold());
-		self.lookup_updated_token_price("Ore");
-		self.lookup_updated_token_price("Sol");
+		println!("| Wallet name: {}", wallet_name.bold());
 		_current_ore_price=self.load_ore_price();
 		_current_sol_price=self.load_sol_price();
-		println!("{}", separator_line);
+		println!("{}", green_separator_line);
 
         // Start mining loop
         loop {
@@ -124,17 +125,33 @@ impl Miner {
            	cutoff_time = self.get_cutoff(proof, args.buffer_time, &clock).await;
 
 			if pass==1 {
-				println!("| The first submission may be treated as spam or give you a liveness penalty resulting in no reward.");
-				println!("| Reducing it's duration to compensate and stop you crying if it's a high difficulty.");
-				println!("{}", separator_line);
-				cutoff_time=3;
+				let seconds_since_last_hash: u64 =clock.unix_timestamp.saturating_sub(proof.last_hash_at) as u64;
+				println!("| {} seconds since last hash submission.", seconds_since_last_hash);
+				// Classed as Spam if submitting transaction before 55 secs
+				// Classed as Liveness Penalty if submitting difficulty >60 and <=120
+				// Classed as Liveness Penalty & no Reward if >120
+				let mut extra_text="";
+				// Shorten the first pass if a liveness penalty (no reward) will be applied
+				if seconds_since_last_hash>110 {
+					println!("| {}", "You will be hit with a liveness penalty for the first pass resulting in no rewards.".red());
+					println!("| Reducing it's duration to compensate and stop you crying if you solve a high difficulty.");
+					cutoff_time=3;
+					extra_text="shortened to ";
+				} 
+				// Notify the first pass will get a liveness penalty applied (reduced reward)
+				else if seconds_since_last_hash>60 {
+					println!("| {}", "You will be hit with a liveness penalty for the first pass resulting in a reduced reward.".yellow());
+					cutoff_time = 60 - (seconds_since_last_hash-60) - args.buffer_time;
+					if cutoff_time>15 {	// shorten the pass to 15 to maximise reduced reward
+						cutoff_time=15;
+					}
+					if cutoff_time<3 { // catch if it would be less than 3 which will fail
+						cutoff_time=3;
+					}
+				}
+				println!("| First pass will be {}{} seconds long.", extra_text, cutoff_time);
+				println!("{}", green_separator_line);				
 			}
-
-			// Testing for tr
-			// cutoff_time += 4;		// No Liveness penalty but borderline
-			// cutoff_time += 10;		// Causes Liveness penalty- no reward for mining
-			// cutoff_time=60*60*24;	// This causes hash time to be too long  - Liveness penalty applied - no reward
-			// cutoff_time=5; 			// this causes hash time to be too short - SPAM penalty applied - no reward
 
 			// Determine if Staked ORE can be withdrawing without penalty or if ORE will be burned
 			let no_penalty_time = proof.last_claim_at.saturating_add(ONE_DAY);
@@ -187,17 +204,23 @@ impl Miner {
 					session_sol_used,
 				);
 
+				// Show a warning if you never earned anything in the last pass
+				if last_pass_ore_mined==0.0 {
+					println!("                  {}", 
+						"*** WARNING: the last pass resulted in no rewards ***".bold().yellow(),
+					);
+				}
+
 				// Show a summary of the difficulties solved for this mining session every 5 passes
 				// This will indicate the most common difficulty solved by this miner
 				if (pass-1) % 5 == 0 {
 					println!("\n{}", separator_line);
-					self.lookup_updated_token_price("Ore");
-					self.lookup_updated_token_price("Sol");
 					_current_ore_price=self.load_ore_price();
 					_current_sol_price=self.load_sol_price();
-					println!("| Stats for {} at {}",
+					println!("| Stats for {} at {}\t[{}]",
 						miner_name.bold(),
 						Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
+						wallet_name.bold(),
 					);
 					println!("| Current ORE Price: ${:>.2}\tCurrent SOL Price: ${:>.2}",
 						_current_ore_price,
@@ -678,6 +701,8 @@ impl Miner {
 
 	// read the current ORE price in from text file
 	fn load_ore_price(&self) -> f64 {
+		self.lookup_updated_token_price("Ore");
+
 		let file_path = "./currentPriceOfOre.txt";
 		match self.read_f64_from_file(&file_path) {
 			Ok(value) => value,
@@ -690,6 +715,8 @@ impl Miner {
 
 	// read the current SOL price in from text file
 	fn load_sol_price(&self) -> f64 {
+		self.lookup_updated_token_price("Sol");
+
 		let file_path = "./currentPriceOfSol.txt";
 		match self.read_f64_from_file(&file_path) {
 			Ok(value) => value,
