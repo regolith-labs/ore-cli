@@ -187,10 +187,10 @@ impl Miner {
 				// not sure how to detect a change in sol level after the start of the last pass that is not just a transaction fee.
 				session_sol_used-=last_pass_sol_used;	// Update the session sol used tally
 
-				println!("  Mined: {:>17.11} ORE     Cost: {:>11.6} SOL    Session: {:>17.11} ORE    {:11.6} SOL",
-					last_pass_ore_mined,
+				println!("  Mined: {} ORE     Cost: {:>11.6} SOL    Session: {} ORE    {:11.6} SOL",
+					format!("{:>17.11}", last_pass_ore_mined).green(),
 					last_pass_sol_used,
-					session_ore_mined,
+					format!("{:>17.11}", session_ore_mined).green(),
 					session_sol_used,
 				);
 
@@ -205,11 +205,12 @@ impl Miner {
 				// Log if this pass is your maximum reward for this session
 				if last_pass_ore_mined>max_reward {
 					max_reward = last_pass_ore_mined;
-		       		max_reward_text = format!("|      Max session reward: {:>17.11} ORE  (${:.2}) at difficulty {} during pass {}.",
-						last_pass_ore_mined,
+		       		max_reward_text = format!("|      Max session reward: {} ORE  (${:.2}) at difficulty {} during pass {}\t{}",
+						format!("{:>17.11}", last_pass_ore_mined).green(),
 						last_pass_ore_mined * _current_ore_price,
-						last_pass_difficulty,
-						pass-1,
+						last_pass_difficulty.to_string().yellow(),
+						(pass-1).to_string().yellow(),
+						format!("[~{:.4}% of supply]", last_pass_ore_mined * 100.0).dimmed(),
 					);
 					if pass>5 {
 						println!("{}\n{}\n{}\n{}", 
@@ -223,14 +224,16 @@ impl Miner {
 
 				// Show a status page of the difficulties solved for this mining session every X passes
 				// This will indicate the most common difficulty solved by this miner
-				if (pass-1) % 5 == 0 {
+				if (pass-1) % 1 == 0 {
 					println!("\n{}", green_separator_line);
 					_current_ore_price=self.load_ore_price();
 					_current_sol_price=self.load_sol_price();
-					println!("| Stats for {} at {}\t[{}]",
-						miner_name.bold(),
-						Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
-						wallet_name.bold(),
+					println!("{}",
+						format!("| Stats for {} at {}\t[{}]",
+							miner_name.bold(),
+							Utc::now().format("%H:%M:%S on %Y-%m-%d").to_string(),
+							wallet_name.bold(),
+						).green(),
 					);
 					println!("{}", green_separator_line);
 					// Display Ore & sol price
@@ -245,16 +248,18 @@ impl Miner {
 					if max_reward_text != "" {
 						println!("{}", max_reward_text);
 					}
-  				    println!("|          Average reward: {:>17.11} ORE  (${:>.4}) over {} passes.",
-						(session_ore_mined / (pass-1) as f64),
+  				    println!("|          Average reward: {} ORE  (${:>.4}) over {} passes\t\t\t{}",
+						format!("{:>17.11}", (session_ore_mined / (pass-1) as f64)).green(),
 						(session_ore_mined / (pass-1) as f64) * _current_ore_price,
-						pass-1,
+						(pass-1).to_string().yellow(),
+						format!("[~{:.4}% of supply]", (session_ore_mined / (pass-1) as f64) * 100.0).dimmed(),
 					);
+
 					println!("|         Session Summary: {:>17}               {:>11}        Cost (Electric)", "Profit", "Cost");
 					let session_kwatts_used=(rig_wattage_busy/1000.0) * (pass-1) as f64 / 60.0;	// (MINER_WATTAGE_BUSY/1000.0) * (pass-1) / number of passes per hour
-					println!("|                  Tokens: {:>17.11} ORE           {:>11.6} SOL    {:.3}kW for {:.0}W rig",
-						session_ore_mined,
-						session_sol_used,
+					println!("|                  Tokens: {} ORE           {} SOL    {:.3}kW for {:.0}W rig",
+						format!("{:>17.11}", session_ore_mined).green(),
+						format!("{:>11.6}", session_sol_used).bright_cyan(),
 						// (MINER_WATTAGE_X/1000.0) * (pass-1) / number of passes per hour
 						session_kwatts_used,
 						rig_wattage_busy,
@@ -267,9 +272,9 @@ impl Miner {
 						cost_per_kw_hour * session_kwatts_used,
 						cost_per_kw_hour,
 					);
-					println!("|          Profitablility: {:>17.2} USD",
+					println!("|          Profitablility: {} USD",
 						// Mined Ore - SOL Spent - Electic Cost
-						(session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price) - (cost_per_kw_hour * session_kwatts_used),
+						format!("{:>17.2}", (session_ore_mined * _current_ore_price) - (session_sol_used * _current_sol_price) - (cost_per_kw_hour * session_kwatts_used)).bright_green(),
 					);
 					println!("| Total Hashes in session: {:.1}M\t\tAverage Hashes per pass: {:.0}\t\tThreads: {}",
 						(session_hashes as f64) / 1048576.0,		// Calc Mega Hashes
