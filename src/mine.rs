@@ -73,6 +73,7 @@ impl Miner {
 	
 		let separator_line = ("=======================================================================================================================================").to_string().dimmed();
 		let green_separator_line=separator_line.clone().green();
+		let yellow_separator_line=separator_line.clone().yellow();
 
 		println!("\n{}", green_separator_line);
 		println!("| {} {}...", "Starting".bold().green(), miner_name.bold().green());
@@ -177,17 +178,6 @@ impl Miner {
 				// possible to check with proof last claimed > last pass start time?
 				session_ore_mined+=last_pass_ore_mined;	// Update the session ore mined tally
 
-				// Log if this pass is your maximum reward for this session
-				if last_pass_ore_mined>max_reward {
-					max_reward = last_pass_ore_mined;
-		       		max_reward_text = format!("|      Max session reward: {:>17.11} ORE  (${:.2}) at difficulty {} during pass {}.",
-						last_pass_ore_mined,
-						last_pass_ore_mined * _current_ore_price,
-						last_pass_difficulty,
-						pass,
-					);
-				}
-
 				// Add the difference in sol from the previous pass to the session_sol_used tally
 				let mut last_pass_sol_used=current_sol_balance-last_sol_balance;
 				// Sol has been added to wallet so disregard the last passed sol_used as it is incorrect
@@ -206,9 +196,29 @@ impl Miner {
 
 				// Show a warning if you never earned anything in the last pass
 				if last_pass_ore_mined==0.0 {
-					println!("                  {}", 
-						"*** WARNING: the last pass resulted in no rewards ***".bold().yellow(),
+					println!("{}\n{}\n{}", 
+						yellow_separator_line,
+						"|                  *** WARNING: the last pass resulted in no rewards ***".bold().yellow(),
+						yellow_separator_line,
 					);
+				}
+				// Log if this pass is your maximum reward for this session
+				if last_pass_ore_mined>max_reward {
+					max_reward = last_pass_ore_mined;
+		       		max_reward_text = format!("|      Max session reward: {:>17.11} ORE  (${:.2}) at difficulty {} during pass {}.",
+						last_pass_ore_mined,
+						last_pass_ore_mined * _current_ore_price,
+						last_pass_difficulty,
+						pass-1,
+					);
+					if pass>5 {
+						println!("{}\n{}\n{}\n{}", 
+							green_separator_line,
+							"| You just mined you highest reward for this session!!".bold().green(),
+							max_reward_text.green(), 
+							green_separator_line,
+						);
+					}
 				}
 
 				// Show a status page of the difficulties solved for this mining session every X passes
