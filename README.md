@@ -224,12 +224,11 @@ The wallet balance after withdrawing the staked ore is:
 TO DO - I have no idea what the purpose of this is yet so I cannot write this section yet.
 
 ## Monitoring Running Miners
-The miner will continuously scroll text as it is mining. This can be hypnotic but can also be hard to read. Sometime you just want to get a summary of where this miner is at.
-Each miner will create and update a log file in a folder called ./logs
+A miner will continuously scroll text whilst it is mining. This can be hypnotic but can also be hard to read and analyse at a glance. Sometimes you just want to get a summary of where the miner is at. Each miner will create and update a log file in a folder called ./logs that details the statistics of the mining session as a whole and the details of the last mining pass.
 
-The ```miner.sh``` script will automatically rotate these logs and keep up to 6 logfiles. This way you can see results of previous miners you have run.
+The ```miner.sh``` script will automatically rotate these logs and keep up to 6 logfiles for each miner. This way you can compare results of previous mining sessions that are generally lost when the screen scrolls.
 
-The name of the file will be the same name as your miner. So if you startup miner 1 with ```./miner.sh 1``` then the log file will be called ```./logs/Miner_1--1--XXXXXX.log```. This file is simply a text file so you can do whatever you like with it e.g. ```cat ./logs/Miner_1--1--*.log```. You could perhaps send this as an email, SMS message or possibly upload to a web site.
+The name of the file will be the same name as your miner along with a number and a timestamp. So if you startup miner 1 with ```./miner.sh 1``` then the log file will be called ```./logs/Miner_1--1--XXXXXX.log```. This file is simply a text file that is continuosly overwritten when the miner is running. Being a text file, you can do whatever you like with it e.g. ```cat ./logs/Miner_1--1--*.log```. You could perhaps send this as an email, SMS message or possibly upload to a web site if you so desired.
 
 There is a helper script called ```./watchStats.sh``` which accept the miner number as a parameter e.g. ```./watchStats.sh 1```. Open up a new terminal and start this script. When miner 1 is running, it will update every minute to show the stats for the miner. This can give you a single screen, non scrolling version of your miners logs. An example is below. 
 ```sh
@@ -265,4 +264,4 @@ Pass 2 started at 23:21:06 on 2024-05-25                Mined for 19s   CPU: 59Â
 =======================================================================================================================================
 ```
 
-You can also view the results of previous mining sessions by adding an extra parameter: ```./watchStats.sh 1 2``` will you you the final stats of the previous mining session. You can take the second parameter up to 6 ie 5 previous mining sessions.
+You can also view the results of previous mining sessions by adding an extra parameter: ```./watchStats.sh 1 2``` will you you the final stats of the previous mining session allowing you to compare results. You can take the second parameter up to 6 ie 5 previous mining sessions.
