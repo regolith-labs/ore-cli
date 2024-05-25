@@ -43,16 +43,18 @@ pub enum ComputeBudget {
 }
 
 impl Miner {
-    pub async fn send_and_confirm(
+	pub async fn send_and_confirm(
         &self,
         ixs: &[Instruction],
         compute_budget: ComputeBudget,
         skip_confirm: bool,
 		skip_sol_check: bool,
     ) -> ClientResult<Signature> {
+		
 		let signer = self.signer();
         let client = self.rpc_client.clone();
 		let submit_start_time: Instant = Instant::now();
+		let mut log_tx=String::from("");
 
         // Return error, if balance is zero
 		if !skip_sol_check {
@@ -118,15 +120,16 @@ impl Miner {
 						attempts,
 					));
 	
-					
 					// Skip confirmation
                     if skip_confirm {
-                        progress_bar.finish_with_message(format!("[{}{}]  Attempt {}: Sent: {}",
+						let mess=format!("[{}{}]  Attempt {}: Sent: {}",
 							submit_start_time.elapsed().as_secs().to_string().dimmed(),
 							"s".dimmed(),
 							attempts,
 							sig.to_string().dimmed(),
-						));
+						);
+                        progress_bar.finish_with_message(mess.clone());
+						log_tx+=mess.as_str();
                         return Ok(sig);
                     }
 
@@ -159,7 +162,7 @@ impl Miner {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
-                                                    progress_bar.finish_with_message(format!(
+                                                    let mess=format!(
                                                         "[{}{}]  Attempt {}-{}: {}\t\tTxid: {}",
 														submit_start_time.elapsed().as_secs().to_string().dimmed(),
 														"s".dimmed(),
@@ -167,8 +170,10 @@ impl Miner {
 														confirm_counter+1,
                                                         "SUCCESS".bold().green(),
                                                         sig.to_string().dimmed()
-                                                    ));
-                                                    return Ok(sig);
+                                                    );
+                                                    progress_bar.finish_with_message(mess.clone());
+													log_tx+=mess.as_str();
+													return Ok(sig);
                                                 }
                                             }
                                         }
@@ -208,13 +213,15 @@ impl Miner {
 			attempts += 1;
             if attempts > GATEWAY_RETRIES {
 				let error_message=format!("Failed due to reaching max gateway retry limit ({})", GATEWAY_RETRIES);
-                progress_bar.finish_with_message(format!("[{}{}]  Attempt {}: {}: {}",
+                let mess=format!("[{}{}]  Attempt {}: {}: {}",
 					submit_start_time.elapsed().as_secs().to_string().dimmed(),
 					"s".dimmed(),
 					attempts,
 					"ERROR-D".bold().red(),
 					error_message.bold().red(),
-				));
+				);
+				progress_bar.finish_with_message(mess.clone());
+				log_tx+=mess.as_str();
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom(error_message.into()),

@@ -104,21 +104,29 @@ Execute the command:
 ```
 This will start up a miner process that will use the first wallet & RPC URL configured in the ```ore_env.priv.sh``` file. You will see the miner start up and watch it mine its first hash. After about 1 minute, you should get a transaction and a completed log message:
 ```sh
-----------------------------------------------------------------------------------------------------
-Starting Miner 1
-----------------------------------------------------------------------------------------------------
-Wallet: /home/paul/.config/solana/id.json
-RPC: https://XXXXXXXXXXXXXXXXXXXXXXXXXXX
+------------------------------------------------------------------------------------------------------------------------
+Initialising: Miner 1
+------------------------------------------------------------------------------------------------------------------------
+Wallet: /home/paul/.config/solana/wallet_devnet_test1.json
+RPC: https://XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/
 Priority fee: 0
+Threads: 15
+Buffer Time: 2
 ore-cli: ./target/release/ore
-----------------------------------------------------------------------------------------------------
-Initial pass cutoff time: 52s
-
-Pass 1 started at 22:30:07 on 2024-05-18        Mined for 0s    CPU: 3.05/3.26/3.31
-        Currently staked ORE: 32.59427932637    Wallet SOL:  5.210645165        Last Withdrawal: 21.4 hours ago Withdrawal Penalty for 72 mins
-  [53s] Difficulty: 13            Hash: 	xHo32mQX3j7GWHaAaMYTLh13aDyCZD9Re54Ahaji
-  [1s] (attempt 2) SUCCESS        Txid: 4iUR6qQw4MXQ5sXzHWhgCHLmfQWPrHEsYbuf9FiCmxt3hTfMjEgHyPbckXhBzWNXcCJfdD8sQ87HYpCURAZ6hnT7
-  [55s] Completed    - Mined: 0.00142957542           Cost: -0.000005000        Session: 0.00142957542 ORE      0.000005000 SOL
+------------------------------------------------------------------------------------------------------------------------
+=======================================================================================================================================
+| Rig Wattage When Idle: 15W
+| Rig Wattage When Busy: 85W
+| Cost of electric per kWHr: $0.4
+| Wallet name: wallet_devnet_test1
+=======================================================================================================================================
+| Starting first pass... Miner 1...
+=======================================================================================================================================
+Pass 1 started at 23:06:24 on 2024-05-25                Mined for 0s    CPU: 45°C   0.25/0.64/0.56
+        Currently Staked:   240.65112308950 ORE   Wallet:    5.479444 SOL    Last Withdrawal: 110.9 hours ago No Withdrawal Penalty
+  [14s] Difficulty: 12 after 0 secs   Hashes: 11310   Hash: 1EYNw9yyteydXCE45hVR8EXVixxZBRwjcTm62m3mqqB
+  [1s]  Attempt 1-6: SUCCESS                Txid: 3VJC3fZRxCwErdtg35TCL2nAY2eXykAqibWDVy617hGuV2SMrz9yBxFdhsfS4fyvrsDNnhTUNBzCTMkvms2Qxp6h
+  [16s] Completed  Mined:     0.01100000000 ORE     Cost:   -0.000005 SOL    Session:     0.00000000000 ORE       0.000005 SOL
 ```
 
 Congratulations, you have mined your first ORE. Large wallets start with humble rewards...
@@ -182,7 +190,6 @@ You can add staked ore at any time (even whilst mining). To stake ORE, execute t
 The first example will stake ALL ore in wallet 1.
 The second example will stake an additional 2 ORE in wallet 1
 
-
 ## Withdrawing Staked ORE
 **Please be careful when staking ore - there is a penalty if you unstake it within 24 hours. You could lose part of your staked ORE if you withdraw too early. 24 hours after staking will return the entire staked amount to your wallet.**
 
@@ -215,3 +222,47 @@ The wallet balance after withdrawing the staked ore is:
 
 ## Close Accounts
 TO DO - I have no idea what the purpose of this is yet so I cannot write this section yet.
+
+## Monitoring Running Miners
+The miner will continuously scroll text as it is mining. This can be hypnotic but can also be hard to read. Sometime you just want to get a summary of where this miner is at.
+Each miner will create and update a log file in a folder called ./logs
+
+The ```miner.sh``` script will automatically rotate these logs and keep up to 6 logfiles. This way you can see results of previous miners you have run.
+
+The name of the file will be the same name as your miner. So if you startup miner 1 with ```./miner.sh 1``` then the log file will be called ```./logs/Miner_1--1--XXXXXX.log```. This file is simply a text file so you can do whatever you like with it e.g. ```cat ./logs/Miner_1--1--*.log```. You could perhaps send this as an email, SMS message or possibly upload to a web site.
+
+There is a helper script called ```./watchStats.sh``` which accept the miner number as a parameter e.g. ```./watchStats.sh 1```. Open up a new terminal and start this script. When miner 1 is running, it will update every minute to show the stats for the miner. This can give you a single screen, non scrolling version of your miners logs. An example is below. 
+```sh
+Every 5.0s: echo Displaying log ./logs/Miner_1--1--2024-05-25-155248.log; cat ./logs/Miner_1--1--...  zephyrus: Sat May 25 23:22:48 2024
+
+Displaying log ./logs/Miner_1--1--2024-05-25-155248.log
+=======================================================================================================================================
+| Stats for Miner 1 pass 2 at 23:22:06 on 2024-05-25    [wallet_devnet_test1]   Started at 23:20:47 on 2024-05-25
+=======================================================================================================================================
+|       Current ORE Price:            293.81 USD                Current SOL Price: $167.24 USD
+|      Max session reward:     0.36912075702 ORE  ($108.45) at difficulty 20 during pass 2      [~36.9121% of supply]
+|          Average reward:     0.18456037851 ORE  ($54.2257) over 2 passes                      [~18.4560% of supply]
+|         Session Summary:            Profit                      Cost        Cost (Electric)
+|                  Tokens:     0.36912075702 ORE              0.000010 SOL    0.003kW for 85W rig
+|              In dollars:            108.45 USD                  0.00 USD    0.00 @ $0.40 per kW/Hr
+|          Profitablility:            108.45 USD
+| Total Hashes in session: 0.1M         Average Hashes per pass: 50360          Threads: 15
+| 
+| Difficulties solved during 2 passes:
+|------------|----|----|
+| Difficulty |  13|  20|
+| Solves     |   1|   1|
+| Percentage | 50%| 50%|
+| Cumulative | 50%|100%|
+=======================================================================================================================================
+Pass 2 started at 23:21:06 on 2024-05-25                Mined for 19s   CPU: 59°C   0.88/0.28/0.35
+        Currently Staked:   240.65112308950 ORE   Wallet:    5.479434 SOL    Last Withdrawal: 111.1 hours ago No Withdrawal Penalty
+  [57s] Difficulty: 20* after 9 secs   Hashes: 89110   Hash: 112cSq2Ep66SvAtRcNKFDUhA2mZZtjSF9W1tqmRnMFz
+  [60s] Completed  Mined:     0.36912075702 ORE     Cost:   -0.000005 SOL    Session:     0.36912075702 ORE       0.000010 SOL
+=======================================================================================================================================
+| You just mined your highest reward for this session!!
+|      Max session reward:     0.36912075702 ORE  ($108.45) at difficulty 20 during pass 2      [~36.9121% of supply]
+=======================================================================================================================================
+```
+
+You can also view the results of previous mining sessions by adding an extra parameter: ```./watchStats.sh 1 2``` will you you the final stats of the previous mining session. You can take the second parameter up to 6 ie 5 previous mining sessions.
