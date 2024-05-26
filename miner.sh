@@ -40,24 +40,30 @@ while true; do
 	STATS_LOGFILE_BASE="./logs/${MINER_NAME// /_}"
 	
 	# rotate any previous logs to keep last 6
-	for oldlog in $(ls ${STATS_LOGFILE_BASE}--6--*.log); do
-		if [ -f "${oldlog}" ]; then
-			rm "${oldlog}"
-		fi
-	done
+	ls ${STATS_LOGFILE_BASE}--6--*.log >/dev/null 2>1
+	if [ $# -eq 0 ]; then
+		for oldlog in $(ls ${STATS_LOGFILE_BASE}--6--*.log); do
+			if [ -f "${oldlog}" ]; then
+				rm "${oldlog}"
+			fi
+		done
+	fi
 	rotateLog() {
 		origIndex=$1
 		newIndex=$2
-		for oldlog in $(ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log); do
-			if [ -f "${oldlog}" ]; then
-				newlog="${oldlog/--${origIndex}--/--${newIndex}--}"
-				echo Rotating log: ${oldlog} -> ${newlog}
-				mv ${oldlog} ${newlog}
-				if [ ${origIndex} -eq 1 ]; then
-					echo -e "*** This is an archived log file ***\n\n$(cat ${newlog})" > ${newlog}
+		ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log >/dev/null 2>1
+		if [ $# -eq 0 ]; then
+			for oldlog in $(ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log); do
+				if [ -f "${oldlog}" ]; then
+					newlog="${oldlog/--${origIndex}--/--${newIndex}--}"
+					echo Rotating log: ${oldlog} -> ${newlog}
+					mv ${oldlog} ${newlog}
+					if [ ${origIndex} -eq 1 ]; then
+						echo -e "*** This is an archived log file ***\n\n$(cat ${newlog})" > ${newlog}
+					fi
 				fi
-			fi
-		done
+			done
+		fi
 	}
 	rotateLog 5 6
 	rotateLog 4 5
