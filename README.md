@@ -10,14 +10,14 @@ First create a suitable folder to clone the 3 git repositories to:
 ```sh
 mkdir ~/ore2; cd ~/ore2
 git clone https://github.com/pmcochrane/ore-cli
-git clone https://github.com/hardhatchad/ore
-git clone https://github.com/hardhatchad/drillx
+git clone https://github.com/regolith-labs/ore
+git clone https://github.com/regolith-labs/drillx
 cd ~/ore2/ore && git checkout hardhat/v2
 cd ~/ore2/ore-cli && git checkout hardhat/v2
 ```
 Execute each command separately one after the other watching for errors on the way.
 
-NOTE: IF PULL REQUEST IS MERGED then link above should read git clone ```https://github.com/hardhatchad/ore-cli```
+NOTE: IF PULL REQUEST IS MERGED then link above should read git clone ```https://github.com/regolith-labs/ore-cli```
 
 
 ## Building the utility
