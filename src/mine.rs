@@ -451,7 +451,7 @@ impl Miner {
 			if current_sol_balance>=MIN_SOL_BALANCE {
 				log_hash=String::from("");
 				// Run drillx
-				let (solution, best_difficulty, num_hashes, log) = self.find_hash_par(proof, cutoff_time, args.threads, rig_desired_difficulty_level).await;
+        let (solution, best_difficulty, num_hashes, log) = Self::find_hash_par(proof, cutoff_time, args.threads, rig_desired_difficulty_level).await;
 				log_hash+="  ";
 				log_hash+=log.as_str();
 				log_hash+="\n";
@@ -495,7 +495,7 @@ impl Miner {
     }
 
 	// This is the main hashing functio for the ORE mining loop
-    async fn find_hash_par(&self, proof: Proof, cutoff_time: u64, threads: u64, rig_desired_difficulty_level: u32) -> (Solution, u32, u64, String) {
+    async fn find_hash_par(proof: Proof, cutoff_time: u64, threads: u64, rig_desired_difficulty_level: u32) -> (Solution, u32, u64, String) {
         // Dispatch job to each thread
 		let timer = Instant::now();
 		let progress_bar = Arc::new(spinner::new_progress_bar());
