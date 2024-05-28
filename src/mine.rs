@@ -14,7 +14,7 @@ use drillx::{
     equix::{self},
     Hash, Solution
 };
-use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, ONE_DAY};
+use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION};
 
 use rand::Rng;
 use solana_program::{
@@ -132,18 +132,6 @@ impl Miner {
 			// Calc cutoff time
 			let clock = get_clock(&self.rpc_client).await;
            	cutoff_time = self.get_cutoff(proof, args.buffer_time, &clock).await;
-
-			// Determine if Staked ORE can be withdrawing without penalty or if ORE will be burned
-			let no_penalty_time = proof.last_claim_at.saturating_add(ONE_DAY);
-			let mut claim_text="No Withdrawal Penalty".green().to_string();
-			if clock.unix_timestamp.lt(&no_penalty_time) {	// Clock is reused from above
-				let mins_to_go = no_penalty_time.saturating_sub(clock.unix_timestamp).saturating_div(60);
-				claim_text = format!("{} {} {}",
-						"Withdrawal Penalty for".bold().red(),
-						mins_to_go.to_string().bold().red(),
-						"mins".bold().red(),
-					);
-			}
 
 			// Special handling of first miner pass
 			if pass==1 {
@@ -416,12 +404,9 @@ impl Miner {
 			).as_str();
 
 			// New pass - log staked & balance details
-			let last_withdrawn_hours_ago = (clock.unix_timestamp.saturating_sub(proof.last_claim_at) as f64) / 60f64 / 64f64;
-            log_start_pass+=format!("        Currently Staked: {:>17.11} ORE   Wallet: {:>11.6} SOL    Last Withdrawal: {:.1} hours ago {}\n",
+            log_start_pass+=format!("        Currently Staked: {:>17.11} ORE   Wallet: {:>11.6} SOL    \n",
 				current_staked_balance,
 				current_sol_balance,
-				last_withdrawn_hours_ago,
-				claim_text,
             ).as_str();
 			print!("{}", log_start_pass);
 
