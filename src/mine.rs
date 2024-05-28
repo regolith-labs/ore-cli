@@ -152,6 +152,11 @@ impl Miner {
         difficulty: KeccakHash,
         threads: u64,
     ) -> (KeccakHash, u64) {
+        #[cfg(feature = "metrics")]
+        let span = tracing::info_span!(target: "otel", "finding next hash threads:{threads}");
+        #[cfg(feature = "metrics")]
+        let _guard = span.enter();
+
         let found_solution = Arc::new(AtomicBool::new(false));
         let solution = Arc::new(Mutex::<(KeccakHash, u64)>::new((
             KeccakHash::new_from_array([0; 32]),
@@ -176,6 +181,9 @@ impl Miner {
                                 nonce.to_le_bytes().as_slice(),
                             ]);
                             if nonce % 10_000 == 0 {
+                                #[cfg(feature = "metrics")]
+                                tracing::info!(target: "otel",worker = i, monotonic_counter.miner = 1_u64);
+
                                 if found_solution.load(std::sync::atomic::Ordering::Relaxed) {
                                     return;
                                 }
