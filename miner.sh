@@ -27,11 +27,11 @@ while true; do
 	fi
 	STATS_LOGFILE_BASE="./logs/${MINER_NAME// /_}"
 	removeLogFile 6
-	rotateLog 5 6
-	rotateLog 4 5
-	rotateLog 3 4
-	rotateLog 2 3
-	rotateLog 1 2
+	rotateLogFile 5 6
+	rotateLogFile 4 5
+	rotateLogFile 3 4
+	rotateLogFile 2 3
+	rotateLogFile 1 2
 	removeLogFile 1
 	STATS_LOGFILE="${STATS_LOGFILE_BASE}--1--$(date '+%Y-%m-%d-%H%M%S').log"
 	# echo $LOGFILE
