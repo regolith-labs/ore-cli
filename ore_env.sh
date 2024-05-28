@@ -73,3 +73,32 @@ if [ ! -f ${ORE_BIN} ]; then
 fi
 
 
+rotateLogFile() {
+	origIndex=$1
+	newIndex=$2
+	ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log >/dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		for oldlog in $(ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log); do
+			if [ -f "${oldlog}" ]; then
+				newlog="${oldlog/--${origIndex}--/--${newIndex}--}"
+				echo "Rotating old log file: ${oldlog} -> ${newlog}"
+				mv ${oldlog} ${newlog}
+				if [ ${origIndex} -eq 1 ]; then
+					echo -e "*** This is an archived log file ***\n\n$(cat ${newlog})" > ${newlog}
+				fi
+			fi
+		done
+	fi
+}
+removeLogFile() {
+	origIndex=$1
+	ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log >/dev/null 2>&1
+	if [ $? -eq 0 ]; then
+		for oldlog in $(ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log); do
+			if [ -f "${oldlog}" ]; then
+				echo "Removing old log file: ${oldlog}"
+				rm "${oldlog}"
+			fi
+		done
+	fi
+}

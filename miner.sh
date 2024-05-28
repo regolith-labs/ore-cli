@@ -19,61 +19,33 @@ while true; do
 	echo Priority fee:		${FEE}
 	echo Threads:			${THREADS}
 	echo Buffer Time:		${BUFFER_TIME}
-	# echo Wattage Idle:		${MINER_WATTAGE_IDLE}W
-	# echo Wattage Busy:		${MINER_WATTAGE_BUSY}W
-	# echo Electricity Cost:	\$${MINER_COST_PER_KILOWATT_HOUR} / kWHr
 	echo ore-cli:			${ORE_BIN}
 
-	WALLET_NAME=${KEY##*/}
-	WALLET_NAME=${WALLET_NAME%.*}
-	echo ------------------------------------------------------------------------------------------------------------------------
-	export MINER_NAME
-	export WALLET_NAME
-	export MINER_WATTAGE_IDLE
-	export MINER_WATTAGE_BUSY
-	export MINER_COST_PER_KILOWATT_HOUR 
-	export MINER_DESIRED_DIFFICULTY_LEVEL 
-
+	# rotate any previous logs to keep last 6
 	if [ ! -d "./logs" ]; then
 		mkdir "./logs"
 	fi
 	STATS_LOGFILE_BASE="./logs/${MINER_NAME// /_}"
-	
-	# rotate any previous logs to keep last 6
-	ls ${STATS_LOGFILE_BASE}--6--*.log >/dev/null 2>1
-	if [ $# -eq 0 ]; then
-		for oldlog in $(ls ${STATS_LOGFILE_BASE}--6--*.log); do
-			if [ -f "${oldlog}" ]; then
-				rm "${oldlog}"
-			fi
-		done
-	fi
-	rotateLog() {
-		origIndex=$1
-		newIndex=$2
-		ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log >/dev/null 2>1
-		if [ $# -eq 0 ]; then
-			for oldlog in $(ls ${STATS_LOGFILE_BASE}--${origIndex}--*.log); do
-				if [ -f "${oldlog}" ]; then
-					newlog="${oldlog/--${origIndex}--/--${newIndex}--}"
-					echo Rotating log: ${oldlog} -> ${newlog}
-					mv ${oldlog} ${newlog}
-					if [ ${origIndex} -eq 1 ]; then
-						echo -e "*** This is an archived log file ***\n\n$(cat ${newlog})" > ${newlog}
-					fi
-				fi
-			done
-		fi
-	}
+	removeLogFile 6
 	rotateLog 5 6
 	rotateLog 4 5
 	rotateLog 3 4
 	rotateLog 2 3
 	rotateLog 1 2
+	removeLogFile 1
 	STATS_LOGFILE="${STATS_LOGFILE_BASE}--1--$(date '+%Y-%m-%d-%H%M%S').log"
 	# echo $LOGFILE
 	export STATS_LOGFILE
 
+	export MINER_NAME
+	WALLET_NAME=${KEY##*/}
+	WALLET_NAME=${WALLET_NAME%.*}
+	export WALLET_NAME
+	export MINER_WATTAGE_IDLE
+	export MINER_WATTAGE_BUSY
+	export MINER_COST_PER_KILOWATT_HOUR 
+	export MINER_DESIRED_DIFFICULTY_LEVEL 
+	
 	# start the miner
 	COMMAND="${ORE_BIN} mine --rpc ${RPC_URL} --keypair ${KEY} --priority-fee=${FEE:-0} --threads ${THREADS:-1} --buffer-time ${BUFFER_TIME:-2}"
 	# echo ${COMMAND}
