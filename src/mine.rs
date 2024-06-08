@@ -3,7 +3,7 @@ use std::{sync::Arc, time::Instant};
 use colored::*;
 use drillx::{
     equix::{self},
-    Hash, Solution,
+    hashv, Hash, Solution,
 };
 use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION};
 use rand::Rng;
@@ -17,6 +17,17 @@ use crate::{
     utils::{amount_u64_to_string, get_clock, get_config, get_proof},
     Miner,
 };
+extern "C" {
+    pub static BATCH_SIZE: u32;
+    pub fn hash(challenge: *const u8, nonce: *const u8, out: *mut u64);
+    pub fn solve_all_stages(hashes: *const u64, out: *mut u8, sols: *mut u32);
+}
+
+const INDEX_SPACE: usize = 65536;
+
+fn hashspace_size() -> usize {
+    unsafe { BATCH_SIZE as usize * INDEX_SPACE }
+}
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) {
@@ -40,7 +51,12 @@ impl Miner {
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
 
             // Run drillx
-            let solution = Self::find_hash_par(proof, cutoff_time, args.threads).await;
+            let use_gpu = false;
+            let solution = if use_gpu {
+                Self::find_hash_gpu(proof, cutoff_time).await
+            } else {
+                Self::find_hash_par(proof, cutoff_time, args.threads).await
+            };
 
             // Submit most difficult hash
             let mut ixs = vec![];
@@ -56,6 +72,52 @@ impl Miner {
                 .await
                 .ok();
         }
+    }
+
+    async fn find_hash_gpu(proof: Proof, cutoff_time: u64) -> Solution {
+        // Initialize challenge and nonce based on the proof
+        let challenge = proof.challenge;
+        let nonce = [0; 8]; // You might need to generate or update this value
+
+        // Create a vector for the hashes
+        let mut hashes = vec![0u64; hashspace_size()];
+
+        let mut best_hash = Hash::default();
+        let mut best_nonce = 0;
+        let mut best_difficulty = 0;
+
+        unsafe {
+            // Perform hashing on the GPU
+            hash(
+                challenge.as_ptr(),
+                nonce.as_ptr(),
+                hashes.as_mut_ptr() as *mut u64,
+            );
+
+            // Process the hashes on the CPU
+            for i in 0..hashes.len() {
+                let mut digest = [0u8; 16];
+                let mut sols = [0u8; 4];
+                solve_all_stages(
+                    hashes.as_ptr().add(i),
+                    digest.as_mut_ptr(),
+                    sols.as_mut_ptr() as *mut u32,
+                );
+                let difficulty = u32::from_le_bytes(sols);
+                if difficulty > best_difficulty {
+                    best_difficulty = difficulty;
+                    let nonce_u64: u64 = u64::from_le_bytes(nonce.try_into().unwrap());
+                    best_nonce = nonce_u64 + i as u64;
+                    best_hash = Hash {
+                        d: digest,
+                        h: hashv(&digest, &nonce), // Replace with the actual function to compute the hash
+                    };
+                }
+            }
+        }
+
+        // Return the best solution
+        Solution::new(best_hash.d, best_nonce.to_le_bytes())
     }
 
     async fn find_hash_par(proof: Proof, cutoff_time: u64, threads: u64) -> Solution {
