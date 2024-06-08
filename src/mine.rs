@@ -75,6 +75,9 @@ impl Miner {
     }
 
     async fn find_hash_gpu(proof: Proof, cutoff_time: u64) -> Solution {
+        // Dispatch job to each thread
+        let progress_bar = Arc::new(spinner::new_progress_bar());
+        progress_bar.set_message("GPU Mining...");
         // Initialize challenge and nonce based on the proof
         let challenge = proof.challenge;
         let nonce = [0; 8]; // You might need to generate or update this value
@@ -82,42 +85,105 @@ impl Miner {
         // Create a vector for the hashes
         let mut hashes = vec![0u64; hashspace_size()];
 
-        let mut best_hash = Hash::default();
-        let mut best_nonce = 0;
-        let mut best_difficulty = 0;
-
         unsafe {
             // Perform hashing on the GPU
+            let timer = Instant::now();
             hash(
                 challenge.as_ptr(),
                 nonce.as_ptr(),
                 hashes.as_mut_ptr() as *mut u64,
             );
+            println!(
+                "Gpu returned {} hashes in {} ms",
+                BATCH_SIZE,
+                timer.elapsed().as_millis()
+            );
 
             // Process the hashes on the CPU
-            for i in 0..hashes.len() {
-                let mut digest = [0u8; 16];
-                let mut sols = [0u8; 4];
-                solve_all_stages(
-                    hashes.as_ptr().add(i),
-                    digest.as_mut_ptr(),
-                    sols.as_mut_ptr() as *mut u32,
-                );
-                let difficulty = u32::from_le_bytes(sols);
-                if difficulty > best_difficulty {
-                    best_difficulty = difficulty;
-                    let nonce_u64: u64 = u64::from_le_bytes(nonce.try_into().unwrap());
-                    best_nonce = nonce_u64 + i as u64;
-                    best_hash = Hash {
-                        d: digest,
-                        h: hashv(&digest, &nonce), // Replace with the actual function to compute the hash
+            let num_threads = num_cpus::get();
+            let chunk_size = BATCH_SIZE as usize / num_threads;
+            let challenge = Arc::new(challenge);
+            let hashes = Arc::new(hashes);
+            let mut handles = vec![];
+            for t in 0..num_threads {
+                let challenge = challenge.clone();
+                let hashes = hashes.clone();
+                let progress_bar = progress_bar.clone();
+
+                let nonce = u64::from_le_bytes(nonce);
+                let mut best_hash = Hash::default();
+                let mut best_nonce = 0;
+                let mut best_difficulty = 0;
+
+                let handle = std::thread::spawn(move || {
+                    let start = t * chunk_size;
+                    let end = if t == num_threads - 1 {
+                        BATCH_SIZE as usize
+                    } else {
+                        start + chunk_size
                     };
+                    for i in start..end {
+                        let mut digest = [0u8; 16];
+                        let mut sols = [0u8; 4];
+                        let batch_start = hashes.as_ptr().add(i * INDEX_SPACE);
+                        solve_all_stages(
+                            batch_start,
+                            digest.as_mut_ptr(),
+                            sols.as_mut_ptr() as *mut u32,
+                        );
+                        let difficulty = u32::from_le_bytes(sols);
+                        if difficulty.gt(&0) {
+                            if u32::from_le_bytes(sols).gt(&0) {
+                                let solution =
+                                    Solution::new(digest, (nonce + i as u64).to_le_bytes());
+                                assert!(solution.is_valid(&challenge));
+                            }
+                        }
+                        if difficulty > best_difficulty {
+                            best_difficulty = difficulty;
+                            best_nonce = nonce + i as u64;
+                            best_hash = Hash {
+                                d: digest,
+                                h: hashv(&digest, &nonce.to_le_bytes()),
+                            };
+                        }
+
+                        // Exit if time has elapsed
+                        if nonce % 100 == 0 {
+                            if timer.elapsed().as_secs().ge(&cutoff_time) {
+                                if best_difficulty.gt(&ore::MIN_DIFFICULTY) {
+                                    // Mine until min difficulty has been met
+                                    break;
+                                }
+                            } else if i == 0 {
+                                progress_bar.set_message(format!(
+                                    "Mining... ({} sec remaining)",
+                                    cutoff_time.saturating_sub(timer.elapsed().as_secs()),
+                                ));
+                            }
+                        }
+                    }
+                    (best_nonce, best_difficulty, best_hash)
+                });
+
+                handles.push(handle);
+            }
+
+            let mut best_hash = Hash::default();
+            let mut best_nonce = 0;
+            let mut best_difficulty = 0;
+            for h in handles {
+                if let Ok((nonce, difficulty, hash)) = h.join() {
+                    if difficulty > best_difficulty {
+                        best_difficulty = difficulty;
+                        best_nonce = nonce;
+                        best_hash = hash;
+                    }
                 }
             }
+            // Return the best solution
+            Solution::new(best_hash.d, best_nonce.to_le_bytes())
         }
-
-        // Return the best solution
-        Solution::new(best_hash.d, best_nonce.to_le_bytes())
     }
 
     async fn find_hash_par(proof: Proof, cutoff_time: u64, threads: u64) -> Solution {
