@@ -5,28 +5,22 @@ use crate::Miner;
 impl Miner {
     pub async fn busses(&self) {
         let client = self.rpc_client.clone();
-        let mut max_bus: Option<Bus> = None;
-        let mut max_rewards = 0.0;
+        let data = client.get_multiple_accounts(&BUS_ADDRESSES).await.unwrap();
 
-        for address in BUS_ADDRESSES.iter() {
-            let data = client.get_account_data(address).await.unwrap();
-            match Bus::try_from_bytes(&data) {
-                Ok(bus) => {
-                    let rewards = (bus.rewards as f64) / 10f64.powf(TOKEN_DECIMALS as f64);
-                    println!("Bus {}: {:} ORE", bus.id, rewards);
-                    if rewards > max_rewards {
-                        max_rewards = rewards;
-                        max_bus = Some(*bus);
+        for (_address, account) in BUS_ADDRESSES.iter().zip(data.iter()) {
+            match account {
+                Some(account) => {
+                    let data_bytes = &account.data[..]; // Extract data bytes
+                    match Bus::try_from_bytes(data_bytes) {
+                        Ok(bus) => {
+                            let rewards = (bus.rewards as f64) / 10f64.powf(TOKEN_DECIMALS as f64);
+                            println!("Bus {}: {} ORE", bus.id, rewards);
+                        }
+                        Err(_) => {}
                     }
                 }
-                Err(_) => {}
+                None => {}
             }
-        }
-
-        if let Some(bus) = max_bus {
-            let max_rewards = (bus.rewards as f64) / 10f64.powf(TOKEN_DECIMALS as f64);
-            println!("Bus with the most rewards: Bus {}: {:} ORE", bus.id, max_rewards);
         }
     }
 }
-
