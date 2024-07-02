@@ -135,7 +135,8 @@ async fn main() {
         Some(default_keypair),
     ));
 
-    // Execute user command.
+
+	// Execute user command.
     match args.command {
         Commands::Balance(args) => {
             miner.balance(args).await;

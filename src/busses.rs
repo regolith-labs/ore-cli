@@ -1,6 +1,8 @@
-use ore::{state::Bus, utils::AccountDeserialize, BUS_ADDRESSES, TOKEN_DECIMALS};
-
+use ore::consts::{BUS_ADDRESSES, TOKEN_DECIMALS};
+use ore::state::Bus;
+// use ore::utils::AccountDeserialize;
 use crate::Miner;
+use utils::AccountDeserialize;
 
 impl Miner {
     pub async fn busses(&self) {

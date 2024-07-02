@@ -14,7 +14,7 @@ use drillx::{
     equix::{self},
     Hash, Solution
 };
-use ore::{self, state::Proof, BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION};
+use ore::{self, state::Proof, consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION}};
 
 use rand::Rng;
 use solana_program::{
@@ -99,7 +99,9 @@ impl Miner {
 			let pass_start_time = Instant::now();
 
             // Fetch proof
+			println!("Retrieving proof....");
             let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
+			println!("Got proof....");
 
 			// Determine Wallet ORE & SOL Balances
 			current_sol_balance=self.get_sol_balance(false).await;
@@ -554,7 +556,7 @@ impl Miner {
 										break;
 									}
 									// Terminate this thread if we have attained a desired difficulty level
-									if best_difficulty.gt(&ore::MIN_DIFFICULTY) {
+									if best_difficulty.gt(&ore::consts::MIN_DIFFICULTY) {
 									// if best_difficulty.gt(&ore::MIN_DIFFICULTY) && global_max_difficulty.ge(&rig_desired_difficulty_level) {
 										// Mine until min difficulty has been met
 										break;

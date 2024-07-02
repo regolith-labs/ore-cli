@@ -4,13 +4,13 @@ use cached::proc_macro::cached;
 use ore::{
     self,
     state::{Config, Proof, Treasury},
-    utils::AccountDeserialize,
-    CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TREASURY_ADDRESS,
+    consts::{CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TREASURY_ADDRESS},
 };
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar};
 use solana_sdk::clock::Clock;
 use spl_associated_token_account::get_associated_token_address;
+use utils::AccountDeserialize;
 
 pub async fn _get_treasury(client: &RpcClient) -> Treasury {
     let data = client
@@ -50,11 +50,11 @@ pub fn amount_u64_to_string(amount: u64) -> String {
 }
 
 pub fn amount_u64_to_f64(amount: u64) -> f64 {
-    (amount as f64) / 10f64.powf(ore::TOKEN_DECIMALS as f64)
+    (amount as f64) / 10f64.powf(ore::consts::TOKEN_DECIMALS as f64)
 }
 
 pub fn amount_f64_to_u64(amount: f64) -> u64 {
-    (amount * 10f64.powf(ore::TOKEN_DECIMALS as f64)) as u64
+    (amount * 10f64.powf(ore::consts::TOKEN_DECIMALS as f64)) as u64
 }
 
 pub fn ask_confirm(question: &str) -> bool {

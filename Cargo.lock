@@ -580,7 +580,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4114279215a005bc675e386011e594e1d9b800918cea18fcadadcce864a2046b"
 dependencies = [
  "borsh-derive 0.10.3",
- "hashbrown 0.13.2",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -1380,6 +1380,7 @@ dependencies = [
 [[package]]
 name = "drillx"
 version = "0.2.0"
+source = "git+https://github.com/regolith-labs/drillx?branch=master#ce0330957a2153c9191bdbcbcf4acce031ccd6bf"
 dependencies = [
  "blake3",
  "equix",
@@ -1782,6 +1783,9 @@ name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
+dependencies = [
+ "ahash 0.7.7",
+]
 
 [[package]]
 name = "hashbrown"
@@ -2547,6 +2551,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff011a302c396a5197692431fc1948019154afc178baf7d8e37367442a4601cf"
 
 [[package]]
+name = "ore-api"
+version = "2.0.0"
+source = "git+https://github.com/regolith-labs/ore?branch=master#b55b6d338dfa0f4f2027c480c10d552a7e9caffa"
+dependencies = [
+ "array-const-fn-init",
+ "bytemuck",
+ "const-crypto",
+ "drillx",
+ "mpl-token-metadata",
+ "num_enum 0.7.2",
+ "shank",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+ "static_assertions",
+ "thiserror",
+ "utils",
+]
+
+[[package]]
 name = "ore-cli"
 version = "0.5.0"
 dependencies = [
@@ -2562,7 +2586,7 @@ dependencies = [
  "humantime",
  "indicatif",
  "num_cpus",
- "ore-program",
+ "ore-api",
  "rand 0.8.5",
  "solana-cli-config",
  "solana-client",
@@ -2574,25 +2598,7 @@ dependencies = [
  "spl-token",
  "systemstat",
  "tokio",
-]
-
-[[package]]
-name = "ore-program"
-version = "2.0.0"
-dependencies = [
- "array-const-fn-init",
- "bs58 0.5.1",
- "bytemuck",
- "const-crypto",
- "drillx",
- "mpl-token-metadata",
- "num_enum 0.7.2",
- "shank",
- "solana-program",
- "spl-associated-token-account",
- "spl-token",
- "static_assertions",
- "thiserror",
+ "utils",
 ]
 
 [[package]]
@@ -5072,6 +5078,15 @@ name = "utf8parse"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "711b9620af191e0cdc7468a8d14e709c3dcdb115b36f838e601583af800a370a"
+
+[[package]]
+name = "utils"
+version = "2.0.0"
+source = "git+https://github.com/regolith-labs/ore?branch=master#b55b6d338dfa0f4f2027c480c10d552a7e9caffa"
+dependencies = [
+ "bytemuck",
+ "solana-program",
+]
 
 [[package]]
 name = "vec_map"

@@ -1,4 +1,4 @@
-use solana_sdk::signature::Signer;
+use solana_sdk::{pubkey::Pubkey, signature::Signer};
 
 use crate::{send_and_confirm::ComputeBudget, utils::proof_pubkey, Miner};
 
@@ -12,8 +12,8 @@ impl Miner {
         }
 
         // Sign and send transaction.
-        println!("Generating challenge...");
-        let ix = ore::instruction::register(signer.pubkey());
+		println!("Generating challenge...{}",  signer.pubkey());
+        let ix = ore::instruction::open(signer.pubkey(), signer.pubkey());
         self.send_and_confirm(&[ix], ComputeBudget::Dynamic, false, false)
             .await
             .ok();

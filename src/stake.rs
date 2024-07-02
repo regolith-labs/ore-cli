@@ -17,7 +17,7 @@ impl Miner {
             Some(sender) => Pubkey::from_str(&sender).expect("Failed to parse sender address"),
             None => spl_associated_token_account::get_associated_token_address(
                 &signer.pubkey(),
-                &ore::MINT_ADDRESS,
+                &ore::consts::MINT_ADDRESS,
             ),
         };
 
