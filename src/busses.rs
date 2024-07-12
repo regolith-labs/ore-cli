@@ -1,6 +1,9 @@
-use ore::consts::{BUS_ADDRESSES, TOKEN_DECIMALS};
-use ore::state::Bus;
-// use ore::utils::AccountDeserialize;
+use ore_api::{
+    consts::{BUS_ADDRESSES, TOKEN_DECIMALS},
+    state::Bus,
+};
+use ore_utils::AccountDeserialize;
+
 use crate::Miner;
 use utils::AccountDeserialize;
 

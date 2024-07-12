@@ -14,8 +14,10 @@ use drillx::{
     equix::{self},
     Hash, Solution
 };
-use ore::{self, state::Proof, consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION}};
-
+use ore_api::{
+    consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
+    state::{Config, Proof},
+};
 use rand::Rng;
 use solana_program::{
 	pubkey::Pubkey,
@@ -28,8 +30,8 @@ use solana_sdk::clock::Clock;
 
 use crate::{
     args::MineArgs,
-	send_and_confirm::ComputeBudget,
-    utils::{amount_u64_to_f64, get_clock, get_config, get_proof},
+    send_and_confirm::ComputeBudget,
+    utils::{amount_u64_to_string, get_clock, get_config, get_proof_with_authority},
     Miner,
 };
 
@@ -39,7 +41,7 @@ impl Miner {
 
 		// Register, if needed.
         let signer = self.signer();
-        self.register().await;
+        self.open().await;
 
 		let sys = System::new();
 
@@ -100,7 +102,7 @@ impl Miner {
 
             // Fetch proof
 			println!("Retrieving proof....");
-            let proof = get_proof(&self.rpc_client, signer.pubkey()).await;
+            let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await;
 			println!("Got proof....");
 
 			// Determine Wallet ORE & SOL Balances
@@ -672,9 +674,12 @@ impl Miner {
     }
 
 	// Determine if a reset is required ()
-    async fn needs_reset(&self) -> bool {
+    async fn should_crown(&self, config: Config, proof: Proof) -> bool {
+        proof.balance.gt(&config.max_stake)
+    }
+
+    async fn should_reset(&self, config: Config) -> bool {
         let clock = get_clock(&self.rpc_client).await;
-        let config = get_config(&self.rpc_client).await;
         config
             .last_reset_at
             .saturating_add(EPOCH_DURATION)

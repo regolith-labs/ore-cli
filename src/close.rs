@@ -19,7 +19,7 @@ impl Miner {
         if !ask_confirm(
             format!("{} You have {} ORE staked in this account.\nAre you sure you want to {}close this account? [Y/n]",
                 "WARNING".yellow(),
-                amount_to_ui_amount(proof.balance, ore::consts::TOKEN_DECIMALS),
+                amount_to_ui_amount(proof.balance, ore_api::consts::TOKEN_DECIMALS),
                 if proof.balance.gt(&0) { "claim your stake and "} else { "" }
             ).as_str()
         ) {
@@ -30,7 +30,7 @@ impl Miner {
         if proof.balance.gt(&0) {
             self.claim(ClaimArgs {
                 amount: None,
-                beneficiary: None,
+                to: None,
             })
             .await;
         }
