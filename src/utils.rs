@@ -4,14 +4,12 @@ use cached::proc_macro::cached;
 use ore_api::{
     consts::{CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS},
     state::{Config, Proof, Treasury},
-    consts::{CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TREASURY_ADDRESS},
 };
 use ore_utils::AccountDeserialize;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar};
 use solana_sdk::clock::Clock;
 use spl_associated_token_account::get_associated_token_address;
-use utils::AccountDeserialize;
 
 pub async fn _get_treasury(client: &RpcClient) -> Treasury {
     let data = client

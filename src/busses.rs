@@ -5,7 +5,6 @@ use ore_api::{
 use ore_utils::AccountDeserialize;
 
 use crate::Miner;
-use utils::AccountDeserialize;
 
 impl Miner {
     pub async fn busses(&self) {

@@ -70,11 +70,9 @@ impl Miner {
             return;
         }
 
-        let ix = ore::instruction::claim(pubkey, beneficiary, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false, false)
         // Send and confirm
         ixs.push(ore_api::instruction::claim(pubkey, beneficiary, amount));
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(CU_LIMIT_CLAIM), false, false)
             .await
             .ok();
     }

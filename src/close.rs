@@ -36,7 +36,7 @@ impl Miner {
         }
 
         // Submit deregister transaction
-        let ix = ore::instruction::close(signer.pubkey());
+        let ix = ore_api::instruction::close(signer.pubkey());
         self.send_and_confirm(&[ix], ComputeBudget::Dynamic, false, false)
             .await
             .ok();

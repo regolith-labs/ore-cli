@@ -31,7 +31,7 @@ use solana_sdk::clock::Clock;
 use crate::{
     args::MineArgs,
     send_and_confirm::ComputeBudget,
-    utils::{amount_u64_to_string, get_clock, get_config, get_proof_with_authority},
+    utils::{amount_u64_to_f64, get_clock, get_config, get_proof_with_authority},
     Miner,
 };
 
@@ -101,9 +101,9 @@ impl Miner {
 			let pass_start_time = Instant::now();
 
             // Fetch proof
-			println!("Retrieving proof....");
+			// println!("Retrieving proof....");
             let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await;
-			println!("Got proof....");
+			// println!("Got proof....");
 
 			// Determine Wallet ORE & SOL Balances
 			current_sol_balance=self.get_sol_balance(false).await;
@@ -440,23 +440,33 @@ impl Miner {
 			if current_sol_balance>=MIN_SOL_BALANCE {
 				log_hash=String::from("");
 				// Run drillx
-        let (solution, best_difficulty, num_hashes, log) = Self::find_hash_par(proof, cutoff_time, args.threads, rig_desired_difficulty_level).await;
+        		let (solution, best_difficulty, num_hashes, log) = Self::find_hash_par(proof, cutoff_time, args.threads, rig_desired_difficulty_level).await;
 				log_hash+="  ";
 				log_hash+=log.as_str();
 				log_hash+="\n";
 				
 				// Submit most difficult hash
+				let config = get_config(&self.rpc_client).await;
+				let mut compute_budget = 500_000;
 				let mut ixs = vec![];
-				if self.needs_reset().await {
-					ixs.push(ore::instruction::reset(signer.pubkey()));
+				if self.should_reset(config).await {
+					compute_budget += 100_000;
+					ixs.push(ore_api::instruction::reset(signer.pubkey()));
 				}
-				ixs.push(ore::instruction::mine(
+				if self.should_crown(config, proof).await {
+					compute_budget += 250_000;
+					ixs.push(ore_api::instruction::crown(
+						signer.pubkey(),
+						config.top_staker,
+					))
+				}
+				ixs.push(ore_api::instruction::mine(
 					signer.pubkey(),
 					find_bus(),
 					solution,
 				));
 				// std::thread::sleep(Duration::from_millis(60000)); // debug submitting transactions too late
-				match self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false, true)
+				match self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false, true)
 					.await {
 						Ok(_sig) => {
 							// Log the difficulty solved to hashMap to record progress
@@ -558,7 +568,7 @@ impl Miner {
 										break;
 									}
 									// Terminate this thread if we have attained a desired difficulty level
-									if best_difficulty.gt(&ore::consts::MIN_DIFFICULTY) {
+									if best_difficulty.gt(&ore_api::consts::MIN_DIFFICULTY) {
 									// if best_difficulty.gt(&ore::MIN_DIFFICULTY) && global_max_difficulty.ge(&rig_desired_difficulty_level) {
 										// Mine until min difficulty has been met
 										break;
