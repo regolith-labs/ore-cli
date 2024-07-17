@@ -36,7 +36,7 @@ docker run \
   -e BUFFER_TIME=5 \
   -e THREAD_COUNT=4 \
   -v /local/path/to/id.json:/ore/.config/solana/id.json:ro \
-  ghcr.io/klementxv/ore:latest
+  ghcr.io/regolith-labs/ore:latest
 ```
 
 ### Environment Variables
@@ -53,6 +53,6 @@ Example:
 
 ```sh
 docker run \
-  -v /home/user/.config/solana/id.json:/ore/.config/solana/id.json:ro \
-  ghcr.io/klementxv/ore:latest
+  -v /home/$USER/.config/solana/id.json:/ore/.config/solana/id.json:ro \
+  ghcr.io/regolith-labs/ore:latest
 ```
