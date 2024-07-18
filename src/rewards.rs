@@ -16,7 +16,9 @@ impl Miner {
         )
         .to_string();
         for i in 1..32 {
-            let reward_rate = base_reward_rate.saturating_mul(2u64.saturating_pow(i));
+            // Keep consistency with the latest mining rewards algorithm of the on-chain program
+            // But still use saturating_* functions
+            let reward_rate = base_reward_rate.saturating_mul(2u64.saturating_pow(base_difficulty + i));
             s = format!(
                 "{}\n{}: {} ORE",
                 s,

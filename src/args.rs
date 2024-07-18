@@ -50,10 +50,6 @@ pub struct ConfigArgs {}
 
 #[cfg(feature = "admin")]
 #[derive(Parser, Debug)]
-pub struct PauseArgs {}
-
-#[cfg(feature = "admin")]
-#[derive(Parser, Debug)]
 pub struct InitializeArgs {}
 
 #[derive(Parser, Debug)]
@@ -96,12 +92,6 @@ pub struct StakeArgs {
         help = "Token account to send Ore from."
     )]
     pub sender: Option<String>,
-}
-
-#[cfg(feature = "admin")]
-#[derive(Parser, Debug)]
-pub struct UpdateAdminArgs {
-    pub new_admin: String,
 }
 
 #[derive(Parser, Debug)]
