@@ -41,7 +41,7 @@ docker run \
 
 ### Environment Variables
 
-- `RPC_URL`: Select the RPC URL to use. Options: `mainnet`, `devnet`, `testnet`, or a custom URL. Default is `devnet`.
+- `RPC_URL`: Select the RPC URL to use. Options: `mainnet`, `devnet`, or a custom URL. Default is `devnet`.
 - `BUFFER_TIME`: Set the buffer time (in seconds).
 - `THREAD_COUNT`: Set the number of threads to use.
 
