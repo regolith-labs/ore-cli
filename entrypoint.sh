@@ -16,7 +16,25 @@
 MAINNET_URL="https://api.mainnet-beta.solana.com"
 DEVNET_URL="https://api.devnet.solana.com"
 WALLET_PATH="/ore/.config/solana/id.json"
-VERSION=$(grep '^version' Cargo.toml | awk -F' = ' '{print $2}' | tr -d '"')
+
+set_rpc_url() {
+    case "$RPC" in
+      mainnet)
+        RPC_URL="$MAINNET_URL"
+        ;;
+      devnet)
+        RPC_URL="$DEVNET_URL"
+        ;;
+      unset)
+        RPC_URL="$DEVNET_URL"
+        ;;
+      *)
+        if [ -z "$RPC_URL" ]; then
+            RPC_URL="$DEVNET_URL"
+        fi
+        ;;
+    esac
+}
 
 display_header() {
     echo "
@@ -27,7 +45,6 @@ display_header() {
           |_____||__|__||_____|
 
 ##############################################
-VERSION: $VERSION
 RPC_URL: ${RPC_URL:-Not set, using DEVNET}
 BUFFER_TIME: ${BUFFER_TIME:-Not set}
 THREAD_COUNT: ${THREAD_COUNT:-Not set}
@@ -51,7 +68,9 @@ check_ore_binary() {
 }
 
 check_rpc_url() {
-    if ! echo "$RPC_URL" | grep -qE '^https?://'; then
+    if [ -z "$RPC_URL" ]; then
+        RPC_URL="$DEVNET_URL"
+    elif ! echo "$RPC_URL" | grep -qE '^https?://'; then
         echo "Error: Invalid RPC_URL: $RPC_URL"
         exit 1
     fi
@@ -71,19 +90,6 @@ check_thread_count() {
     fi
 }
 
-set_rpc_url() {
-    case "$RPC_URL" in
-      mainnet)
-        RPC_URL="$MAINNET_URL"
-        ;;
-      devnet|""|unset)
-        RPC_URL="$DEVNET_URL"
-        ;;
-      *)
-        ;;
-    esac
-}
-
 build_command() {
     cmd="./ore --rpc \"$RPC_URL\" mine"
     [ -n "$BUFFER_TIME" ] && cmd="$cmd --buffer-time \"$BUFFER_TIME\""
@@ -98,12 +104,12 @@ execute_command() {
     fi
 }
 
+set_rpc_url
 display_header
 check_wallet_file
 check_ore_binary
 check_rpc_url
 check_buffer_time
 check_thread_count
-set_rpc_url
 build_command
 execute_command
