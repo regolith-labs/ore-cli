@@ -32,9 +32,9 @@ To run the Docker image with your wallet mapped in read-only mode, use the follo
 
 ```sh
 docker run \
-  -e RPC_URL=mainnet \
+  -e RPC=mainnet \
   -e BUFFER_TIME=5 \
-  -e THREAD_COUNT=4 \
+  -e THREAD=4 \
   -v /local/path/to/id.json:/ore/.config/solana/id.json:ro \
   ghcr.io/regolith-labs/ore:latest
 ```
