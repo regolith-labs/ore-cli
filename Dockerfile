@@ -6,7 +6,7 @@ WORKDIR /usr/src/ore-cli
 
 COPY . .
 
-RUN cargo build --release
+RUN cargo update && cargo build --release
 
 FROM alpine:latest
 
