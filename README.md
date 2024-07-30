@@ -41,13 +41,13 @@ docker run \
 
 ### Environment Variables
 
-- `RPC_URL`: Select the RPC URL to use. Options: `mainnet`, `devnet`, or a custom URL. Default is `devnet`.
+- `RPC`: Select the RPC URL to use. Options: `mainnet`, `devnet`, or a custom URL. Default is `devnet`.
 - `BUFFER_TIME`: Set the buffer time (in seconds).
-- `THREAD_COUNT`: Set the number of threads to use.
+- `THREAD`: Set the number of threads to use.
 
 ### Wallet Mapping
 
-Ensure that you map your local wallet file `id.json` to the path `/ore/.config/solana/id.json` in the container in read-only mode (RO) so that `ore-cli` can securely access your Solana wallet.
+Ensure that you map your local wallet file `id.json` to the path `/ore/.config/solana/id.json` in the container so that `ore-cli` can securely access your Solana wallet.
 
 Example:
 
