@@ -30,17 +30,31 @@ impl Miner {
         // Check num threads
         self.check_num_cores(args.threads);
 
+        let mut diff_balance: u64 = 0;
+
         // Start mining loop
         loop {
             // Fetch proof
             let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await;
+            if diff_balance != 0 {
+                diff_balance = proof.balance - diff_balance;
+                println!(
+                    "{} {}",
+                    "+".green(),
+                    amount_u64_to_string(diff_balance).green()
+                )
+            }
             println!(
                 "\nStake balance: {} ORE",
                 amount_u64_to_string(proof.balance)
             );
 
+            diff_balance = proof.balance;
+
             // Calc cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
+
+            let mut show_difficulty: u32 = 0;
 
             // Run drillx
             let config = get_config(&self.rpc_client).await;
@@ -49,6 +63,7 @@ impl Miner {
                 cutoff_time,
                 args.threads,
                 config.min_difficulty as u32,
+                &mut show_difficulty
             )
             .await;
 
@@ -68,6 +83,11 @@ impl Miner {
             self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
                 .await
                 .ok();
+
+            println!(
+                "\n\nDifficulty: {}",
+                show_difficulty
+            );
         }
     }
 
@@ -76,6 +96,7 @@ impl Miner {
         cutoff_time: u64,
         threads: u64,
         min_difficulty: u32,
+        show_difficulty: &mut u32,
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
@@ -153,6 +174,8 @@ impl Miner {
             bs58::encode(best_hash.h).into_string(),
             best_difficulty
         ));
+
+        *show_difficulty = best_difficulty;
 
         Solution::new(best_hash.d, best_nonce.to_le_bytes())
     }
