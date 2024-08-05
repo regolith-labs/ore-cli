@@ -1,4 +1,4 @@
-FROM rust:alpine AS builder
+FROM rust:alpine3.20 AS builder
 
 RUN apk add --no-cache musl-dev
 
@@ -8,9 +8,10 @@ COPY . .
 
 RUN cargo update && cargo build --release
 
-FROM alpine:latest
+FROM alpine:3.20.2
 
-RUN addgroup -S ore && adduser -S -G ore -h /ore ore && \
+RUN addgroup -S -g 1000 ore && \
+    adduser -S -u 1000 -G ore -h /ore ore && \
     apk update && apk upgrade libcrypto3 libssl3 && apk add --no-cache libgcc libstdc++ && \
     mkdir -p /ore/.config/solana && chown -R ore:ore /ore/.config
 
