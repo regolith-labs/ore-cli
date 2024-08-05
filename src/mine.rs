@@ -27,7 +27,7 @@ impl Miner {
         let signer = self.signer();
         let proof_authority = args
             .proof_authority
-            .map(|s| Pubkey::from_str(&s).unwrap())
+            .and_then(|ref s| Pubkey::from_str(s).ok())
             .unwrap_or(signer.pubkey());
         self.open().await;
 
