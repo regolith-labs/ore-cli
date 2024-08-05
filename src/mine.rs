@@ -28,7 +28,7 @@ impl Miner {
         self.open().await;
 
         // Check num threads
-        self.check_num_cores(args.threads);
+        self.check_num_cores(args.cores);
 
         // Start mining loop
         loop {
@@ -44,13 +44,9 @@ impl Miner {
 
             // Run drillx
             let config = get_config(&self.rpc_client).await;
-            let solution = Self::find_hash_par(
-                proof,
-                cutoff_time,
-                args.threads,
-                config.min_difficulty as u32,
-            )
-            .await;
+            let solution =
+                Self::find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32)
+                    .await;
 
             // Submit most difficult hash
             let mut compute_budget = 500_000;

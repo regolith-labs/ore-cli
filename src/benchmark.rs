@@ -9,7 +9,7 @@ const TEST_DURATION: i64 = 30;
 impl Miner {
     pub async fn benchmark(&self, args: BenchmarkArgs) {
         // Check num threads
-        self.check_num_cores(args.threads);
+        self.check_num_cores(args.cores);
 
         // Dispatch job to each thread
         let challenge = [0; 32];
@@ -18,12 +18,12 @@ impl Miner {
             "Benchmarking. This will take {} sec...",
             TEST_DURATION
         ));
-        let handles: Vec<_> = (0..args.threads)
+        let handles: Vec<_> = (0..args.cores)
             .map(|i| {
                 std::thread::spawn({
                     move || {
                         let timer = Instant::now();
-                        let first_nonce = u64::MAX.saturating_div(args.threads).saturating_mul(i);
+                        let first_nonce = u64::MAX.saturating_div(args.cores).saturating_mul(i);
                         let mut nonce = first_nonce;
                         loop {
                             // Create hash

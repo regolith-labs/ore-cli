@@ -15,11 +15,11 @@ pub struct BenchmarkArgs {
     #[arg(
         long,
         short,
-        value_name = "THREAD_COUNT",
-        help = "The number of threads to use during the benchmark",
+        value_name = "CORES_COUNT",
+        help = "The number of computer cores to use during the benchmark",
         default_value = "1"
     )]
-    pub threads: u64,
+    pub cores: u64,
 }
 
 #[derive(Parser, Debug)]
@@ -50,10 +50,6 @@ pub struct ConfigArgs {}
 
 #[cfg(feature = "admin")]
 #[derive(Parser, Debug)]
-pub struct PauseArgs {}
-
-#[cfg(feature = "admin")]
-#[derive(Parser, Debug)]
 pub struct InitializeArgs {}
 
 #[derive(Parser, Debug)]
@@ -62,11 +58,11 @@ pub struct MineArgs {
     #[arg(
         long,
         short,
-        value_name = "THREAD_COUNT",
-        help = "The number of CPU threads to allocate to mining",
+        value_name = "CORES_COUNT",
+        help = "The number of computer cores to use while mining",
         default_value = "1"
     )]
-    pub threads: u64,
+    pub cores: u64,
 
     #[arg(
         long,
@@ -86,22 +82,16 @@ pub struct StakeArgs {
     #[arg(
         long,
         value_name = "AMOUNT",
-        help = "The amount of Ore to stake. Defaults to max."
+        help = "The amount of ORE to stake. Defaults to max."
     )]
     pub amount: Option<f64>,
 
     #[arg(
         long,
         value_name = "TOKEN_ACCOUNT_ADDRESS",
-        help = "Token account to send Ore from."
+        help = "Token account to send ORE from."
     )]
     pub sender: Option<String>,
-}
-
-#[cfg(feature = "admin")]
-#[derive(Parser, Debug)]
-pub struct UpdateAdminArgs {
-    pub new_admin: String,
 }
 
 #[derive(Parser, Debug)]
@@ -109,7 +99,7 @@ pub struct UpgradeArgs {
     #[arg(
         long,
         value_name = "AMOUNT",
-        help = "The amount of Ore to upgrade from v1 to v2. Defaults to max."
+        help = "The amount of ORE to upgrade from v1 to v2. Defaults to max."
     )]
     pub amount: Option<f64>,
 }
