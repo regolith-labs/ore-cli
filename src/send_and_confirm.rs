@@ -72,15 +72,13 @@ impl Miner {
         }
 
         let priority_fee = match &self.dynamic_fee_url {
-            Some(_) => {
-                self.dynamic_fee().await
-            }
-            None => {
-                self.priority_fee.unwrap_or(0)
-            }
+            Some(_) => self.dynamic_fee().await,
+            None => self.priority_fee.unwrap_or(0),
         };
 
-        final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(priority_fee));
+        final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
         final_ixs.extend_from_slice(ixs);
 
         // Build tx
@@ -99,7 +97,6 @@ impl Miner {
             .await
             .unwrap();
 
-        
         if signer.pubkey() == fee_payer.pubkey() {
             tx.sign(&[&signer], hash);
         } else {
@@ -109,10 +106,17 @@ impl Miner {
         // Submit tx
         let mut attempts = 0;
         loop {
-
             let message = match &self.dynamic_fee_url {
-                Some(_) => format!("Submitting transaction... (attempt {} with dynamic priority fee of {} via {})", attempts, priority_fee, self.dynamic_fee_strategy.as_ref().unwrap()),
-                None => format!("Submitting transaction... (attempt {} with static priority fee of {})", attempts, priority_fee),
+                Some(_) => format!(
+                    "Submitting transaction... (attempt {} with dynamic priority fee of {} via {})",
+                    attempts,
+                    priority_fee,
+                    self.dynamic_fee_strategy.as_ref().unwrap()
+                ),
+                None => format!(
+                    "Submitting transaction... (attempt {} with static priority fee of {})",
+                    attempts, priority_fee
+                ),
             };
 
             progress_bar.set_message(message);
@@ -130,31 +134,29 @@ impl Miner {
                         std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
                         match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
-                                for status in signature_statuses.value {
-                                    if let Some(status) = status {
-                                        if let Some(err) = status.err {
-                                            progress_bar.finish_with_message(format!(
-                                                "{}: {}",
-                                                "ERROR".bold().red(),
-                                                err
-                                            ));
-                                            return Err(ClientError {
-                                                request: None,
-                                                kind: ClientErrorKind::Custom(err.to_string()),
-                                            });
-                                        }
-                                        if let Some(confirmation) = status.confirmation_status {
-                                            match confirmation {
-                                                TransactionConfirmationStatus::Processed => {}
-                                                TransactionConfirmationStatus::Confirmed
-                                                | TransactionConfirmationStatus::Finalized => {
-                                                    progress_bar.finish_with_message(format!(
-                                                        "{} {}",
-                                                        "OK".bold().green(),
-                                                        sig
-                                                    ));
-                                                    return Ok(sig);
-                                                }
+                                for status in signature_statuses.value.into_iter().flatten() {
+                                    if let Some(err) = status.err {
+                                        progress_bar.finish_with_message(format!(
+                                            "{}: {}",
+                                            "ERROR".bold().red(),
+                                            err
+                                        ));
+                                        return Err(ClientError {
+                                            request: None,
+                                            kind: ClientErrorKind::Custom(err.to_string()),
+                                        });
+                                    }
+                                    if let Some(confirmation) = status.confirmation_status {
+                                        match confirmation {
+                                            TransactionConfirmationStatus::Processed => {}
+                                            TransactionConfirmationStatus::Confirmed
+                                            | TransactionConfirmationStatus::Finalized => {
+                                                progress_bar.finish_with_message(format!(
+                                                    "{} {}",
+                                                    "OK".bold().green(),
+                                                    sig
+                                                ));
+                                                return Ok(sig);
                                             }
                                         }
                                     }
@@ -166,7 +168,7 @@ impl Miner {
                                 progress_bar.set_message(format!(
                                     "{}: {}",
                                     "ERROR".bold().red(),
-                                    err.kind().to_string()
+                                    err.kind()
                                 ));
                             }
                         }
@@ -175,11 +177,7 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    progress_bar.set_message(format!(
-                        "{}: {}",
-                        "ERROR".bold().red(),
-                        err.kind().to_string()
-                    ));
+                    progress_bar.set_message(format!("{}: {}", "ERROR".bold().red(), err.kind()));
                 }
             }
 
