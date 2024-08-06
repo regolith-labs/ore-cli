@@ -116,13 +116,22 @@ impl Miner {
                             if nonce % 100 == 0 {
                                 let global_best_difficulty = *global_best_difficulty.read().unwrap();
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
+                                    if i == 0 {
+                                        progress_bar.set_message(format!(
+                                            "Mining... ({} / {} difficulty)",
+                                            global_best_difficulty,
+                                            min_difficulty,
+                                        ));
+                                    }
                                     if global_best_difficulty.ge(&min_difficulty) {
                                         // Mine until min difficulty has been met
                                         break;
                                     }
                                 } else if i == 0 {
                                     progress_bar.set_message(format!(
-                                        "Mining... ({} sec remaining)",
+                                        "Mining... ({} / {} difficulty, {} sec remaining)",
+                                        global_best_difficulty,
+                                        min_difficulty,
                                         cutoff_time.saturating_sub(timer.elapsed().as_secs()),
                                     ));
                                 }
