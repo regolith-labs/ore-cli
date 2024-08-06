@@ -2772,7 +2772,6 @@ dependencies = [
  "colored",
  "drillx",
  "futures",
- "num_cpus",
  "ore-api",
  "ore-utils",
  "rand 0.8.5",

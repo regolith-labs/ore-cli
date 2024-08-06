@@ -159,7 +159,7 @@ impl Miner {
 
     pub fn check_num_cores(&self, threads: u64) {
         // Check num threads
-        let num_cores = num_cpus::get() as u64;
+        let num_cores = std::thread::available_parallelism().unwrap().get() as u64;
         if threads.gt(&num_cores) {
             println!(
                 "{} Number of threads ({}) exceeds available cores ({})",
