@@ -27,6 +27,7 @@ display_header() {
 RPC URL: ${RPC_URL}
 BUFFER TIME: ${BUFFER_TIME:-Not set}
 THREAD COUNT: ${THREAD:-Not set}
+PRIORITY FEE: ${PRIORITY_FEE:-0}
 ##############################################
 "
 }
@@ -38,12 +39,14 @@ validate_params() {
     ! echo "$RPC_URL" | grep -qE '^https?://' && echo -e "${RED}Error: Invalid RPC_URL: $RPC_URL${NC}" && exit 1
     [ -n "$BUFFER_TIME" ] && ! [[ "$BUFFER_TIME" =~ ^[0-9]+$ ]] && echo -e "${RED}Error: BUFFER_TIME must be a positive integer${NC}" && exit 1
     [ -n "$THREAD" ] && ! [[ "$THREAD" =~ ^[1-9][0-9]*$ ]] && echo -e "${RED}Error: THREAD must be a positive integer${NC}" && exit 1
+    [ -n "$PRIORITY_FEE" ] && ! [[ "$PRIORITY_FEE" =~ ^[0-9]+$ ]] && echo -e "${RED}Error: PRIORITY_FEE must be a non-negative integer${NC}" && exit 1
 }
 
 build_command() {
     cmd="./ore --rpc \"$RPC_URL\" mine"
     [ -n "$BUFFER_TIME" ] && cmd="$cmd --buffer-time \"$BUFFER_TIME\""
     [ -n "$THREAD" ] && cmd="$cmd --threads \"$THREAD\""
+    [ -n "$PRIORITY_FEE" ] && cmd="$cmd --priority-fee \"$PRIORITY_FEE\""
 }
 
 execute_command() {
