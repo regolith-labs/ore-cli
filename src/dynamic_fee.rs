@@ -43,6 +43,18 @@ impl Miner {
                             ]
                         })
                     }
+
+                    "quicknode" => {
+                        json!({
+                            "jsonrpc": "2.0",
+                            "id": 1, 
+                            "method": "qn_estimatePriorityFees",
+                            "params": {
+                                 "last_n_blocks": 100,
+                                 "account": "oreV2ZymfyeXgNgBdqMkumTqqAprVqgBWQfoYkrtKWQ",
+                             }
+                        })
+                    }
                     _ => return self.priority_fee.unwrap_or(0),
                 };
 
@@ -68,6 +80,13 @@ impl Miner {
                         .as_array()
                         .and_then(|arr| arr.last())
                         .and_then(|last| last["prioritizationFee"].as_u64())
+                        .ok_or_else(|| {
+                            format!("Failed to parse priority fee. Response: {:?}", response)
+                        })
+                        .unwrap(),
+                    "quicknode" => response["result"]["per_compute_unit"][self.dynamic_fee_priority.as_ref().unwrap()]
+                        .as_f64()
+                        .map(|fee| fee as u64)
                         .ok_or_else(|| {
                             format!("Failed to parse priority fee. Response: {:?}", response)
                         })
