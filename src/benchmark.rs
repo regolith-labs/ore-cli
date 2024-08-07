@@ -21,27 +21,25 @@ impl Miner {
         let handles: Vec<_> = (0..args.threads)
             .into_par_iter()
             .map(|i| {
-                std::thread::spawn({
-                    move || {
-                        let timer = Instant::now();
-                        let first_nonce = u64::MAX.saturating_div(args.threads).saturating_mul(i);
-                        let mut nonce = first_nonce;
-                        loop {
-                            // Create hash
-                            let _hx = drillx::hash(&challenge, &nonce.to_le_bytes());
+                tokio::spawn(async move {
+                    let timer = Instant::now();
+                    let first_nonce = u64::MAX.saturating_div(args.threads).saturating_mul(i);
+                    let mut nonce = first_nonce;
+                    loop {
+                        // Create hash
+                        let _hx = drillx::hash(&challenge, &nonce.to_le_bytes());
 
-                            // Increment nonce
-                            nonce += 1;
+                        // Increment nonce
+                        nonce += 1;
 
-                            // Exit if time has elapsed
-                            if (timer.elapsed().as_secs() as i64).ge(&TEST_DURATION) {
-                                break;
-                            }
+                        // Exit if time has elapsed
+                        if (timer.elapsed().as_secs() as i64).ge(&TEST_DURATION) {
+                            break;
                         }
-
-                        // Return hash count
-                        nonce - first_nonce
                     }
+
+                    // Return hash count
+                    nonce - first_nonce
                 })
             })
             .collect();
@@ -49,7 +47,7 @@ impl Miner {
         // Join handles and return best nonce
         let mut total_nonces = 0;
         for h in handles {
-            if let Ok(count) = h.join() {
+            if let Ok(count) = h.await {
                 total_nonces += count;
             }
         }
