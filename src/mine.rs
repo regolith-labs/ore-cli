@@ -66,9 +66,14 @@ impl Miner {
                 find_bus(),
                 solution,
             ));
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false, difficulty)
-                .await
-                .ok();
+            self.send_and_confirm(
+                &ixs,
+                ComputeBudget::Fixed(compute_budget),
+                false,
+                difficulty,
+            )
+            .await
+            .ok();
         }
     }
 
@@ -155,7 +160,10 @@ impl Miner {
             best_difficulty
         ));
 
-        (Solution::new(best_hash.d, best_nonce.to_le_bytes()), best_difficulty)
+        (
+            Solution::new(best_hash.d, best_nonce.to_le_bytes()),
+            best_difficulty,
+        )
     }
 
     pub fn check_num_cores(&self, threads: u64) {

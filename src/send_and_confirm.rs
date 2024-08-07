@@ -24,7 +24,7 @@ const MIN_SOL_BALANCE: f64 = 0.005;
 
 const RPC_RETRIES: usize = 0;
 const _SIMULATION_RETRIES: usize = 4;
-const BASE_GATEWAY_RETRIES: usize = 75;
+const BASE_GATEWAY_RETRIES: usize = 150;
 const CONFIRM_RETRIES: usize = 1;
 
 const CONFIRM_DELAY: u64 = 0;
@@ -79,14 +79,18 @@ impl Miner {
 
         // Adjust priority fee based on difficulty
         if difficulty > 30 {
-            priority_fee = (priority_fee as f64 * 3.0).max(800_000.0) as u64;
-        } else if difficulty > 27 {
-            priority_fee *= 2;
+            priority_fee = (priority_fee as f64 * 5.0).max(800_000.0) as u64;
         } else if difficulty > 25 {
-            priority_fee = (priority_fee as f64 * 1.5) as u64;
+            priority_fee = (priority_fee as f64 * 3.0).max(500_000.0) as u64;
+        } else if difficulty > 20 {
+            priority_fee = (priority_fee as f64 * 2.0) as u64;
         }
 
-        final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(priority_fee));
+        let original_priority_fee = priority_fee;
+
+        final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
+            priority_fee,
+        ));
         final_ixs.extend_from_slice(ixs);
 
         // Build tx
@@ -113,21 +117,60 @@ impl Miner {
 
         // Submit tx
         let mut attempts = 0;
-        let gateway_retries = BASE_GATEWAY_RETRIES + if difficulty > 20 { (difficulty - 20) as usize * 10 } else { 0 };
+        let gateway_retries = BASE_GATEWAY_RETRIES;
 
         loop {
+            // Adjust priority fee based on attempts
+            if attempts == 75 {
+                priority_fee = (original_priority_fee as f64 * 1.5) as u64;
+            } else if attempts == 100 {
+                priority_fee = (original_priority_fee as f64 * 2.0) as u64;
+            } else if attempts == 125 {
+                priority_fee = (original_priority_fee as f64 * 3.0) as u64;
+            }
+
             let message = match &self.dynamic_fee_url {
-                Some(_) => format!("Submitting transaction... (attempt {} with dynamic priority fee of {} via {})", attempts, priority_fee, self.dynamic_fee_strategy.as_ref().unwrap()),
-                None => format!("Submitting transaction... (attempt {} with static priority fee of {})", attempts, priority_fee),
+                Some(_) => format!(
+                    "Submitting transaction... (attempt {} with dynamic priority fee of {} via {})",
+                    attempts,
+                    priority_fee,
+                    self.dynamic_fee_strategy.as_ref().unwrap()
+                ),
+                None => format!(
+                    "Submitting transaction... (attempt {} with priority fee of {})",
+                    attempts, priority_fee
+                ),
             };
 
             progress_bar.set_message(message);
+
+            // Update the transaction with the new priority fee
+            if attempts > 0 && (attempts == 75 || attempts == 100 || attempts == 125) {
+                let mut new_ixs = vec![ComputeBudgetInstruction::set_compute_unit_price(
+                    priority_fee,
+                )];
+                // Recreate the original instructions, excluding the first one (which was the old priority fee instruction)
+                new_ixs.extend_from_slice(&final_ixs[1..]);
+
+                // Create a new transaction with the updated instructions
+                tx = Transaction::new_with_payer(&new_ixs, Some(&fee_payer.pubkey()));
+
+                // Sign the new transaction
+                if signer.pubkey() == fee_payer.pubkey() {
+                    tx.sign(&[&signer], hash);
+                } else {
+                    tx.sign(&[&signer, &fee_payer], hash);
+                }
+            }
 
             match client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
                     // Skip confirmation
                     if skip_confirm {
-                        progress_bar.finish_with_message(format!("Sent: {}", sig));
+                        progress_bar.finish_with_message(format!(
+                            "Sent: {} (Priority fee: {})",
+                            sig, priority_fee
+                        ));
                         return Ok(sig);
                     }
 
@@ -140,9 +183,10 @@ impl Miner {
                                     if let Some(status) = status {
                                         if let Some(err) = status.err {
                                             progress_bar.finish_with_message(format!(
-                                                "{}: {}",
+                                                "{}: {} (Priority fee: {})",
                                                 "ERROR".bold().red(),
-                                                err
+                                                err,
+                                                priority_fee
                                             ));
                                             return Err(ClientError {
                                                 request: None,
@@ -155,9 +199,10 @@ impl Miner {
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
                                                     progress_bar.finish_with_message(format!(
-                                                        "{} {}",
+                                                        "{} {} (Priority fee: {})",
                                                         "OK".bold().green(),
-                                                        sig
+                                                        sig,
+                                                        priority_fee
                                                     ));
                                                     return Ok(sig);
                                                 }
@@ -170,9 +215,10 @@ impl Miner {
                             // Handle confirmation errors
                             Err(err) => {
                                 progress_bar.set_message(format!(
-                                    "{}: {}",
+                                    "{}: {} (Priority fee: {})",
                                     "ERROR".bold().red(),
-                                    err.kind().to_string()
+                                    err.kind().to_string(),
+                                    priority_fee
                                 ));
                             }
                         }
@@ -182,9 +228,10 @@ impl Miner {
                 // Handle submit errors
                 Err(err) => {
                     progress_bar.set_message(format!(
-                        "{}: {}",
+                        "{}: {} (Priority fee: {})",
                         "ERROR".bold().red(),
-                        err.kind().to_string()
+                        err.kind().to_string(),
+                        priority_fee
                     ));
                 }
             }
@@ -193,7 +240,11 @@ impl Miner {
             std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
             attempts += 1;
             if attempts > gateway_retries {
-                progress_bar.finish_with_message(format!("{}: Max retries", "ERROR".bold().red()));
+                progress_bar.finish_with_message(format!(
+                    "{}: Max retries (Priority fee: {})",
+                    "ERROR".bold().red(),
+                    priority_fee
+                ));
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),
