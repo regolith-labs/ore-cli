@@ -43,6 +43,16 @@ impl Miner {
                             ]
                         })
                     }
+                    "alchemy" => {
+                        json!({
+                            "jsonrpc": "2.0",
+                            "id": "priority-fee-estimate",
+                            "method": "getRecentPrioritizationFees",
+                            "params": [
+                                ore_addresses,
+                            ]
+                        })
+                    }
                     _ => return self.priority_fee.unwrap_or(0),
                 };
 
@@ -68,6 +78,16 @@ impl Miner {
                         .as_array()
                         .and_then(|arr| arr.last())
                         .and_then(|last| last["prioritizationFee"].as_u64())
+                        .ok_or_else(|| {
+                            format!("Failed to parse priority fee. Response: {:?}", response)
+                        })
+                        .unwrap(),
+                    "alchemy" => response["result"]
+                        .as_array()
+                        .and_then(|arr|
+                        Some(arr.into_iter().map(|v| v["prioritizationFee"].as_u64().unwrap()).collect::<Vec<u64>>())
+                        )
+                        .and_then(|fees| Some((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil() as u64))
                         .ok_or_else(|| {
                             format!("Failed to parse priority fee. Response: {:?}", response)
                         })
