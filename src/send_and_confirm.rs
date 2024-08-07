@@ -24,7 +24,7 @@ const MIN_SOL_BALANCE: f64 = 0.005;
 
 const RPC_RETRIES: usize = 0;
 const _SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 150;
+const BASE_GATEWAY_RETRIES: usize = 75;
 const CONFIRM_RETRIES: usize = 1;
 
 const CONFIRM_DELAY: u64 = 0;
@@ -41,13 +41,14 @@ impl Miner {
         ixs: &[Instruction],
         compute_budget: ComputeBudget,
         skip_confirm: bool,
+        difficulty: u32,
     ) -> ClientResult<Signature> {
         let progress_bar = spinner::new_progress_bar();
         let signer = self.signer();
         let client = self.rpc_client.clone();
         let fee_payer = self.fee_payer();
 
-        // Return error, if balance is zero
+        // Return error, if send_and_confirmbalance is zero
         if let Ok(balance) = client.get_balance(&fee_payer.pubkey()).await {
             if balance <= sol_to_lamports(MIN_SOL_BALANCE) {
                 panic!(
@@ -71,14 +72,19 @@ impl Miner {
             }
         }
 
-        let priority_fee = match &self.dynamic_fee_url {
-            Some(_) => {
-                self.dynamic_fee().await
-            }
-            None => {
-                self.priority_fee.unwrap_or(0)
-            }
+        let mut priority_fee = match &self.dynamic_fee_url {
+            Some(_) => self.dynamic_fee().await,
+            None => self.priority_fee.unwrap_or(0),
         };
+
+        // Adjust priority fee based on difficulty
+        if difficulty > 30 {
+            priority_fee = (priority_fee as f64 * 3.0).max(800_000.0) as u64;
+        } else if difficulty > 27 {
+            priority_fee *= 2;
+        } else if difficulty > 25 {
+            priority_fee = (priority_fee as f64 * 1.5) as u64;
+        }
 
         final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(priority_fee));
         final_ixs.extend_from_slice(ixs);
@@ -99,7 +105,6 @@ impl Miner {
             .await
             .unwrap();
 
-        
         if signer.pubkey() == fee_payer.pubkey() {
             tx.sign(&[&signer], hash);
         } else {
@@ -108,8 +113,9 @@ impl Miner {
 
         // Submit tx
         let mut attempts = 0;
-        loop {
+        let gateway_retries = BASE_GATEWAY_RETRIES + if difficulty > 20 { (difficulty - 20) as usize * 10 } else { 0 };
 
+        loop {
             let message = match &self.dynamic_fee_url {
                 Some(_) => format!("Submitting transaction... (attempt {} with dynamic priority fee of {} via {})", attempts, priority_fee, self.dynamic_fee_strategy.as_ref().unwrap()),
                 None => format!("Submitting transaction... (attempt {} with static priority fee of {})", attempts, priority_fee),
@@ -186,7 +192,7 @@ impl Miner {
             // Retry
             std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
             attempts += 1;
-            if attempts > GATEWAY_RETRIES {
+            if attempts > gateway_retries {
                 progress_bar.finish_with_message(format!("{}: Max retries", "ERROR".bold().red()));
                 return Err(ClientError {
                     request: None,
