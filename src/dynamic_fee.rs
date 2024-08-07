@@ -47,7 +47,7 @@ impl Miner {
                     "quicknode" => {
                         json!({
                             "jsonrpc": "2.0",
-                            "id": 1, 
+                            "id": 1,
                             "method": "qn_estimatePriorityFees",
                             "params": {
                                  "last_n_blocks": 100,
@@ -84,13 +84,14 @@ impl Miner {
                             format!("Failed to parse priority fee. Response: {:?}", response)
                         })
                         .unwrap(),
-                    "quicknode" => response["result"]["per_compute_unit"][self.dynamic_fee_priority.as_ref().unwrap()]
-                        .as_f64()
-                        .map(|fee| fee as u64)
-                        .ok_or_else(|| {
-                            format!("Failed to parse priority fee. Response: {:?}", response)
-                        })
-                        .unwrap(),
+                    "quicknode" => response["result"]["per_compute_unit"]
+                        [self.dynamic_fee_priority.as_ref().unwrap()]
+                    .as_f64()
+                    .map(|fee| fee as u64)
+                    .ok_or_else(|| {
+                        format!("Failed to parse priority fee. Response: {:?}", response)
+                    })
+                    .unwrap(),
                     _ => return self.priority_fee.unwrap_or(0),
                 };
 
