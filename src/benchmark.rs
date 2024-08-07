@@ -18,10 +18,13 @@ impl Miner {
             "Benchmarking. This will take {} sec...",
             TEST_DURATION
         ));
+        // inside the rayon threadpool the tokio runtime is not available.
+        // we access the runtime where it is available (outside of the pool) and spawn tasks directly on that runtime.
+        let rt = tokio::runtime::Handle::current();
         let handles: Vec<_> = (0..args.threads)
             .into_par_iter()
             .map(|i| {
-                tokio::spawn(async move {
+                rt.spawn(async move {
                     let timer = Instant::now();
                     let first_nonce = u64::MAX.saturating_div(args.threads).saturating_mul(i);
                     let mut nonce = first_nonce;

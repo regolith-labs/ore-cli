@@ -12,7 +12,7 @@ use rayon::prelude::*;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
-use std::{path::Path, sync::Arc, time::Instant};
+use std::{sync::Arc, time::Instant};
 
 use crate::{
     args::MineArgs,
@@ -79,17 +79,17 @@ impl Miner {
         min_difficulty: u32,
     ) -> Solution {
         // Dispatch job to each thread
-        std::fs::remove_dir_all("data").ok();
-        std::fs::create_dir_all("data").ok();
         let progress_bar = Arc::new(spinner::new_progress_bar());
         progress_bar.set_message("Mining...");
+        let rt = tokio::runtime::Handle::current();
+        // inside the rayon threadpool the tokio runtime is not available.
+        // we access the runtime where it is available (outside of the pool) and spawn tasks directly on that runtime.
         let handles: Vec<_> = (0..threads)
             .into_par_iter()
             .map(|i| {
-                tokio::spawn({
+                rt.spawn({
                     let value = progress_bar.clone();
                     async move {
-                        dbg!(i);
                         let progress_bar = value.clone();
                         let mut memory = equix::SolverMemory::new();
 
@@ -106,12 +106,6 @@ impl Miner {
                                 &nonce.to_le_bytes(),
                             ) {
                                 let difficulty = hx.difficulty();
-                                let name = format!("data/{}.txt", i);
-                                let path = Path::new(name.as_str());
-                                let mut content = std::fs::read_to_string(path).unwrap_or_default();
-                                content.push_str(format!("\n{}", difficulty).as_str());
-                                std::fs::write(path, content).unwrap();
-
                                 if difficulty.gt(&best_difficulty) {
                                     best_nonce = nonce;
                                     best_difficulty = difficulty;
