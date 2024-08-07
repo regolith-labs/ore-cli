@@ -16,7 +16,7 @@ impl Miner {
         auth_token: &str,
     ) -> ClientResult<Signature> {
         let client = Client::new();
-        let url = "https://api.blxrbdn.com";
+        let url = "ny.solana.dex.blxrbdn.com";
 
         let tx_data = base64::prelude::BASE64_STANDARD.encode(
             bincode::serialize(transaction).map_err(|e| {
