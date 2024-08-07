@@ -2763,6 +2763,7 @@ dependencies = [
 name = "ore-cli"
 version = "1.1.1"
 dependencies = [
+ "base64 0.22.1",
  "bincode",
  "bs58 0.5.1",
  "bytemuck",

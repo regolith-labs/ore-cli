@@ -12,11 +12,12 @@ use ore_api::{
 use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
-use solana_sdk::signer::Signer;
+use solana_sdk::{
+    compute_budget::ComputeBudgetInstruction, signer::Signer, transaction::Transaction,
+};
 
 use crate::{
     args::MineArgs,
-    send_and_confirm::ComputeBudget,
     utils::{amount_u64_to_string, get_clock, get_config, get_proof_with_authority, proof_pubkey},
     Miner,
 };
@@ -29,6 +30,8 @@ impl Miner {
 
         // Check num threads
         self.check_num_cores(args.threads);
+
+        const AUTH_TOKEN: &str = "MjFkMTAyOTAtMzgxMC00MjhhLTg5YjgtNTA1MGYzMDkwZDViOmM2OTA0OTRiMzBhMWFjOGI1Y2MyZTY2YzI4MGQxZTRl";
 
         // Start mining loop
         loop {
@@ -66,9 +69,32 @@ impl Miner {
                 find_bus(),
                 solution,
             ));
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
-                .await
-                .ok();
+
+            let _ = {
+                let mut final_ixs = vec![ComputeBudgetInstruction::set_compute_unit_limit(
+                    compute_budget,
+                )];
+
+                let priority_fee = match &self.dynamic_fee_url {
+                    Some(_) => self.dynamic_fee().await,
+                    None => self.priority_fee.unwrap_or(0),
+                };
+                final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
+                    priority_fee,
+                ));
+                final_ixs.extend_from_slice(&ixs);
+
+                let mut tx = Transaction::new_with_payer(&final_ixs, Some(&signer.pubkey()));
+
+                let (hash, _slot) = self
+                    .rpc_client
+                    .get_latest_blockhash_with_commitment(self.rpc_client.commitment())
+                    .await
+                    .unwrap();
+                tx.sign(&[&signer], hash);
+
+                self.post_submit_v2(&tx, true, true, AUTH_TOKEN).await.ok()
+            };
         }
     }
 
