@@ -69,7 +69,7 @@ impl Miner {
                 solution,
             ));
 
-            let _ = if let Some(_) = &self.bx_key {
+            let _ = if let Ok(auth_token) = std::env::var("AUTH_TOKEN") {
                 let mut final_ixs = vec![ComputeBudgetInstruction::set_compute_unit_limit(
                     compute_budget,
                 )];
@@ -92,7 +92,7 @@ impl Miner {
                     .unwrap();
                 tx.sign(&[&signer], hash);
 
-                self.post_submit_v2(&tx, true, false, true).await.ok()
+                self.post_submit_v2(&tx, true, true, &auth_token).await.ok()
             } else {
                 self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
                     .await

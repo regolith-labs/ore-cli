@@ -12,16 +12,11 @@ impl Miner {
         &self,
         transaction: &Transaction,
         skip_pre_flight: bool,
-        front_running_protection: bool,
         use_staked_rpcs: bool,
+        auth_token: &str,
     ) -> ClientResult<Signature> {
         let client = Client::new();
-        let url = format!(
-            "{}/api/v2/submit",
-            self.bx_url
-                .as_deref()
-                .unwrap_or("https://default-base-url.com")
-        );
+        let url = "https://api.blxrbdn.com";
 
         let tx_data = base64::prelude::BASE64_STANDARD.encode(
             bincode::serialize(transaction).map_err(|e| {
@@ -36,17 +31,13 @@ impl Miner {
                 "content": tx_data
             },
             "skipPreFlight": skip_pre_flight,
-            "frontRunningProtection": front_running_protection,
             "useStakedRPCs": use_staked_rpcs,
         });
 
-        let mut req_builder = client.post(&url).json(&body);
-
-        if let Some(key) = &self.bx_key {
-            req_builder = req_builder.header("Authorization", key);
-        }
-
-        let response: serde_json::Value = req_builder
+        let response: serde_json::Value = client
+            .post(url)
+            .json(&body)
+            .header("Authorization", auth_token)
             .send()
             .await
             .map_err(|e| {

@@ -36,8 +36,6 @@ struct Miner {
     pub dynamic_fee_max: Option<u64>,
     pub rpc_client: Arc<RpcClient>,
     pub fee_payer_filepath: Option<String>,
-    pub bx_key: Option<String>,
-    pub bx_url: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -146,22 +144,6 @@ struct Args {
         global = true
     )]
     dynamic_fee_max: Option<u64>,
-    #[arg(
-        long,
-        value_name = "Bloxroute AUTH_KEY",
-        help = "Authorization header for API requests",
-        global = true
-    )]
-    bx_key: Option<String>,
-
-    #[arg(
-        long,
-        value_name = "Bloxroute URL",
-        help = "Base URL for API requests",
-        global = true
-    )]
-    bx_url: Option<String>,
-
     #[command(subcommand)]
     command: Commands,
 }
@@ -198,8 +180,6 @@ async fn main() {
         args.dynamic_fee_strategy,
         args.dynamic_fee_max,
         Some(fee_payer_filepath),
-        args.bx_key,
-        args.bx_url,
     ));
 
     // Execute user command.
@@ -250,8 +230,6 @@ impl Miner {
         dynamic_fee_strategy: Option<String>,
         dynamic_fee_max: Option<u64>,
         fee_payer_filepath: Option<String>,
-        bx_key: Option<String>,
-        bx_url: Option<String>,
     ) -> Self {
         Self {
             rpc_client,
@@ -261,8 +239,6 @@ impl Miner {
             dynamic_fee_strategy,
             dynamic_fee_max,
             fee_payer_filepath,
-            bx_url,
-            bx_key,
         }
     }
 
