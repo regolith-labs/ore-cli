@@ -24,7 +24,7 @@ impl Miner {
         let handles: Vec<_> = (0..args.threads)
             .into_par_iter()
             .map(|i| {
-                rt.spawn(async move {
+                rt.spawn_blocking(move || {
                     let timer = Instant::now();
                     let first_nonce = u64::MAX.saturating_div(args.threads).saturating_mul(i);
                     let mut nonce = first_nonce;

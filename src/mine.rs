@@ -87,9 +87,9 @@ impl Miner {
         let handles: Vec<_> = (0..threads)
             .into_par_iter()
             .map(|i| {
-                rt.spawn({
+                rt.spawn_blocking({
                     let value = progress_bar.clone();
-                    async move {
+                    move || {
                         let progress_bar = value.clone();
                         let mut memory = equix::SolverMemory::new();
 
