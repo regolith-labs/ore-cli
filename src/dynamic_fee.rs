@@ -82,7 +82,7 @@ impl Miner {
                 let capped_fee = calculated_fee.min(max_fee);
 
                 // Use the higher of priority_fee and capped_fee, multiply it by 1.1
-                std::cmp::max(priority_fee, capped_fee * 11 / 10)
+                std::cmp::max(priority_fee, capped_fee * 12 / 10)
             }
         }
     }
