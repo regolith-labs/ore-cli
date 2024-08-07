@@ -2,10 +2,12 @@ mod args;
 mod balance;
 mod benchmark;
 mod busses;
+mod bx;
 mod claim;
 mod close;
 mod config;
 mod cu_limits;
+mod dynamic_fee;
 #[cfg(feature = "admin")]
 mod initialize;
 mod mine;
@@ -15,7 +17,6 @@ mod send_and_confirm;
 mod stake;
 mod upgrade;
 mod utils;
-mod dynamic_fee;
 
 use std::sync::Arc;
 
@@ -35,6 +36,8 @@ struct Miner {
     pub dynamic_fee_max: Option<u64>,
     pub rpc_client: Arc<RpcClient>,
     pub fee_payer_filepath: Option<String>,
+    pub bx_key: Option<String>,
+    pub bx_url: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -143,7 +146,21 @@ struct Args {
         global = true
     )]
     dynamic_fee_max: Option<u64>,
-    
+    #[arg(
+        long,
+        value_name = "Bloxroute AUTH_KEY",
+        help = "Authorization header for API requests",
+        global = true
+    )]
+    bx_key: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "Bloxroute URL",
+        help = "Base URL for API requests",
+        global = true
+    )]
+    bx_url: Option<String>,
 
     #[command(subcommand)]
     command: Commands,
@@ -168,7 +185,9 @@ async fn main() {
     // Initialize miner.
     let cluster = args.rpc.unwrap_or(cli_config.json_rpc_url);
     let default_keypair = args.keypair.unwrap_or(cli_config.keypair_path.clone());
-    let fee_payer_filepath = args.fee_payer_filepath.unwrap_or(cli_config.keypair_path.clone());
+    let fee_payer_filepath = args
+        .fee_payer_filepath
+        .unwrap_or(cli_config.keypair_path.clone());
     let rpc_client = RpcClient::new_with_commitment(cluster, CommitmentConfig::confirmed());
 
     let miner = Arc::new(Miner::new(
@@ -179,6 +198,8 @@ async fn main() {
         args.dynamic_fee_strategy,
         args.dynamic_fee_max,
         Some(fee_payer_filepath),
+        args.bx_key,
+        args.bx_url,
     ));
 
     // Execute user command.
@@ -229,6 +250,8 @@ impl Miner {
         dynamic_fee_strategy: Option<String>,
         dynamic_fee_max: Option<u64>,
         fee_payer_filepath: Option<String>,
+        bx_key: Option<String>,
+        bx_url: Option<String>,
     ) -> Self {
         Self {
             rpc_client,
@@ -237,7 +260,9 @@ impl Miner {
             dynamic_fee_url,
             dynamic_fee_strategy,
             dynamic_fee_max,
-            fee_payer_filepath
+            fee_payer_filepath,
+            bx_url,
+            bx_key,
         }
     }
 
