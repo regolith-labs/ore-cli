@@ -10,6 +10,7 @@ use ore_api::{
     state::{Config, Proof},
 };
 use rand::Rng;
+use rayon::prelude::*;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
@@ -82,6 +83,7 @@ impl Miner {
         let progress_bar = Arc::new(spinner::new_progress_bar());
         progress_bar.set_message("Mining...");
         let handles: Vec<_> = (0..threads)
+            .into_par_iter()
             .map(|i| {
                 std::thread::spawn({
                     let progress_bar = progress_bar.clone();

@@ -1,6 +1,6 @@
-use std::{sync::Arc, time::Instant};
-
+use rayon::prelude::*;
 use solana_rpc_client::spinner;
+use std::{sync::Arc, time::Instant};
 
 use crate::{args::BenchmarkArgs, Miner};
 
@@ -19,6 +19,7 @@ impl Miner {
             TEST_DURATION
         ));
         let handles: Vec<_> = (0..args.threads)
+            .into_par_iter()
             .map(|i| {
                 std::thread::spawn({
                     move || {
