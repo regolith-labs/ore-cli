@@ -8,6 +8,7 @@ use url::Url;
 enum FeeStrategy {
     Helius,
     Triton,
+    Alchemy,
 }
 
 impl Miner {
@@ -26,6 +27,10 @@ impl Miner {
             .to_string();
         let strategy = if host.contains("helius-rpc.com") {
             FeeStrategy::Helius
+        } else if host.contains("alchemy.com") {
+            FeeStrategy::Alchemy
+        }else if host.contains("pandaever.host") {
+            FeeStrategy::Alchemy
         } else if host.contains("rpcpool.com") {
             FeeStrategy::Triton
         } else {
@@ -49,6 +54,16 @@ impl Miner {
                             "recommended": true
                         }
                     }]
+                })
+            }
+            FeeStrategy::Alchemy => {
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": "priority-fee-estimate",
+                    "method": "getRecentPrioritizationFees",
+                    "params": [
+                        ore_addresses
+                    ]
                 })
             }
             FeeStrategy::Triton => {
@@ -84,6 +99,23 @@ impl Miner {
                 .map(|fee| fee as u64)
                 .ok_or_else(|| format!("Failed to parse priority fee. Response: {:?}", response))
                 .unwrap(),
+            FeeStrategy::Alchemy => response["result"]
+		.as_array()
+                .and_then(|arr| {
+			Some(
+				arr.into_iter()
+					.map(|v| v["prioritizationFee"].as_u64().unwrap())
+					.collect::<Vec<u64>>(),
+			)
+		})
+		.and_then(|fees| {
+			Some((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil()
+			as u64)
+		})
+		.ok_or_else(|| {
+			format!("Failed to parse priority fee. Response: {:?}", response)
+		})
+		.unwrap(),
             FeeStrategy::Triton => response["result"]
                 .as_array()
                 .and_then(|arr| arr.last())
