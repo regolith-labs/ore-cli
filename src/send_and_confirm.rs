@@ -59,7 +59,7 @@ impl Miner {
             }
         }
 
-        // Set compute units
+        // Set compute budget
         let mut final_ixs = vec![];
         match compute_budget {
             ComputeBudget::Dynamic => {
@@ -71,15 +71,12 @@ impl Miner {
             }
         }
 
-        let priority_fee = match &self.dynamic_fee_strategy {
-            Some(_) => self.dynamic_fee().await,
-            None => self.priority_fee.unwrap_or(0),
-        };
-        println!("  Priority fee: {} microlamports", priority_fee);
-
+        // Set compute unit price
         final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
-            priority_fee,
+            self.priority_fee.unwrap_or(0),
         ));
+
+        // Add in user instructions
         final_ixs.extend_from_slice(ixs);
 
         // Build tx
@@ -100,13 +97,35 @@ impl Miner {
         } else {
             tx.sign(&[&signer, &fee_payer], hash);
         }
-
         // Submit tx
         let progress_bar = spinner::new_progress_bar();
         let mut attempts = 0;
         loop {
             progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts,));
 
+            // Sign tx with a new blockhash
+            if attempts % 5 == 0 {
+                // Reset the compute unit price
+                if self.dynamic_fee_strategy.is_some() {
+                    let fee = self.dynamic_fee().await;
+                    final_ixs.remove(1);
+                    final_ixs.insert(1, ComputeBudgetInstruction::set_compute_unit_price(fee));
+                    progress_bar.println(format!("  Priority fee: {} microlamports", fee));
+                }
+
+                // Resign the tx
+                let (hash, _slot) = client
+                    .get_latest_blockhash_with_commitment(self.rpc_client.commitment())
+                    .await
+                    .unwrap();
+                if signer.pubkey() == fee_payer.pubkey() {
+                    tx.sign(&[&signer], hash);
+                } else {
+                    tx.sign(&[&signer, &fee_payer], hash);
+                }
+            }
+
+            // Send transaction
             match client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
                     // Skip confirmation
@@ -115,7 +134,7 @@ impl Miner {
                         return Ok(sig);
                     }
 
-                    // Confirm the tx landed
+                    // Confirm transaction
                     for _ in 0..CONFIRM_RETRIES {
                         std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
                         match client.get_signature_statuses(&[sig]).await {
