@@ -1,6 +1,6 @@
-use std::{sync::Arc, time::Instant};
-
+use rayon::prelude::*;
 use solana_rpc_client::spinner;
+use std::{sync::Arc, time::Instant};
 
 use crate::{args::BenchmarkArgs, Miner};
 
@@ -18,9 +18,11 @@ impl Miner {
             "Benchmarking. This will take {} sec...",
             TEST_DURATION
         ));
+        let rt = tokio::runtime::Handle::current();
         let handles: Vec<_> = (0..args.threads)
+            .into_par_iter()
             .map(|i| {
-                std::thread::spawn({
+                rt.spawn_blocking({
                     move || {
                         let timer = Instant::now();
                         let first_nonce = u64::MAX.saturating_div(args.threads).saturating_mul(i);
@@ -46,17 +48,16 @@ impl Miner {
             .collect();
 
         // Join handles and return best nonce
-        let mut total_nonces = 0;
-        for h in handles {
-            if let Ok(count) = h.join() {
-                total_nonces += count;
-            }
-        }
+        let total_nonces = futures::future::join_all(handles)
+            .await
+            .iter()
+            .filter(|result| result.is_ok())
+            .count();
 
         // Update log
         progress_bar.finish_with_message(format!(
             "Hashpower: {} H/sec",
-            total_nonces.saturating_div(TEST_DURATION as u64),
+            (total_nonces as u64).saturating_div(TEST_DURATION as u64),
         ));
     }
 }

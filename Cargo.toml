@@ -26,7 +26,6 @@ cached = "0.46.1"
 chrono = "0.4.38"
 clap = { version = "4.4.12", features = ["derive"] }
 colored = "2.0"
-core_affinity = "0.8.1" 
 drillx = "2.0.0"
 futures = "0.3.30"
 num_cpus = "1.16.0"
@@ -46,6 +45,7 @@ spl-associated-token-account = { version = "^2.3", features = [
   "no-entrypoint",
 ] }
 tokio = "1.35.1"
+rayon = "1.10.0"
 
 # [patch.crates-io]
 # drillx = { path = "../drillx/drillx" }
