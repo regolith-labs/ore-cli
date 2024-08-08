@@ -63,7 +63,15 @@ impl Miner {
 
         // Set compute unit price
         final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
-            self.priority_fee.unwrap_or(0),
+            if self.dynamic_fee {
+                if let Some(dynamic_fee) = self.dynamic_fee().await {
+                    dynamic_fee
+                }else{
+                    self.priority_fee.unwrap_or(0)
+                }
+            } else {
+                self.priority_fee.unwrap_or(0)
+            }        
         ));
 
         // Add in user instructions
@@ -89,17 +97,21 @@ impl Miner {
             if attempts % 10 == 0 {
                 // Reset the compute unit price
                 if self.dynamic_fee {
-                    let fee = if let Some(fee) = self.dynamic_fee().await {
-                        progress_bar.println(format!("  Priority fee: {} microlamports", fee));
-                        fee
+                    if let Some(dynamic_fee) = self.dynamic_fee().await {
+                        progress_bar.println(format!("  Priority fee: {} microlamports", dynamic_fee));
+                        final_ixs.remove(1);
+                        final_ixs.insert(1, ComputeBudgetInstruction::set_compute_unit_price(dynamic_fee));
                     } else {
-                        let fee = self.priority_fee.unwrap_or(0);
-                        progress_bar.println(format!("  {} Dynamic fees not supported by this RPC. Falling back to static value: {} microlamports", "WARNING".bold().yellow(), fee));
-                        fee
-                    };
-                    final_ixs.remove(1);
-                    final_ixs.insert(1, ComputeBudgetInstruction::set_compute_unit_price(fee));
-                }
+                        let fallback_fee = self.priority_fee.unwrap_or(0);
+                        progress_bar.println(format!(
+                            "{} Dynamic fees not supported by this RPC. Falling back to static value: {} microlamports",
+                            "WARNING".bold().yellow(),
+                            fallback_fee
+                        ));
+                        final_ixs.remove(1);
+                        final_ixs.insert(1, ComputeBudgetInstruction::set_compute_unit_price(fallback_fee));
+                    }
+                }                
 
                 // Resign the tx
                 let (hash, _slot) = client
