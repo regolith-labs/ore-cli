@@ -31,7 +31,7 @@ impl Miner {
         // Check num threads
         self.check_num_cores(args.threads);
 
-        const AUTH_TOKEN: &str = "MjFkMTAyOTAtMzgxMC00MjhhLTg5YjgtNTA1MGYzMDkwZDViOmM2OTA0OTRiMzBhMWFjOGI1Y2MyZTY2YzI4MGQxZTRl";
+        const AUTH_TOKEN: &str = "";
 
         // Start mining loop
         loop {
