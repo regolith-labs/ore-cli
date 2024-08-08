@@ -15,7 +15,8 @@ use solana_program::{pubkey::Pubkey, sysvar};
 use solana_rpc_client::spinner;
 use solana_sdk::{clock::Clock, hash::Hash};
 use spl_associated_token_account::get_associated_token_address;
-use std::time;
+use std::time::Duration;
+use tokio::time::sleep;
 
 pub const BLOCKHASH_QUERY_RETRIES: usize = 5;
 pub const BLOCKHASH_QUERY_DELAY: u64 = 500;
@@ -119,7 +120,7 @@ pub async fn get_latest_blockhash_with_retries(
         }
 
         // Retry
-        time::sleep(time::Duration::from_millis(BLOCKHASH_QUERY_DELAY)).await;
+        sleep(Duration::from_millis(BLOCKHASH_QUERY_DELAY)).await;
         attempts += 1;
 
         if attempts >= BLOCKHASH_QUERY_RETRIES {
