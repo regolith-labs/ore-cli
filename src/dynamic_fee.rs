@@ -31,7 +31,7 @@ impl Miner {
         } else if host.contains("rpcpool.com") {
             FeeStrategy::Triton
         } else {
-            return None;
+            FeeStrategy::LOCAL
         };
 
         // Build fee estimate request
@@ -62,7 +62,7 @@ impl Miner {
                     }
                 ]
             })),
-            _ => None,
+            FeeStrategy::LOCAL => None,
         };
         let response = match body {
             Some(body) => {
