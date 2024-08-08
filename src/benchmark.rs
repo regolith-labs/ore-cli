@@ -1,5 +1,4 @@
 use std::{sync::Arc, time::Instant};
-use colored::Colorize;
 use drillx::equix;
 use solana_rpc_client::spinner;
 
