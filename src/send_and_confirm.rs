@@ -47,16 +47,7 @@ impl Miner {
         let fee_payer = self.fee_payer();
 
         // Return error, if balance is zero
-        if let Ok(balance) = client.get_balance(&fee_payer.pubkey()).await {
-            if balance <= sol_to_lamports(MIN_SOL_BALANCE) {
-                panic!(
-                    "{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
-                    "ERROR".bold().red(),
-                    lamports_to_sol(balance),
-                    MIN_SOL_BALANCE
-                );
-            }
-        }
+        self.check_balance().await;
 
         // Set compute budget
         let mut final_ixs = vec![];
@@ -94,14 +85,20 @@ impl Miner {
         loop {
             progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts,));
 
-            // Sign tx with a new blockhash
-            if attempts % 5 == 0 {
+            // Sign tx with a new blockhash (after approximately ~45 sec)
+            if attempts % 10 == 0 {
                 // Reset the compute unit price
-                if self.dynamic_fee_strategy.is_some() {
-                    let fee = self.dynamic_fee().await;
+                if self.dynamic_fee {
+                    let fee = if let Some(fee) = self.dynamic_fee().await {
+                        progress_bar.println(format!("  Priority fee: {} microlamports", fee));
+                        fee
+                    } else {
+                        let fee = self.priority_fee.unwrap_or(0);
+                        progress_bar.println(format!("  {} Dynamic fees not supported by this RPC. Falling back to static value: {} microlamports", "WARNING".bold().yellow(), fee));
+                        fee
+                    };
                     final_ixs.remove(1);
                     final_ixs.insert(1, ComputeBudgetInstruction::set_compute_unit_price(fee));
-                    progress_bar.println(format!("  Priority fee: {} microlamports", fee));
                 }
 
                 // Resign the tx
@@ -192,6 +189,24 @@ impl Miner {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),
                 });
+            }
+        }
+    }
+
+    pub async fn check_balance(&self) {
+        // Throw error if balance is less than min
+        if let Ok(balance) = self
+            .rpc_client
+            .get_balance(&self.fee_payer().pubkey())
+            .await
+        {
+            if balance <= sol_to_lamports(MIN_SOL_BALANCE) {
+                panic!(
+                    "{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
+                    "ERROR".bold().red(),
+                    lamports_to_sol(balance),
+                    MIN_SOL_BALANCE
+                );
             }
         }
     }
