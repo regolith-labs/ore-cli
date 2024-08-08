@@ -15,11 +15,11 @@ pub struct BenchmarkArgs {
     #[arg(
         long,
         short,
-        value_name = "THREAD_COUNT",
-        help = "The number of threads to use during the benchmark",
+        value_name = "CORES_COUNT",
+        help = "The number of CPU cores to allocate to benchmarking",
         default_value = "1"
     )]
-    pub threads: u64,
+    pub cores: u64,
 }
 
 #[derive(Parser, Debug)]
