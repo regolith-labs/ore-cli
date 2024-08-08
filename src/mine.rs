@@ -30,11 +30,26 @@ impl Miner {
         // Check num threads
         self.check_num_cores(args.cores);
 
+        // logs amount_mining
+        let mut amount_mining: u64 = 0;
+
         // Start mining loop
         loop {
             // Fetch proof
             let config = get_config(&self.rpc_client).await;
             let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await;
+
+            if amount_mining != 0 {
+                amount_mining = proof.balance - amount_mining;
+                println!(
+                    "{} {}",
+                    "+".green(),
+                    amount_u64_to_string(amount_mining)
+                )
+            }
+            
+            amount_mining = proof.balance;
+
             println!(
                 "\nStake: {} ORE\n  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
