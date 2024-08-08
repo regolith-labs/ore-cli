@@ -19,7 +19,7 @@ impl Miner {
             .clone()
             .unwrap_or(self.rpc_client.url());
 
-        // Select fee estiamte strategy
+        // Select fee estimate strategy
         let host = Url::parse(&rpc_url)
             .unwrap()
             .host_str()
@@ -29,6 +29,8 @@ impl Miner {
             FeeStrategy::Helius
         } else if host.contains("rpcpool.com") {
             FeeStrategy::Triton
+        } else if host.contains("alchemy.com") {
+            FeeStrategy::Alchemy
         } else {
             return None;
         };
