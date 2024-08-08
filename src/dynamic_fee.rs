@@ -87,8 +87,10 @@ impl Miner {
                 .unwrap(),
             FeeStrategy::Triton => {
                 serde_json::from_value::<Vec<RpcPrioritizationFee>>(response["result"].clone())
-                    .map(|arr| estimate_prioritization_fee_micro_lamports(&arr))
-                    .or_else(|error| {
+                    .map(|prioritization_fees| {
+                        estimate_prioritization_fee_micro_lamports(prioritization_fees)
+                    })
+                    .or_else(|error: serde_json::Error| {
                         Err(format!(
                             "Failed to parse priority fee. Response: {response:?}, error: {error}"
                         ))
@@ -107,18 +109,17 @@ impl Miner {
 }
 
 /// Our estimate is the average over the last 20 slots
-/// Take last 20 slots and average
 pub fn estimate_prioritization_fee_micro_lamports(
-    prioritization_fees: &[RpcPrioritizationFee],
+    prioritization_fees: Vec<RpcPrioritizationFee>,
 ) -> u64 {
     let prioritization_fees = prioritization_fees
-        .iter()
+        .into_iter()
         .rev()
         .take(20)
         .map(
             |RpcPrioritizationFee {
                  prioritization_fee, ..
-             }| *prioritization_fee,
+             }| prioritization_fee,
         )
         .collect::<Vec<_>>();
     if prioritization_fees.is_empty() {
