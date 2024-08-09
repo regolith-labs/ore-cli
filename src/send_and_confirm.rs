@@ -63,7 +63,7 @@ impl Miner {
 
         // Set compute unit price
         final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
-            self.priority_fee.unwrap_or(0),      
+            self.priority_fee.unwrap_or(0),
         ));
 
         // Add in user instructions
@@ -99,7 +99,7 @@ impl Miner {
                     };
                     final_ixs.remove(1);
                     final_ixs.insert(1, ComputeBudgetInstruction::set_compute_unit_price(fee));
-                }           
+                }
 
                 // Resign the tx
                 let (hash, _slot) = client
