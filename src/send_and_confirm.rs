@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use chrono::Local;
 use colored::*;
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
@@ -153,6 +154,13 @@ impl Miner {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
+                                                    let now = Local::now();
+                                                    let formatted_time =
+                                                        now.format("%Y-%m-%d %H:%M:%S").to_string();
+                                                    progress_bar.println(format!(
+                                                        "  Timestamp: {}",
+                                                        formatted_time
+                                                    ));
                                                     progress_bar.finish_with_message(format!(
                                                         "{} {}",
                                                         "OK".bold().green(),

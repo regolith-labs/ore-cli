@@ -4,7 +4,7 @@ use clap::{arg, Parser};
 pub struct BalanceArgs {
     #[arg(
         value_name = "ADDRESS",
-        help = "The account address to fetch the balance of"
+        help = "The account address to fetch the balance of."
     )]
     pub address: Option<String>,
 }
@@ -56,7 +56,7 @@ pub struct MineArgs {
         long,
         short,
         value_name = "CORES_COUNT",
-        help = "The number of CPU cores to allocate to mining",
+        help = "The number of CPU cores to allocate to mining.",
         default_value = "1"
     )]
     pub cores: u64,
@@ -65,7 +65,7 @@ pub struct MineArgs {
         long,
         short,
         value_name = "SECONDS",
-        help = "The number seconds before the deadline to stop mining and start submitting",
+        help = "The number seconds before the deadline to stop mining and start submitting.",
         default_value = "5"
     )]
     pub buffer_time: u64,
@@ -73,7 +73,7 @@ pub struct MineArgs {
 
 #[derive(Parser, Debug)]
 pub struct ProofArgs {
-    #[arg(value_name = "ADDRESS", help = "The address of the proof to fetch")]
+    #[arg(value_name = "ADDRESS", help = "The address of the proof to fetch.")]
     pub address: Option<String>,
 }
 
@@ -102,8 +102,8 @@ pub struct TransferArgs {
     pub amount: f64,
 
     #[arg(
-        value_name = "WALLET_ADDRESS",
-        help = "The wallet address of the receipient."
+        value_name = "RECIPIENT_ADDRESS",
+        help = "The account address of the receipient."
     )]
     pub to: String,
 }
