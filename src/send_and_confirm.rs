@@ -135,31 +135,29 @@ impl Miner {
                         std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
                         match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
-                                for status in signature_statuses.value {
-                                    if let Some(status) = status {
-                                        if let Some(err) = status.err {
-                                            progress_bar.finish_with_message(format!(
-                                                "{}: {}",
-                                                "ERROR".bold().red(),
-                                                err
-                                            ));
-                                            return Err(ClientError {
-                                                request: None,
-                                                kind: ClientErrorKind::Custom(err.to_string()),
-                                            });
-                                        }
-                                        if let Some(confirmation) = status.confirmation_status {
-                                            match confirmation {
-                                                TransactionConfirmationStatus::Processed => {}
-                                                TransactionConfirmationStatus::Confirmed
-                                                | TransactionConfirmationStatus::Finalized => {
-                                                    progress_bar.finish_with_message(format!(
-                                                        "{} {}",
-                                                        "OK".bold().green(),
-                                                        sig
-                                                    ));
-                                                    return Ok(sig);
-                                                }
+                                for status in signature_statuses.value.into_iter().flatten() {
+                                    if let Some(err) = status.err {
+                                        progress_bar.finish_with_message(format!(
+                                            "{}: {}",
+                                            "ERROR".bold().red(),
+                                            err
+                                        ));
+                                        return Err(ClientError {
+                                            request: None,
+                                            kind: ClientErrorKind::Custom(err.to_string()),
+                                        });
+                                    }
+                                    if let Some(confirmation) = status.confirmation_status {
+                                        match confirmation {
+                                            TransactionConfirmationStatus::Processed => {}
+                                            TransactionConfirmationStatus::Confirmed
+                                            | TransactionConfirmationStatus::Finalized => {
+                                                progress_bar.finish_with_message(format!(
+                                                    "{} {}",
+                                                    "OK".bold().green(),
+                                                    sig
+                                                ));
+                                                return Ok(sig);
                                             }
                                         }
                                     }
@@ -171,7 +169,7 @@ impl Miner {
                                 progress_bar.set_message(format!(
                                     "{}: {}",
                                     "ERROR".bold().red(),
-                                    err.kind().to_string()
+                                    err.kind()
                                 ));
                             }
                         }
@@ -180,11 +178,7 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    progress_bar.set_message(format!(
-                        "{}: {}",
-                        "ERROR".bold().red(),
-                        err.kind().to_string()
-                    ));
+                    progress_bar.set_message(format!("{}: {}", "ERROR".bold().red(), err.kind()));
                 }
             }
 
