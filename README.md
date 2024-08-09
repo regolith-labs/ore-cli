@@ -1,15 +1,16 @@
 
 
 ## Key Changes:
-Thread Efficiency: The threads now have a better distribution of the workload, using workload_per_core to distribute nonces more evenly.
 
-Lock Optimization: The lock contention on global_best_difficulty is reduced by checking and updating the difficulty only when a new best difficulty is found.
+1. Initial Optimization:
+Thread Management and Efficiency: We focused on improving thread management by reducing contention and ensuring work was evenly distributed among threads.
+Lock Optimization: We minimized the use of locks or switched to more efficient locking mechanisms to avoid performance bottlenecks.
+Load Balancing: Ensured that the mining workload was evenly distributed across the available cores.
 
-Streamlined Logic: Removed unnecessary conditions and streamlined the loop to reduce overhead.
-
-Improved Readability: Cleaned up the code structure, making it easier to read and maintain.
-
-This should result in better performance, especially in multi-core environments, by reducing contention and ensuring that each thread works efficiently without stepping on each other’s toes.
+3. Integration with Tokio:
+Asynchronous Runtime: We integrated Tokio to handle asynchronous tasks and improve overall efficiency. This included using tokio::task::spawn_blocking for CPU-bound tasks.
+Tokio's RwLock: We replaced the standard std::sync::RwLock with tokio::sync::RwLock to ensure compatibility with the async runtime.
+Improved Task Management: We utilized Tokio's task management to more effectively handle concurrency and task scheduling.
 
 ## Build
 
