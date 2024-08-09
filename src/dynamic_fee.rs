@@ -3,6 +3,7 @@ use crate::Miner;
 use ore_api::consts::BUS_ADDRESSES;
 use reqwest::Client;
 use serde_json::{json, Value};
+use solana_client::rpc_response::RpcPrioritizationFee;
 use url::Url;
 
 enum FeeStrategy {
@@ -129,11 +130,17 @@ impl Miner {
                     )
                 })
                 .ok_or_else(|| format!("Failed to parse priority fee response: {:?}", response)),
-            FeeStrategy::Triton => response["result"]
-                .as_array()
-                .and_then(|arr| arr.last())
-                .and_then(|last| last["prioritizationFee"].as_u64())
-                .ok_or_else(|| format!("Failed to parse priority fee response: {:?}", response)),
+            FeeStrategy::Triton => {
+                serde_json::from_value::<Vec<RpcPrioritizationFee>>(response["result"].clone())
+                    .map(|prioritization_fees| {
+                        estimate_prioritization_fee_micro_lamports(prioritization_fees)
+                    })
+                    .ok_or_else(|error: serde_json::Error| {
+                        Err(format!(
+                            "Failed to parse priority fee. Response: {response:?}, error: {error}"
+                        ))
+                    })
+            }
         };
 
         // Check if the calculated fee is higher than max
@@ -148,4 +155,28 @@ impl Miner {
             }
         }
     }
+}
+
+/// Our estimate is the average over the last 20 slots
+pub fn estimate_prioritization_fee_micro_lamports(
+    prioritization_fees: Vec<RpcPrioritizationFee>,
+) -> u64 {
+    let prioritization_fees = prioritization_fees
+        .into_iter()
+        .rev()
+        .take(20)
+        .map(
+            |RpcPrioritizationFee {
+                 prioritization_fee, ..
+             }| prioritization_fee,
+        )
+        .collect::<Vec<_>>();
+    if prioritization_fees.is_empty() {
+        panic!("Response does not contain any prioritization fees");
+    }
+
+    let prioritization_fee =
+        prioritization_fees.iter().sum::<u64>() / prioritization_fees.len() as u64;
+
+    prioritization_fee
 }
