@@ -135,9 +135,9 @@ impl Miner {
                     .map(|prioritization_fees| {
                         estimate_prioritization_fee_micro_lamports(prioritization_fees)
                     })
-                    .ok_or_else(|error: serde_json::Error| {
+                    .or_else(|error: serde_json::Error| {
                         Err(format!(
-                            "Failed to parse priority fee. Response: {response:?}, error: {error}"
+                            "Failed to parse priority fee response: {response:?}, error: {error}"
                         ))
                     })
             }

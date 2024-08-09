@@ -104,6 +104,24 @@ pub struct StakeArgs {
 }
 
 #[derive(Parser, Debug)]
+pub struct TransferArgs {
+    #[arg(
+        index = 0,
+        value_name = "AMOUNT",
+        help = "The amount of ORE to transfer.",
+        required = true
+    )]
+    pub amount: f64,
+
+    #[arg(
+        index = 1,
+        value_name = "WALLET_ADDRESS",
+        help = "The wallet address of the receipient."
+    )]
+    pub to: String,
+}
+
+#[derive(Parser, Debug)]
 pub struct UpgradeArgs {
     #[arg(
         long,

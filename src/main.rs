@@ -15,6 +15,7 @@ mod proof;
 mod rewards;
 mod send_and_confirm;
 mod stake;
+mod transfer;
 mod upgrade;
 mod utils;
 
@@ -68,6 +69,9 @@ enum Commands {
 
     #[command(about = "Stake to earn a rewards multiplier")]
     Stake(StakeArgs),
+
+    #[command(about = "Send ORE to anyone, anywhere in the world.")]
+    Transfer(TransferArgs),
 
     #[command(about = "Upgrade your ORE tokens from v1 to v2")]
     Upgrade(UpgradeArgs),
@@ -199,6 +203,9 @@ async fn main() {
         }
         Commands::Stake(args) => {
             miner.stake(args).await;
+        }
+        Commands::Transfer(args) => {
+            miner.transfer(args).await;
         }
         Commands::Upgrade(args) => {
             miner.upgrade(args).await;
