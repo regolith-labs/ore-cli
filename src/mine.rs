@@ -1,4 +1,4 @@
-use std::{sync::Arc, time::Instant};
+use std::{sync::Arc, sync::RwLock, time::Instant};
 
 use colored::*;
 use drillx::{
@@ -35,18 +35,28 @@ impl Miner {
 
         // Start mining loop
         let mut last_hash_at = 0;
+        let mut last_balance = 0;
         loop {
             // Fetch proof
             let config = get_config(&self.rpc_client).await;
             let proof =
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
-            last_hash_at = proof.last_hash_at;
             println!(
-                "\nStake: {} ORE\n  Multiplier: {:12}x",
+                "\n\nStake: {} ORE\n{}  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
+                if last_hash_at.gt(&0) {
+                    format!(
+                        "  Change: {} ORE\n",
+                        amount_u64_to_string(proof.balance.saturating_sub(last_balance))
+                    )
+                } else {
+                    "".to_string()
+                },
                 calculate_multiplier(proof.balance, config.top_balance)
             );
+            last_hash_at = proof.last_hash_at;
+            last_balance = proof.balance;
 
             // Calculate cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
@@ -87,11 +97,13 @@ impl Miner {
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
+        let global_best_difficulty = Arc::new(RwLock::new(0u32));
         progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().unwrap();
         let handles: Vec<_> = core_ids
             .into_iter()
             .map(|i| {
+                let global_best_difficulty = Arc::clone(&global_best_difficulty);
                 std::thread::spawn({
                     let proof = proof.clone();
                     let progress_bar = progress_bar.clone();
@@ -123,20 +135,38 @@ impl Miner {
                                     best_nonce = nonce;
                                     best_difficulty = difficulty;
                                     best_hash = hx;
+                                    // {{ edit_1 }}
+                                    if best_difficulty.gt(&*global_best_difficulty.read().unwrap())
+                                    {
+                                        *global_best_difficulty.write().unwrap() = best_difficulty;
+                                    }
+                                    // {{ edit_1 }}
                                 }
                             }
 
                             // Exit if time has elapsed
                             if nonce % 100 == 0 {
+                                let global_best_difficulty =
+                                    *global_best_difficulty.read().unwrap();
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
-                                    if best_difficulty.ge(&min_difficulty) {
+                                    if i.id == 0 {
+                                        progress_bar.set_message(format!(
+                                            "Mining... (difficulty {})",
+                                            global_best_difficulty,
+                                        ));
+                                    }
+                                    if global_best_difficulty.ge(&min_difficulty) {
                                         // Mine until min difficulty has been met
                                         break;
                                     }
                                 } else if i.id == 0 {
                                     progress_bar.set_message(format!(
-                                        "Mining... ({} sec remaining)",
-                                        cutoff_time.saturating_sub(timer.elapsed().as_secs()),
+                                        "Mining... (difficulty {}, time {})",
+                                        global_best_difficulty,
+                                        format_duration(
+                                            cutoff_time.saturating_sub(timer.elapsed().as_secs())
+                                                as u32
+                                        ),
                                     ));
                                 }
                             }
@@ -168,7 +198,7 @@ impl Miner {
 
         // Update log
         progress_bar.finish_with_message(format!(
-            "Best hash: {} (difficulty: {})",
+            "Best hash: {} (difficulty {})",
             bs58::encode(best_hash.h).into_string(),
             best_difficulty
         ));
@@ -232,4 +262,10 @@ impl Miner {
 
 fn calculate_multiplier(balance: u64, top_balance: u64) -> f64 {
     1.0 + (balance as f64 / top_balance as f64).min(1.0f64)
+}
+
+fn format_duration(seconds: u32) -> String {
+    let minutes = seconds / 60;
+    let remaining_seconds = seconds % 60;
+    format!("{:02}:{:02}", minutes, remaining_seconds)
 }

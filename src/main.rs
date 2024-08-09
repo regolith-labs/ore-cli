@@ -15,6 +15,7 @@ mod proof;
 mod rewards;
 mod send_and_confirm;
 mod stake;
+mod transfer;
 mod upgrade;
 mod utils;
 
@@ -69,6 +70,9 @@ enum Commands {
     #[command(about = "Stake to earn a rewards multiplier")]
     Stake(StakeArgs),
 
+    #[command(about = "Send ORE to anyone, anywhere in the world.")]
+    Transfer(TransferArgs),
+
     #[command(about = "Upgrade your ORE tokens from v1 to v2")]
     Upgrade(UpgradeArgs),
 
@@ -100,7 +104,7 @@ struct Args {
     #[arg(
         long,
         value_name = "KEYPAIR_FILEPATH",
-        help = "Filepath to keypair to use.",
+        help = "Filepath to signer keypair.",
         global = true
     )]
     keypair: Option<String>,
@@ -108,7 +112,7 @@ struct Args {
     #[arg(
         long,
         value_name = "FEE_PAYER_FILEPATH",
-        help = "Filepath to keypair to use as transaction fee payer.",
+        help = "Filepath to transaction fee payer keypair.",
         global = true
     )]
     fee_payer: Option<String>,
@@ -116,7 +120,7 @@ struct Args {
     #[arg(
         long,
         value_name = "MICROLAMPORTS",
-        help = "Price to pay for compute units. If dynamic fees are being used, this value will be the max.",
+        help = "Price to pay for compute units. If dynamic fees are enabled, this value will be used as the cap.",
         default_value = "500000",
         global = true
     )]
@@ -130,7 +134,7 @@ struct Args {
     )]
     dynamic_fee_url: Option<String>,
 
-    #[arg(long, help = "Use dynamic priority fees", global = true)]
+    #[arg(long, help = "Enable dynamic priority fees", global = true)]
     dynamic_fee: bool,
 
     #[command(subcommand)]
@@ -199,6 +203,9 @@ async fn main() {
         }
         Commands::Stake(args) => {
             miner.stake(args).await;
+        }
+        Commands::Transfer(args) => {
+            miner.transfer(args).await;
         }
         Commands::Upgrade(args) => {
             miner.upgrade(args).await;
