@@ -1,11 +1,28 @@
 
 # Key Changes
 
-Replace std::thread::spawn with tokio::spawn: This will make tasks asynchronous and non-blocking, allowing for more efficient task management.
+## Thread Affinity and Load Balancing:
 
-Use tokio::sync::RwLock instead of std::sync::RwLock: This change is necessary for asynchronous contexts.
+Switched from pinning threads to specific CPU cores to a thread pool model, ensuring better utilization of all available CPU cores.
 
-Implement async version of find_hash_par using Tokio: This will enable spawning tasks across cores without blocking the main event loop.
+Introduced a channel-based mechanism to collect results from worker threads, allowing for dynamic workload distribution across cores.
+
+Improved overall efficiency and balanced the workload, reducing the likelihood of underutilized cores.
+
+## Optimized Hashing Algorithm:
+
+Reduced memory allocations and minimized memory access within the hashing loop by reusing buffers and optimizing loop operations.
+
+Increased the nonce increment step to process batches of nonces in a single loop iteration, reducing loop overhead.
+
+## Compiler-Level CPU Optimizations:
+
+Modified the Cargo.toml file to include compiler flags that optimize the code for the specific CPU architecture in use (target-cpu=native).
+
+Enabled Link Time Optimization (LTO) and other advanced optimizations (like reducing codegen units and setting opt-level to maximize performance).
+
+These changes ensure that the compiled binary takes full advantage of all available CPU features, such as AVX2 and SSE4.2, leading to potentially higher hash rates and improved overall performance.
+
 
 
 ```sh
