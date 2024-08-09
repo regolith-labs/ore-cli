@@ -42,13 +42,17 @@ impl Miner {
             let proof =
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
-            last_hash_at = proof.last_hash_at;
             println!(
-                "\nStake: {} ORE\n  Change: {} ORE\n  Multiplier: {:12}x",
+                "\nStake: {} ORE\n{}  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
-                amount_u64_to_string(proof.balance.saturating_sub(last_balance)),
+                if last_hash_at.gt(&0) { 
+                    format!("  Change: {} ORE\n", amount_u64_to_string(proof.balance.saturating_sub(last_balance)))
+                } else {
+                    ""
+                },
                 calculate_multiplier(proof.balance, config.top_balance)
             );
+            last_hash_at = proof.last_hash_at;
             last_balance = proof.balance;
 
             // Calculate cutoff time
