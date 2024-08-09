@@ -13,7 +13,7 @@ enum FeeStrategy {
 }
 
 impl Miner {
-    pub async fn dynamic_fee(&self) -> Option<u64> {
+    pub async fn dynamic_fee(&self) -> Result<u64, String> {
         // Get url
         let rpc_url = self
             .dynamic_fee_url
@@ -35,7 +35,7 @@ impl Miner {
         } else if host.contains("rpcpool.com") {
             FeeStrategy::Triton
         } else {
-            return None;
+            return Err("Dynamic fees not supported by this RPC.".to_string());
         };
 
         // Build fee estimate request
@@ -109,45 +109,43 @@ impl Miner {
             FeeStrategy::Helius => response["result"]["priorityFeeEstimate"]
                 .as_f64()
                 .map(|fee| fee as u64)
-                .ok_or_else(|| format!("Failed to parse priority fee. Response: {:?}", response))
-                .unwrap(),
+                .ok_or_else(|| format!("Failed to parse priority fee response: {:?}", response)),
             FeeStrategy::Quiknode => response["result"]["per_compute_unit"]["medium"]
-                    .as_f64()
-                    .map(|fee| fee as u64)
-                    .ok_or_else(|| {
-                        format!("Failed to parse priority fee. Response: {:?}", response)
-                    })
-                    .unwrap(),
+                .as_f64()
+                .map(|fee| fee as u64)
+                .ok_or_else(|| format!("Please enable the Solana Priority Fee API add-on in your QuickNode account.")),
             FeeStrategy::Alchemy => response["result"]
-		        .as_array()
+                .as_array()
                 .and_then(|arr| {
-			        Some(
-				        arr.into_iter()
-					    .map(|v| v["prioritizationFee"].as_u64().unwrap())
-					    .collect::<Vec<u64>>(),
-			        )
-		        })
-		        .and_then(|fees| {
-			        Some(((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil() * 1.2)
-			        as u64)
-		        })
-		        .ok_or_else(|| {
-			        format!("Failed to parse priority fee. Response: {:?}", response)
-		        })
-		        .unwrap(),
+                    Some(
+                        arr.into_iter()
+                            .map(|v| v["prioritizationFee"].as_u64().unwrap())
+                            .collect::<Vec<u64>>(),
+                    )
+                })
+                .and_then(|fees| {
+                    Some(
+                        ((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil() * 1.2) as u64,
+                    )
+                })
+                .ok_or_else(|| format!("Failed to parse priority fee response: {:?}", response)),
             FeeStrategy::Triton => response["result"]
                 .as_array()
                 .and_then(|arr| arr.last())
                 .and_then(|last| last["prioritizationFee"].as_u64())
-                .ok_or_else(|| format!("Failed to parse priority fee. Response: {:?}", response))
-                .unwrap(),
+                .ok_or_else(|| format!("Failed to parse priority fee response: {:?}", response)),
         };
 
         // Check if the calculated fee is higher than max
-        if let Some(max_fee) = self.priority_fee {
-            Some(calculated_fee.min(max_fee))
-        } else {
-            Some(calculated_fee)
+        match calculated_fee {
+            Err(err) => Err(err),
+            Ok(fee) => {
+                if let Some(max_fee) = self.priority_fee {
+                    Ok(fee.min(max_fee))
+                } else {
+                    Ok(fee)
+                }
+            }
         }
     }
 }

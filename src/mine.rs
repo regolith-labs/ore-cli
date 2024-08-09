@@ -45,10 +45,13 @@ impl Miner {
             println!(
                 "\nStake: {} ORE\n{}  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
-                if last_hash_at.gt(&0) { 
-                    format!("  Change: {} ORE\n", amount_u64_to_string(proof.balance.saturating_sub(last_balance)))
+                if last_hash_at.gt(&0) {
+                    format!(
+                        "  Change: {} ORE\n",
+                        amount_u64_to_string(proof.balance.saturating_sub(last_balance))
+                    )
                 } else {
-                    ""
+                    "".to_string()
                 },
                 calculate_multiplier(proof.balance, config.top_balance)
             );
@@ -133,7 +136,8 @@ impl Miner {
                                     best_difficulty = difficulty;
                                     best_hash = hx;
                                     // {{ edit_1 }}
-                                    if best_difficulty.gt(&*global_best_difficulty.read().unwrap()) {
+                                    if best_difficulty.gt(&*global_best_difficulty.read().unwrap())
+                                    {
                                         *global_best_difficulty.write().unwrap() = best_difficulty;
                                     }
                                     // {{ edit_1 }}
@@ -142,7 +146,8 @@ impl Miner {
 
                             // Exit if time has elapsed
                             if nonce % 100 == 0 {
-                                let global_best_difficulty = *global_best_difficulty.read().unwrap();
+                                let global_best_difficulty =
+                                    *global_best_difficulty.read().unwrap();
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
                                     if i.id == 0 {
                                         progress_bar.set_message(format!(
@@ -162,7 +167,7 @@ impl Miner {
                                     ));
                                 }
                             }
-                            
+
                             // Increment nonce
                             nonce += 1;
                         }
