@@ -25,6 +25,8 @@ These changes ensure that the compiled binary takes full advantage of all availa
 
 
 
+
+check out the repo and build
 ```sh
 cargo build --release
 ```
