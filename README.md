@@ -58,7 +58,7 @@ To run the Docker image with your wallet mapped in read-only mode, use the follo
 docker run \
   -e RPC=mainnet \
   -e BUFFER_TIME=5 \
-  -e THREAD=4 \
+  -e CORES=4 \
   -v /local/path/to/id.json:/ore/id.json:ro \
   ghcr.io/regolith-labs/ore:latest
 ```
@@ -67,7 +67,7 @@ docker run \
 
 - `RPC`: Select the RPC URL to use. Options: `mainnet`, `devnet`, or a custom URL. Default is `devnet`.
 - `BUFFER_TIME`: Set the buffer time.
-- `THREAD`: Set the number of threads to use.
+- `CORES`: Set the number of CORES to use.
 
 ### Wallet Mapping
 
@@ -107,14 +107,14 @@ docker run \
   -v /path/to/your/id.json:/ore/id.json:ro \
   -e RPC=mainnet \
   -e BUFFER_TIME=5 \
-  -e THREAD=4 \
+  -e CORES=4 \
   ghcr.io/regolith-labs/ore:latest mine
 ```
 
 To benchmark your hashpower:
 
 ```sh
-docker run -e THREAD=4 ghcr.io/regolith-labs/ore:latest benchmark
+docker run -e CORES=4 ghcr.io/regolith-labs/ore:latest benchmark
 ```
 
 To fetch an account balance:
