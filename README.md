@@ -1,18 +1,22 @@
 
 
-## Key Changes:
+# Key Changes:
 
-Initial Optimization:
+## Initial Optimization:
 
-Thread Management and Efficiency: We focused on improving thread management by reducing contention and ensuring work was evenly distributed among threads.
-Lock Optimization: We minimized the use of locks or switched to more efficient locking mechanisms to avoid performance bottlenecks.
-Load Balancing: Ensured that the mining workload was evenly distributed across the available cores.
+1. Thread Management and Efficiency: We focused on improving thread management by reducing contention and ensuring work was evenly distributed among threads.
 
-Integration with Tokio:
+2. Lock Optimization: We minimized the use of locks or switched to more efficient locking mechanisms to avoid performance bottlenecks.
 
-Asynchronous Runtime: We integrated Tokio to handle asynchronous tasks and improve overall efficiency. This included using tokio::task::spawn_blocking for CPU-bound tasks.
-Tokio's RwLock: We replaced the standard std::sync::RwLock with tokio::sync::RwLock to ensure compatibility with the async runtime.
-Improved Task Management: We utilized Tokio's task management to more effectively handle concurrency and task scheduling.
+3. Load Balancing: Ensured that the mining workload was evenly distributed across the available cores.
+
+## Integration with Tokio:
+
+1. Asynchronous Runtime: We integrated Tokio to handle asynchronous tasks and improve overall efficiency. This included using tokio::task::spawn_blocking for CPU-bound tasks.
+
+2. Tokio's RwLock: We replaced the standard std::sync::RwLock with tokio::sync::RwLock to ensure compatibility with the async runtime.
+
+3. Improved Task Management: We utilized Tokio's task management to more effectively handle concurrency and task scheduling.
 
 ## Build
 
