@@ -9,7 +9,7 @@ enum FeeStrategy {
     Helius,
     Triton,
     Alchemy,
-    Quicknode,
+    Quiknode,
 }
 
 impl Miner {
@@ -31,7 +31,7 @@ impl Miner {
         } else if host.contains("alchemy.com") {
             FeeStrategy::Alchemy
         } else if host.contains("quiknode.pro") {
-            FeeStrategy::Quicknode
+            FeeStrategy::Quiknode
         } else if host.contains("rpcpool.com") {
             FeeStrategy::Triton
         } else {
@@ -67,7 +67,7 @@ impl Miner {
                     ]
                 })
             }
-            FeeStrategy::Quicknode => {
+            FeeStrategy::Quiknode => {
                 json!({
                     "jsonrpc": "2.0",
                     "id": "1",
@@ -111,7 +111,7 @@ impl Miner {
                 .map(|fee| fee as u64)
                 .ok_or_else(|| format!("Failed to parse priority fee. Response: {:?}", response))
                 .unwrap(),
-            FeeStrategy::Quicknode => response["result"]["per_compute_unit"]["medium"]
+            FeeStrategy::Quiknode => response["result"]["per_compute_unit"]["medium"]
                     .as_f64()
                     .map(|fee| fee as u64)
                     .ok_or_else(|| {
