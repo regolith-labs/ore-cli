@@ -44,12 +44,13 @@ impl Miner {
                     .await;
             last_hash_at = proof.last_hash_at;
             println!(
-                "\nStake: {} ORE \n balance change:{} ORE\n  Multiplier: {:12}x",
+                "\nStake: {} ORE\n  Change: {} ORE\n  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
                 amount_u64_to_string(proof.balance.saturating_sub(last_balance)),
                 calculate_multiplier(proof.balance, config.top_balance)
             );
             last_balance = proof.balance;
+
             // Calculate cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
 
