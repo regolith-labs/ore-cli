@@ -48,7 +48,7 @@ impl Miner {
                 if last_hash_at.gt(&0) { 
                     format!("  Change: {} ORE\n", amount_u64_to_string(proof.balance.saturating_sub(last_balance)))
                 } else {
-                    ""
+                    "".to_string()
                 },
                 calculate_multiplier(proof.balance, config.top_balance)
             );
