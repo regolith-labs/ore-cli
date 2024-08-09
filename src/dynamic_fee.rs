@@ -9,6 +9,7 @@ enum FeeStrategy {
     Helius,
     Triton,
     Alchemy,
+    Quicknode,
 }
 
 impl Miner {
@@ -29,8 +30,8 @@ impl Miner {
             FeeStrategy::Helius
         } else if host.contains("alchemy.com") {
             FeeStrategy::Alchemy
-        }else if host.contains("pandaever.host") {
-            FeeStrategy::Alchemy
+        } else if host.contains("quiknode.pro") {
+            FeeStrategy::Quicknode
         } else if host.contains("rpcpool.com") {
             FeeStrategy::Triton
         } else {
@@ -66,6 +67,17 @@ impl Miner {
                     ]
                 })
             }
+            FeeStrategy::Quicknode => {
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": "1",
+                    "method": "qn_estimatePriorityFees",
+                    "params": {
+                        "account": "oreV2ZymfyeXgNgBdqMkumTqqAprVqgBWQfoYkrtKWQ",
+                        "last_n_blocks": 100
+                    }
+                })
+            }
             FeeStrategy::Triton => {
                 json!({
                     "jsonrpc": "2.0",
@@ -99,23 +111,30 @@ impl Miner {
                 .map(|fee| fee as u64)
                 .ok_or_else(|| format!("Failed to parse priority fee. Response: {:?}", response))
                 .unwrap(),
+            FeeStrategy::Quicknode => response["result"]["per_compute_unit"]["medium"]
+                    .as_f64()
+                    .map(|fee| fee as u64)
+                    .ok_or_else(|| {
+                        format!("Failed to parse priority fee. Response: {:?}", response)
+                    })
+                    .unwrap(),
             FeeStrategy::Alchemy => response["result"]
-		.as_array()
+		        .as_array()
                 .and_then(|arr| {
-			Some(
-				arr.into_iter()
-					.map(|v| v["prioritizationFee"].as_u64().unwrap())
-					.collect::<Vec<u64>>(),
-			)
-		})
-		.and_then(|fees| {
-			Some((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil()
-			as u64)
-		})
-		.ok_or_else(|| {
-			format!("Failed to parse priority fee. Response: {:?}", response)
-		})
-		.unwrap(),
+			        Some(
+				        arr.into_iter()
+					    .map(|v| v["prioritizationFee"].as_u64().unwrap())
+					    .collect::<Vec<u64>>(),
+			        )
+		        })
+		        .and_then(|fees| {
+			        Some(((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil() * 1.2)
+			        as u64)
+		        })
+		        .ok_or_else(|| {
+			        format!("Failed to parse priority fee. Response: {:?}", response)
+		        })
+		        .unwrap(),
             FeeStrategy::Triton => response["result"]
                 .as_array()
                 .and_then(|arr| arr.last())
