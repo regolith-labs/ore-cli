@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, RwLock},
+    sync::Arc,
     time::Instant,
 };
 use colored::*;
@@ -13,6 +13,8 @@ use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
+use tokio::sync::RwLock;
+use tokio::task;
 
 use crate::{
     args::MineArgs,
@@ -53,7 +55,7 @@ impl Miner {
             last_balance = proof.balance;
 
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
-            let solution = Self::find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32).await;
+            let solution = self.find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32).await;
 
             let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
             let mut compute_budget = 500_000;
@@ -74,6 +76,7 @@ impl Miner {
     }
 
     async fn find_hash_par(
+        &self,
         proof: Proof,
         cutoff_time: u64,
         cores: u64,
@@ -87,82 +90,76 @@ impl Miner {
         let total_cores = cores.min(core_ids.len() as u64);
         let workload_per_core = u64::MAX / total_cores;
 
-        let handles: Vec<_> = core_ids
-            .into_iter()
-            .enumerate()
-            .map(|(i, core_id)| {
-                let global_best_difficulty = Arc::clone(&global_best_difficulty);
-                let progress_bar = Arc::clone(&progress_bar);
+        let mut handles = Vec::new();
+
+        for (i, core_id) in core_ids.into_iter().enumerate().take(total_cores as usize) {
+            let global_best_difficulty = Arc::clone(&global_best_difficulty);
+            let progress_bar = Arc::clone(&progress_bar);
+            let proof = proof.clone();
+            
+            handles.push(task::spawn_blocking(move || {
+                if !core_affinity::set_for_current(core_id) {
+                    eprintln!("Failed to set affinity for core {:?}", core_id);
+                }
+
+                let timer = Instant::now();
+                let mut nonce = workload_per_core * i as u64;
+                let mut best_nonce: u64 = nonce;
+                let mut best_difficulty = 0;
+                let mut best_hash = Hash::default();
                 let mut memory = equix::SolverMemory::new();
-                std::thread::spawn(move || {
-                    if i as u64 >= total_cores {
-                        return (0, 0, Hash::default());
-                    }
 
-                    if !core_affinity::set_for_current(core_id) {
-                        eprintln!("Failed to set affinity for core {:?}", core_id);
-                    }
-                    
-                    let timer = Instant::now();
-                    let mut nonce = workload_per_core * i as u64;
-                    let mut best_nonce = nonce;
-                    let mut best_difficulty = 0;
-                    let mut best_hash = Hash::default();
+                loop {
+                    if let Ok(hx) = drillx::hash_with_memory(&mut memory, &proof.challenge, &nonce.to_le_bytes()) {
+                        let difficulty = hx.difficulty();
+                        if difficulty > best_difficulty {
+                            best_nonce = nonce;
+                            best_difficulty = difficulty;
+                            best_hash = hx;
 
-                    loop {
-                        if let Ok(hx) = drillx::hash_with_memory(&mut memory, &proof.challenge, &nonce.to_le_bytes()) {
-                            let difficulty = hx.difficulty();
-                            if difficulty > best_difficulty {
-                                best_nonce = nonce;
-                                best_difficulty = difficulty;
-                                best_hash = hx;
-
-                                let mut best_global_difficulty = global_best_difficulty.write().unwrap();
-                                if best_difficulty > *best_global_difficulty {
-                                    *best_global_difficulty = best_difficulty;
-                                }
+                            let mut best_global_difficulty = global_best_difficulty.blocking_write();
+                            if best_difficulty > *best_global_difficulty {
+                                *best_global_difficulty = best_difficulty;
                             }
                         }
+                    }
 
-                        // Check if global best difficulty meets or exceeds min_difficulty
-                        if best_difficulty >= min_difficulty {
+                    if best_difficulty >= min_difficulty {
+                        break;
+                    }
+
+                    if nonce % 100 == 0 {
+                        let elapsed_secs = timer.elapsed().as_secs();
+                        if elapsed_secs >= cutoff_time {
                             break;
                         }
 
-                        if nonce % 100 == 0 {
-                            let elapsed_secs = timer.elapsed().as_secs();
-                            if elapsed_secs >= cutoff_time {
-                                break;
-                            }
-
-                            if i == 0 {
-                                let global_best_difficulty = *global_best_difficulty.read().unwrap();
-                                progress_bar.set_message(format!(
-                                    "Mining... (difficulty {}, time {})",
-                                    global_best_difficulty,
-                                    format_duration(cutoff_time.saturating_sub(elapsed_secs) as u32),
-                                ));
-                            }
+                        if i == 0 {
+                            let global_best_difficulty = *global_best_difficulty.blocking_read();
+                            progress_bar.set_message(format!(
+                                "Mining... (difficulty {}, time {})",
+                                global_best_difficulty,
+                                format_duration(cutoff_time.saturating_sub(elapsed_secs) as u32),
+                            ));
                         }
-
-                        nonce += 1;
                     }
 
-                    (best_nonce, best_difficulty, best_hash)
-                })
-            })
-            .collect();
+                    nonce += 1;
+                }
 
-        let mut best_nonce = 0;
+                (best_nonce, best_difficulty, best_hash)
+            }));
+        }
+
+        let mut best_nonce: u64 = 0;
         let mut best_difficulty = 0;
         let mut best_hash = Hash::default();
-        for h in handles {
-            if let Ok((nonce, difficulty, hash)) = h.join() {
-                if difficulty > best_difficulty {
-                    best_difficulty = difficulty;
-                    best_nonce = nonce;
-                    best_hash = hash;
-                }
+        for handle in handles {
+            let (nonce, difficulty, hash) = handle.await.unwrap();
+            if difficulty > best_difficulty {
+                best_difficulty = difficulty;
+                best_nonce = nonce;
+                best_hash = hash;
             }
         }
 
