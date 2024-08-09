@@ -1,4 +1,6 @@
-use std::{sync::Arc, sync::RwLock, time::Instant};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Instant;
 
 use colored::*;
 use drillx::{
@@ -23,6 +25,9 @@ use crate::{
     },
     Miner,
 };
+
+// Define a constant for maximum retry attempts
+const MAX_RETRIES: u8 = 3;
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) {
@@ -82,10 +87,31 @@ impl Miner {
                 solution,
             ));
 
-            // Submit transaction
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
-                .await
-                .ok();
+            // Retry mechanism for the transaction submission
+            let mut attempts = 0;
+            while attempts < MAX_RETRIES {
+                let result = self
+                    .send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
+                    .await;
+
+                match result {
+                    Ok(_) => {
+                        // Success handling
+                        break;
+                    }
+                    Err(e) => {
+                        attempts += 1;
+                        eprintln!(
+                            "Attempt {}: ERROR: Failed to process transaction: {:?}",
+                            attempts, e
+                        );
+                        if attempts >= MAX_RETRIES {
+                            eprintln!("Max retries reached. Aborting...");
+                            return;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -97,8 +123,8 @@ impl Miner {
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
-        let global_best_difficulty = Arc::new(RwLock::new(0u32));
-        let global_total_hashes = Arc::new(RwLock::new(0u64));
+        let global_best_difficulty = Arc::new(AtomicU32::new(0));
+        let global_total_hashes = Arc::new(AtomicU64::new(0));
         progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().unwrap();
 
@@ -136,32 +162,28 @@ impl Miner {
                                 &nonce.to_le_bytes(),
                             ) {
                                 let difficulty = hx.difficulty();
-                                if difficulty.gt(&best_difficulty) {
+                                if difficulty > best_difficulty {
                                     best_nonce = nonce;
                                     best_difficulty = difficulty;
                                     best_hash = hx;
-                                    if best_difficulty.gt(&*global_best_difficulty.read().unwrap())
-                                    {
-                                        *global_best_difficulty.write().unwrap() = best_difficulty;
+                                    if difficulty > global_best_difficulty.load(Ordering::Relaxed) {
+                                        global_best_difficulty.store(difficulty, Ordering::Relaxed);
                                     }
                                 }
                             }
 
                             // Increment total hash counter
-                            {
-                                let mut total_hashes = global_total_hashes.write().unwrap();
-                                *total_hashes += 1;
-                            }
+                            global_total_hashes.fetch_add(1, Ordering::Relaxed);
 
                             // Exit if time has elapsed
                             if nonce % 100 == 0 {
                                 let global_best_difficulty =
-                                    *global_best_difficulty.read().unwrap();
-                                let total_hashes = *global_total_hashes.read().unwrap();
+                                    global_best_difficulty.load(Ordering::Relaxed);
+                                let total_hashes = global_total_hashes.load(Ordering::Relaxed);
                                 let elapsed_time = start_time.elapsed().as_secs_f64();
                                 let hash_rate = total_hashes as f64 / elapsed_time;
 
-                                if timer.elapsed().as_secs().ge(&cutoff_time) {
+                                if timer.elapsed().as_secs() >= cutoff_time {
                                     if i.id == 0 {
                                         progress_bar.set_message(format!(
                                             "Mining... (difficulty {}, time {}, {:.2} H/s)",
@@ -174,7 +196,7 @@ impl Miner {
                                             hash_rate,
                                         ));
                                     }
-                                    if global_best_difficulty.ge(&min_difficulty) {
+                                    if global_best_difficulty >= min_difficulty {
                                         // Mine until min difficulty has been met
                                         break;
                                     }
@@ -217,7 +239,7 @@ impl Miner {
         }
 
         // Calculate final hash rate
-        let total_hashes = *global_total_hashes.read().unwrap();
+        let total_hashes = global_total_hashes.load(Ordering::Relaxed);
         let elapsed_time = start_time.elapsed().as_secs_f64();
         let hash_rate = total_hashes as f64 / elapsed_time;
 
@@ -234,9 +256,9 @@ impl Miner {
 
     pub fn check_num_cores(&self, cores: u64) {
         let num_cores = num_cpus::get() as u64;
-        if cores.gt(&num_cores) {
+        if cores > num_cores {
             println!(
-                "{} Cannot exceeds available cores ({})",
+                "{} Cannot exceed available cores ({})",
                 "WARNING".bold().yellow(),
                 num_cores
             );
@@ -270,7 +292,7 @@ impl Miner {
             for account in accounts {
                 if let Some(account) = account {
                     if let Ok(bus) = Bus::try_from_bytes(&account.data) {
-                        if bus.rewards.gt(&top_bus_balance) {
+                        if bus.rewards > top_bus_balance {
                             top_bus_balance = bus.rewards;
                             top_bus = BUS_ADDRESSES[bus.id as usize];
                         }
