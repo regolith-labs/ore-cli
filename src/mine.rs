@@ -1,5 +1,4 @@
 use std::{sync::Arc, sync::RwLock, time::Instant};
-
 use colored::*;
 use drillx::{
     equix::{self},
@@ -11,15 +10,18 @@ use ore_api::{
 };
 use ore_utils::AccountDeserialize;
 use rand::Rng;
+use futures::StreamExt;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::protocol::Message;
 
 use crate::{
     args::MineArgs,
     send_and_confirm::ComputeBudget,
     utils::{
-        amount_u64_to_string, get_clock, get_config, get_updated_proof_with_authority, proof_pubkey,
+        amount_u64_to_string, get_clock, get_config, get_updated_proof_with_authority, proof_pubkey, Tip,
     },
     Miner,
 };
@@ -32,6 +34,29 @@ impl Miner {
 
         // Check num threads
         self.check_num_cores(args.cores);
+
+        let tip = Arc::new(RwLock::new(0_u64));
+        let tip_clone = Arc::clone(&tip);
+
+        if args.jito {
+            let url = "ws://bundles-api-rest.jito.wtf/api/v1/bundles/tip_stream";
+            let (ws_stream, _) = connect_async(url).await.unwrap();
+            let (_, mut read) = ws_stream.split();
+
+            tokio::spawn(async move {
+                while let Some(message) = read.next().await {
+                    if let Ok(Message::Text(text)) = message {
+                        if let Ok(tips) = serde_json::from_str::<Vec<Tip>>(&text) {
+                            for item in tips {
+                                let mut tip = tip_clone.write().unwrap();
+                                *tip =
+                                    (item.landed_tips_50th_percentile * (10_f64).powf(9.0)) as u64;
+                            }
+                        }
+                    }
+                }
+            });
+        }
 
         // Start mining loop
         let mut last_hash_at = 0;
@@ -82,8 +107,10 @@ impl Miner {
                 solution,
             ));
 
+            let current_tip = *tip.read().unwrap();
+
             // Submit transaction
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
+            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false, current_tip)
                 .await
                 .ok();
         }
