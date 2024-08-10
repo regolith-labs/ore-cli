@@ -174,7 +174,7 @@ async fn main() {
         args.dynamic_fee_url,
         args.dynamic_fee,
         Some(fee_payer_filepath),
-        args.discord_webook,
+        args.discord_webhook,
     ));
 
     // Execute user command.

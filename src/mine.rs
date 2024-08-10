@@ -16,7 +16,6 @@ use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
 use reqwest::Client;
 use serde_json::json;
-use std::error::Error;
 
 use crate::{
     args::MineArgs,
@@ -39,9 +38,6 @@ impl Miner {
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance = 0;
-
-        let discord_webhook_url = &self.discord_webhook;
-        let client = Client::new();
 
         loop {
             // Fetch proof
@@ -97,7 +93,10 @@ impl Miner {
             let payload = json!({
                 "content": format!("Ore Gained: {}, Current Balance: {}", amount_u64_to_string(proof.balance.saturating_sub(last_balance)), amount_u64_to_string(proof.balance)),
             });
-            let _ = http_client.post(&discord_webhook_url)
+
+            let http_client = Client::new();
+
+            let _ = http_client.post(&self.discord_webhook)
                 .json(&payload)
                 .send()
                 .await;
@@ -189,16 +188,6 @@ impl Miner {
                             // Increment nonce
                             nonce += 1;
                         }
-
-                        let payload = json!({
-                            "content": format!("Difficulty: {}", best_difficulty),
-                        });
-
-                        let _ = http_client.post(&discord_webhook_url)
-                            .json(&payload)
-                            .send()
-                            .await;
-
                         // Return the best nonce
                         (best_nonce, best_difficulty, best_hash)
                     }
