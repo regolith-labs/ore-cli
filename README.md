@@ -1,6 +1,8 @@
 
 # Key Changes
 
+## Faster submissions
+
 ## Thread Affinity and Load Balancing:
 
 Switched from pinning threads to specific CPU cores to a thread pool model, ensuring better utilization of all available CPU cores.
