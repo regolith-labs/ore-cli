@@ -45,6 +45,9 @@ impl Miner {
             let proof =
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
+
+            let ore_gained = proof.balance.saturating_sub(last_balance);
+
             println!(
                 "\n\nStake: {} ORE\n{}  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
@@ -59,6 +62,7 @@ impl Miner {
                 calculate_multiplier(proof.balance, config.top_balance)
             );
             last_hash_at = proof.last_hash_at;
+
             last_balance = proof.balance;
 
             // Calculate cutoff time
@@ -93,7 +97,7 @@ impl Miner {
             let http_client = Client::new();
 
             let payload = json!({
-                "content": format!("Ore Gained: {}, Current Balance: {}", amount_u64_to_string(proof.balance.saturating_sub(last_balance)), amount_u64_to_string(proof.balance)),
+                "content": format!("Ore Gained: {}, Current Balance: {}", amount_u64_to_string(ore_gained), amount_u64_to_string(proof.balance)),
             });
 
             let discord_webhook_url = self.discord_webhook.as_deref().expect("Discord webhook URL must be set");
