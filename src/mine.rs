@@ -90,13 +90,15 @@ impl Miner {
                 .await
                 .ok();
 
+            let http_client = Client::new();
+
             let payload = json!({
                 "content": format!("Ore Gained: {}, Current Balance: {}", amount_u64_to_string(proof.balance.saturating_sub(last_balance)), amount_u64_to_string(proof.balance)),
             });
 
-            let http_client = Client::new();
+            let discord_webhook_url = self.discord_webhook.as_deref().expect("Discord webhook URL must be set");
 
-            let _ = http_client.post(&self.discord_webhook)
+            let _ = http_client.post(discord_webhook_url)
                 .json(&payload)
                 .send()
                 .await;
