@@ -173,12 +173,12 @@ impl Miner {
         ];
         let address_strings = pubkey;
 
-        // 将字符串转换为 Pubkey
+        // Convert strings to Pubkey
         let addresses: Vec<Pubkey> = address_strings
             .into_iter()
             .map(|addr_str| Pubkey::from_str(addr_str).expect("Invalid address"))
             .collect();
-        // 获取最近的优先级费用
+        // Get recent prioritization fees
         let recent_prioritization_fees = client.get_recent_prioritization_fees(&addresses).await?;
 
         if recent_prioritization_fees.is_empty() {
