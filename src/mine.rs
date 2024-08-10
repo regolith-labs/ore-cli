@@ -81,10 +81,8 @@ impl Miner {
                 solution,
             ));
 
-            let current_tip = *self.tip.read().unwrap();
-
             // Submit transaction
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false, current_tip)
+            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
                 .await
                 .ok();
         }

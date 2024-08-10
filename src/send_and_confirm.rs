@@ -43,14 +43,16 @@ impl Miner {
         ixs: &[Instruction],
         compute_budget: ComputeBudget,
         skip_confirm: bool,
-        tip: u64
     ) -> ClientResult<Signature> {
         let signer = self.signer();
         let client = self.rpc_client.clone();
         let fee_payer = self.fee_payer();
         let mut send_client = self.rpc_client.clone();
 
-        if tip > 0 {
+
+        let current_tip = *self.tip.read().unwrap();
+
+        if current_tip > 0 {
             send_client = self.jito_client.clone();
         }
 
@@ -77,7 +79,7 @@ impl Miner {
         // Add in user instructions
         final_ixs.extend_from_slice(ixs);
 
-        if tip > 0 {
+        if current_tip > 0 {
             let tips = [
                 "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
                 "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
@@ -95,7 +97,7 @@ impl Miner {
                     &Pubkey::from_str(
                         &tips.choose(&mut rand::thread_rng()).unwrap().to_string()
                     ).unwrap(),
-                    tip
+                    current_tip
                 )
             );
         }

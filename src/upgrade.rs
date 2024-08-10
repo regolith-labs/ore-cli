@@ -40,7 +40,7 @@ impl Miner {
 
         let ix = ore_api::instruction::upgrade(signer.pubkey(), beneficiary, sender, amount);
         match self
-            .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_UPGRADE), false, 0)
+            .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_UPGRADE), false)
             .await
         {
             Ok(_sig) => {}
@@ -105,7 +105,7 @@ impl Miner {
                 &ore_api::consts::MINT_ADDRESS,
                 &spl_token::id(),
             );
-            self.send_and_confirm(&[ix], ComputeBudget::Dynamic, false, 0)
+            self.send_and_confirm(&[ix], ComputeBudget::Dynamic, false)
                 .await
                 .ok();
         }
