@@ -194,18 +194,7 @@ impl Miner {
                         "ERROR".bold().red(),
                         err.kind().to_string()
                     ));
-
-                    if err.kind().to_string().contains("Error processing Instruction") {
-                        return Err(ClientError {
-                            request: None,
-                            kind: ClientErrorKind::Custom("Error processing Instruction".into()),
-                        });
-                    }
-
-                    // Reset transaction if other error
-                    tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
-                    attempts += 1; // Increment attempts after resetting
-                    continue; // Retry sending the transaction
+                    continue;
                 }
             }
 
