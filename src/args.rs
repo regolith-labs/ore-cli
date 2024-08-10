@@ -69,14 +69,6 @@ pub struct MineArgs {
         default_value = "5"
     )]
     pub buffer_time: u64,
-
-    #[arg(
-        long, 
-        value_name = "JITO", 
-        help = "Add jito tip to the miner. Defaults to false.",
-        global = false
-    )]
-    pub jito: bool,
 }
 
 #[derive(Parser, Debug)]
