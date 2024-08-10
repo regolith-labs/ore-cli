@@ -50,12 +50,12 @@ You can use the `-h` flag on any command to pull up a help menu with documentati
 ore -h
 ```
 
-## Running the Docker Image
+## Running with Docker
 
-To run the Docker image with your wallet mapped in read-only mode, use the following command:
+Run the Docker image with your wallet mapped:
 
 ```sh
-docker run \
+docker run -it \
   -e RPC=mainnet \
   -e BUFFER_TIME=5 \
   -e CORES=4 \
@@ -63,28 +63,9 @@ docker run \
   ghcr.io/regolith-labs/ore:latest
 ```
 
-### Environment Variables
-
-- `RPC`: Select the RPC URL to use. Options: `mainnet`, `devnet`, or a custom URL. Default is `devnet`.
-- `BUFFER_TIME`: Set the buffer time.
-- `CORES`: Set the number of CORES to use.
-
-### Wallet Mapping
-
-Ensure that you map your local wallet files `id.json` and `payer.json` (if needed) to the paths `/ore/id.json` and `/ore/payer.json` in the container.
-
-Example:
-
-```sh
-docker run \
-  -v /home/$USER/.config/solana/id.json:/ore/id.json:ro \
-  -v /home/$USER/.config/solana/payer.json:/ore/payer.json:ro \
-  ghcr.io/regolith-labs/ore:latest
-```
-
 ### Functions
 
-The ORE CLI supports various functions. You can specify the function to execute as an argument to the Docker run command. Here are the available functions:
+The Docker image supports the following functions:
 
 - `balance`: Fetch an account balance.
 - `benchmark`: Benchmark your hashpower.
@@ -96,37 +77,44 @@ The ORE CLI supports various functions. You can specify the function to execute 
 - `proof`: Fetch a proof account by address.
 - `rewards`: Fetch the current reward rate for each difficulty level.
 - `stake`: Stake to earn a rewards multiplier.
+- `transfer`: Send ORE to anyone, anywhere in the world.
 - `upgrade`: Upgrade your ORE tokens from v1 to v2.
+
+### Environment Variables
+
+- `RPC`: Set the RPC URL (mainnet, devnet, or custom URL). Default is `devnet`.
+- `BUFFER_TIME`: The number of seconds before the deadline to stop mining and start submitting (default: 5).
+- `CORES`: Number of CPU cores to allocate to mining (default: 1).
+- `PRIORITY_FEE`: Price to pay for compute units. If dynamic fee URL is also set, this value will be the max (default: 500000).
+- `DYNAMIC_FEE_URL`: RPC URL to use for dynamic fee estimation.
+- `DYNAMIC_FEE_STRATEGY`: Strategy to use for dynamic fee estimation. Must be one of 'helius' or 'triton'.
+
+### Volumes
+
+To use your wallet files, mount them as volumes:
+
+- Mount your wallet file:
+    ```sh
+    -v /path/to/your/id.json:/ore/id.json
+    ```
+- Mount your payer wallet file, which is used to pay fees for transactions:
+    ```sh
+    -v /path/to/your/payer.json:/ore/payer.json
+    ```
 
 ### Examples
 
-To start mining with the Docker image:
-
-```sh
-docker run \
-  -v /path/to/your/id.json:/ore/id.json:ro \
-  -e RPC=mainnet \
-  -e BUFFER_TIME=5 \
-  -e CORES=4 \
-  ghcr.io/regolith-labs/ore:latest mine
-```
-
-To benchmark your hashpower:
-
-```sh
-docker run -e CORES=4 ghcr.io/regolith-labs/ore:latest benchmark
-```
-
-To fetch an account balance:
-
-```sh
-docker run \
-  -v /path/to/your/id.json:/ore/id.json:ro \
-  ghcr.io/regolith-labs/ore:latest balance
-```
-
-For detailed help on each function, use the `--help` flag:
-
-```sh
-docker run -it ghcr.io/regolith-labs/ore:latest --help
-```
+- Display balance account:
+    ```sh
+    docker run --rm -it \
+      -v /path/to/your/id.json:/ore/id.json:ro \
+      ghcr.io/regolith-labs/ore:latest balance
+    ```
+- Display help:
+    ```sh
+    docker run --rm -it ghcr.io/regolith-labs/ore:latest --help
+    ```
+- Benchmark your hashpower:
+    ```sh
+    docker run --rm -it ghcr.io/regolith-labs/ore:latest benchmark
+    ```

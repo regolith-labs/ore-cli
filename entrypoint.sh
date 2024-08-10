@@ -27,6 +27,7 @@ Functions:
   proof                Fetch a proof account by address
   rewards              Fetch the current reward rate for each difficulty level
   stake                Stake to earn a rewards multiplier
+  transfer             Send ORE to anyone, anywhere in the world.
   upgrade              Upgrade your ORE tokens from v1 to v2
 
 Environment Variables:
@@ -48,7 +49,9 @@ Examples:
   docker run -it -v /path/to/your/id.json:/ore/id.json myimage --help
   docker run -it -v /path/to/your/id.json:/ore/id.json myimage mine
   docker run -it -v /path/to/your/id.json:/ore/id.json myimage benchmark
-  docker run -it -v /path/to/your/id.json:/ore/id.json myimage balance
+  docker run -it -v /path/to/your/id.json:/ore/id.json myimage config
+  docker run -it -v /path/to/your/id.json:/ore/id.json myimage rewards
+  docker run -it -v /path/to/your/id.json:/ore/id.json myimage busses
 "
 }
 
@@ -79,7 +82,7 @@ display_header() {
 }
 
 validate_params() {
-    if [ "$FUNCTION" != "benchmark" ]; then
+    if [ "$FUNCTION" != "benchmark" ] && [ "$FUNCTION" != "config" ] && [ "$FUNCTION" != "rewards" ] && [ "$FUNCTION" != "busses" ]; then
         [ ! -f "$WALLET_PATH" ] && echo -e "${RED}Error: Wallet file not found at $WALLET_PATH${NC}" && exit 1
     fi
     [ ! -x "$(command -v ore)" ] && echo -e "${RED}Error: ore binary not found or not executable${NC}" && exit 1
@@ -93,8 +96,8 @@ validate_params() {
 }
 
 build_command() {
-    if [ "$FUNCTION" = "benchmark" ]; then
-        cmd="ore benchmark"
+    if [ "$FUNCTION" = "benchmark" ] || [ "$FUNCTION" = "config" ] || [ "$FUNCTION" = "rewards" ] || [ "$FUNCTION" = "busses" ]; then
+        cmd="ore $FUNCTION"
         [ -n "$CORES" ] && cmd="$cmd --cores \"$CORES\""
     else
         cmd="ore --keypair \"$WALLET_PATH\" --rpc \"$RPC_URL\" $FUNCTION"
@@ -118,7 +121,6 @@ execute_command() {
     fi
 }
 
-# Check for help or function argument
 for arg in "$@"
 do
     case "$arg" in
@@ -128,7 +130,9 @@ do
 done
 
 set_rpc_url
-display_header
+if [ "$FUNCTION" = "mine" ]; then
+    display_header
+fi
 validate_params
 build_command
 execute_command
