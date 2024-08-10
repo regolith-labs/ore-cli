@@ -115,8 +115,7 @@ impl Miner {
                 // Resign the tx
                 let (hash, _slot) = client
                     .get_latest_blockhash_with_commitment(self.rpc_client.commitment())
-                    .await
-                    .unwrap();
+                    .await?;
                 if signer.pubkey() == fee_payer.pubkey() {
                     tx.sign(&[&signer], hash);
                 } else {
