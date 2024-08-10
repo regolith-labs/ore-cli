@@ -128,7 +128,7 @@ impl Miner {
                             
                             // Extend cutoff time if a new higher difficulty hash is found
                             if best_difficulty > prev_best_difficulty {
-                                cutoff_time += 10;
+                                cutoff_time += 00;
                             }
                         }
                     }
