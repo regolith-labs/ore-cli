@@ -84,7 +84,7 @@ impl Miner {
 
     async fn find_hash_par(
         proof: Proof,
-        cutoff_time: u64,
+        mut cutoff_time: u64,  // Make cutoff_time mutable
         cores: u64,
         min_difficulty: u32,
     ) -> Solution {
@@ -122,7 +122,14 @@ impl Miner {
                             best_nonce = nonce;
                             best_difficulty = difficulty;
                             best_hash = hx;
-                            global_best_difficulty.fetch_max(best_difficulty, Ordering::Relaxed);
+
+                            // Update global best difficulty
+                            let prev_best_difficulty = global_best_difficulty.fetch_max(best_difficulty, Ordering::Relaxed);
+                            
+                            // Extend cutoff time if a new higher difficulty hash is found
+                            if best_difficulty > prev_best_difficulty {
+                                cutoff_time += 10;
+                            }
                         }
                     }
 
