@@ -36,6 +36,7 @@ struct Miner {
     pub dynamic_fee: bool,
     pub rpc_client: Arc<RpcClient>,
     pub fee_payer_filepath: Option<String>,
+    pub discord_webhook: Option<String>
 }
 
 #[derive(Subcommand, Debug)]
@@ -137,6 +138,9 @@ struct Args {
     #[arg(long, help = "Enable dynamic priority fees", global = true)]
     dynamic_fee: bool,
 
+    #[arg(long, value_name = "DISCORD_WEBHOOK", global = true)]
+    discord_webhook: Option<String>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -170,6 +174,7 @@ async fn main() {
         args.dynamic_fee_url,
         args.dynamic_fee,
         Some(fee_payer_filepath),
+        args.discord_webook,
     ));
 
     // Execute user command.
@@ -225,6 +230,7 @@ impl Miner {
         dynamic_fee_url: Option<String>,
         dynamic_fee: bool,
         fee_payer_filepath: Option<String>,
+        discord_webhook: Option<String>,
     ) -> Self {
         Self {
             rpc_client,
@@ -233,6 +239,7 @@ impl Miner {
             dynamic_fee_url,
             dynamic_fee,
             fee_payer_filepath,
+            discord_webhook,
         }
     }
 
