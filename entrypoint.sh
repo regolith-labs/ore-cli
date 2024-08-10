@@ -79,7 +79,9 @@ display_header() {
 }
 
 validate_params() {
-    [ ! -f "$WALLET_PATH" ] && echo -e "${RED}Error: Wallet file not found at $WALLET_PATH${NC}" && exit 1
+    if [ "$FUNCTION" != "benchmark" ]; then
+        [ ! -f "$WALLET_PATH" ] && echo -e "${RED}Error: Wallet file not found at $WALLET_PATH${NC}" && exit 1
+    fi
     [ ! -x "$(command -v ore)" ] && echo -e "${RED}Error: ore binary not found or not executable${NC}" && exit 1
     [ -z "$RPC_URL" ] && RPC_URL="$DEVNET_URL"
     ! echo "$RPC_URL" | grep -qE '^https?://' && echo -e "${RED}Error: Invalid RPC_URL: $RPC_URL${NC}" && exit 1
@@ -91,16 +93,19 @@ validate_params() {
 }
 
 build_command() {
-    cmd="ore --keypair \"$WALLET_PATH\" --rpc \"$RPC_URL\" $FUNCTION"
-    [ -f "$WALLET_PAYER_PATH" ] && cmd="$cmd --fee-payer \"$WALLET_PAYER_PATH\""
-    if [ "$FUNCTION" = "mine" ]; then
-        [ -n "$BUFFER_TIME" ] && cmd="$cmd --buffer-time \"$BUFFER_TIME\""
+    if [ "$FUNCTION" = "benchmark" ]; then
+        cmd="ore benchmark"
         [ -n "$CORES" ] && cmd="$cmd --cores \"$CORES\""
-        [ -n "$PRIORITY_FEE" ] && cmd="$cmd --priority-fee \"$PRIORITY_FEE\""
-        [ -n "$DYNAMIC_FEE_URL" ] && cmd="$cmd --dynamic-fee-url \"$DYNAMIC_FEE_URL\""
-        [ -n "$DYNAMIC_FEE_STRATEGY" ] && cmd="$cmd --dynamic-fee-strategy \"$DYNAMIC_FEE_STRATEGY\""
-    elif [ "$FUNCTION" = "benchmark" ]; then
-        [ -n "$CORES" ] && cmd="$cmd --cores \"$CORES\""
+    else
+        cmd="ore --keypair \"$WALLET_PATH\" --rpc \"$RPC_URL\" $FUNCTION"
+        [ -f "$WALLET_PAYER_PATH" ] && cmd="$cmd --fee-payer \"$WALLET_PAYER_PATH\""
+        if [ "$FUNCTION" = "mine" ]; then
+            [ -n "$BUFFER_TIME" ] && cmd="$cmd --buffer-time \"$BUFFER_TIME\""
+            [ -n "$CORES" ] && cmd="$cmd --cores \"$CORES\""
+            [ -n "$PRIORITY_FEE" ] && cmd="$cmd --priority-fee \"$PRIORITY_FEE\""
+            [ -n "$DYNAMIC_FEE_URL" ] && cmd="$cmd --dynamic-fee-url \"$DYNAMIC_FEE_URL\""
+            [ -n "$DYNAMIC_FEE_STRATEGY" ] && cmd="$cmd --dynamic-fee-strategy \"$DYNAMIC_FEE_STRATEGY\""
+        fi
     fi
 }
 
