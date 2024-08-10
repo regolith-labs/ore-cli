@@ -19,7 +19,7 @@ enum FeeStrategy {
 }
 
 impl Miner {
-    pub async fn dynamic_fee(&self) -> Result<u64, String> {
+    pub async fn dynamic_fee(&self, difficulty: Option<u32>) -> Result<u64, String> {
         // Get url
         let rpc_url = self
             .dynamic_fee_url
@@ -141,9 +141,11 @@ impl Miner {
                         ))
                     })
             },
-            FeeStrategy::LOCAL => self.dynamic_fee_strategy(18).await.or_else(|err| {
+            FeeStrategy::LOCAL => {
+                let difficulty = difficulty.unwrap_or(18);
+                self.dynamic_fee_strategy(difficulty).await.or_else(|err| {
                 Err(format!("Failed to parse priority fee response: {err}"))
-            }),
+            })},
         };
 
         // Check if the calculated fee is higher than max

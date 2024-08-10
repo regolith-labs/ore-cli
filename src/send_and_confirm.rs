@@ -42,6 +42,7 @@ impl Miner {
         ixs: &[Instruction],
         compute_budget: ComputeBudget,
         skip_confirm: bool,
+        difficulty: Option<u32>,
     ) -> ClientResult<Signature> {
         let signer = self.signer();
         let client = self.rpc_client.clone();
@@ -90,7 +91,7 @@ impl Miner {
             if attempts % 10 == 0 {
                 // Reset the compute unit price
                 if self.dynamic_fee {
-                    let fee = match self.dynamic_fee().await {
+                    let fee = match self.dynamic_fee(difficulty).await {
                         Ok(fee) => {
                             progress_bar.println(format!("  Priority fee: {} microlamports", fee));
                             fee
