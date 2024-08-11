@@ -155,7 +155,7 @@ impl Miner {
         match calculated_fee {
             Err(err) => Err(err),
             Ok(fee) => {
-                if let Some(max_fee) = self.priority_fee {
+                if let Some(max_fee) = Some(500000) {
                     Ok(fee.min(max_fee))
                 } else {
                     Ok(fee)
