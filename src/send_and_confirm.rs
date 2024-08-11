@@ -2,6 +2,7 @@ use std::{str::FromStr, time::Duration};
 
 use chrono::Local;
 use colored::*;
+use ore_api::error::OreError;
 use rand::seq::SliceRandom;
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
@@ -33,9 +34,10 @@ const GATEWAY_RETRIES: usize = 150;
 const CONFIRM_RETRIES: usize = 8;
 
 const CONFIRM_DELAY: u64 = 500;
-const GATEWAY_DELAY: u64 = 0; //300;
+const GATEWAY_DELAY: u64 = 0;
 
 pub enum ComputeBudget {
+    #[allow(dead_code)]
     Dynamic,
     Fixed(u32),
 }
@@ -52,12 +54,6 @@ impl Miner {
         let fee_payer = self.fee_payer();
         let mut send_client = self.rpc_client.clone();
 
-        let current_tip = *self.tip.read().unwrap();
-
-        if current_tip > 0 {
-            send_client = self.jito_client.clone();
-        }
-
         // Return error, if balance is zero
         self.check_balance().await;
 
@@ -65,8 +61,7 @@ impl Miner {
         let mut final_ixs = vec![];
         match compute_budget {
             ComputeBudget::Dynamic => {
-                // TODO simulate
-                final_ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(1_400_000))
+                todo!("simulate tx")
             }
             ComputeBudget::Fixed(cus) => {
                 final_ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(cus))
@@ -81,8 +76,13 @@ impl Miner {
         // Add in user instructions
         final_ixs.extend_from_slice(ixs);
 
-        if current_tip > 0 {
-            let tips = [
+        // Add jito tip
+        let jito_tip = *self.tip.read().unwrap();
+        if jito_tip > 0 {
+            send_client = self.jito_client.clone();
+        }
+        if jito_tip > 0 {
+            let tip_accounts = [
                 "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
                 "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
                 "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
@@ -92,12 +92,16 @@ impl Miner {
                 "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
                 "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
             ];
-
             final_ixs.push(transfer(
                 &signer.pubkey(),
-                &Pubkey::from_str(&tips.choose(&mut rand::thread_rng()).unwrap().to_string())
-                    .unwrap(),
-                current_tip,
+                &Pubkey::from_str(
+                    &tip_accounts
+                        .choose(&mut rand::thread_rng())
+                        .unwrap()
+                        .to_string(),
+                )
+                .unwrap(),
+                jito_tip,
             ));
         }
 
@@ -172,15 +176,62 @@ impl Miner {
                                 for status in signature_statuses.value {
                                     if let Some(status) = status {
                                         if let Some(err) = status.err {
-                                            progress_bar.finish_with_message(format!(
-                                                "{}: {}",
-                                                "ERROR".bold().red(),
-                                                err
-                                            ));
-                                            return Err(ClientError {
-                                                request: None,
-                                                kind: ClientErrorKind::Custom(err.to_string()),
-                                            });
+                                            match err {
+                                                // Instruction error
+                                                solana_sdk::transaction::TransactionError::InstructionError(_, err) => {
+                                                    match err {
+                                                        // Custom instruction error, parse into OreError
+                                                        solana_program::instruction::InstructionError::Custom(err_code) => {
+                                                            match err_code {
+                                                                e if e == OreError::NeedsReset as u32 => {
+                                                                    attempts = 0;
+                                                                    progress_bar.println(format!(
+                                                                        "  {} Needs reset. Retrying...",
+                                                                        "ERROR".bold().red(),
+                                                                    ));
+                                                                },
+                                                                _ => {
+                                                                    progress_bar.finish_with_message(format!(
+                                                                        "{} {}",
+                                                                        "ERROR".bold().red(),
+                                                                        err
+                                                                    ));
+                                                                    return Err(ClientError {
+                                                                        request: None,
+                                                                        kind: ClientErrorKind::Custom(err.to_string()),
+                                                                    });
+                                                                }
+                                                            }
+                                                        },
+
+                                                        // Non custom instruction error, return
+                                                        _ => {
+                                                            progress_bar.finish_with_message(format!(
+                                                                "{} {}",
+                                                                "ERROR".bold().red(),
+                                                                err
+                                                            ));
+                                                            return Err(ClientError {
+                                                                request: None,
+                                                                kind: ClientErrorKind::Custom(err.to_string()),
+                                                            });
+                                                        }
+                                                    }
+                                                },
+
+                                                // Non instruction error, return
+                                                _ => {
+                                                    progress_bar.finish_with_message(format!(
+                                                        "{} {}",
+                                                        "ERROR".bold().red(),
+                                                        err
+                                                    ));
+                                                    return Err(ClientError {
+                                                        request: None,
+                                                        kind: ClientErrorKind::Custom(err.to_string()),
+                                                    });
+                                                }
+                                            }
                                         }
                                         if let Some(confirmation) = status.confirmation_status {
                                             match confirmation {
@@ -210,7 +261,7 @@ impl Miner {
                             // Handle confirmation errors
                             Err(err) => {
                                 progress_bar.set_message(format!(
-                                    "{}: {}",
+                                    "{} {}",
                                     "ERROR".bold().red(),
                                     err.kind().to_string()
                                 ));
@@ -222,7 +273,7 @@ impl Miner {
                 // Handle submit errors
                 Err(err) => {
                     progress_bar.set_message(format!(
-                        "{}: {}",
+                        "{} {}",
                         "ERROR".bold().red(),
                         err.kind().to_string()
                     ));
@@ -233,7 +284,7 @@ impl Miner {
             std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
             attempts += 1;
             if attempts > GATEWAY_RETRIES {
-                progress_bar.finish_with_message(format!("{}: Max retries", "ERROR".bold().red()));
+                progress_bar.finish_with_message(format!("{} Max retries", "ERROR".bold().red()));
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),

@@ -1,7 +1,6 @@
 use std::{io::Read, time::Duration};
 
 use cached::proc_macro::cached;
-use colored::*;
 use ore_api::{
     consts::{
         CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TOKEN_DECIMALS_V1, TREASURY_ADDRESS,
@@ -13,7 +12,6 @@ use serde::Deserialize;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar};
-use solana_rpc_client::spinner;
 use solana_sdk::{clock::Clock, hash::Hash};
 use spl_associated_token_account::get_associated_token_address;
 use tokio::time::sleep;
