@@ -36,7 +36,8 @@ impl Miner {
         let mut last_hash_at = 0;
         let mut last_balance = 0;
         loop {
-            let config = get_config(&self.rpc_client).await;
+            let rpc_client_clone = Arc::clone(&self.rpc_client);
+let config = tokio::spawn(async move { get_config(&rpc_client_clone).await }).await.unwrap();
             let proof =
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
