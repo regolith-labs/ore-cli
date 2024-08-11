@@ -55,7 +55,7 @@ impl Miner {
         match compute_budget {
             ComputeBudget::Dynamic => {
                 // TODO simulate
-                final_ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(1_400_000))
+                final_ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(2_000_000))
             }
             ComputeBudget::Fixed(cus) => {
                 final_ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(cus))
@@ -64,7 +64,7 @@ impl Miner {
 
         // Set compute unit price
         final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
-            self.priority_fee.unwrap_or(0),
+            self.priority_fee.unwrap_or(5000),
         ));
 
         // Add in user instructions
@@ -96,7 +96,7 @@ impl Miner {
                             fee
                         }
                         Err(err) => {
-                            let fee = self.priority_fee.unwrap_or(0);
+                            let fee = self.priority_fee.unwrap_or(5000);
                             progress_bar.println(format!(
                                 "  {} {} Falling back to static value: {} microlamports",
                                 "WARNING".bold().yellow(),
