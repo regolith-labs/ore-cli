@@ -28,7 +28,7 @@ const _SIMULATION_RETRIES: usize = 4;
 const GATEWAY_RETRIES: usize = 150;
 const CONFIRM_RETRIES: usize = 8;
 
-const CONFIRM_DELAY: u64 = 1;
+const CONFIRM_DELAY: u64 = 500;
 const GATEWAY_DELAY: u64 = 0; //300;
 
 pub enum ComputeBudget {
@@ -42,7 +42,6 @@ impl Miner {
         ixs: &[Instruction],
         compute_budget: ComputeBudget,
         skip_confirm: bool,
-        difficulty: Option<u32>,
     ) -> ClientResult<Signature> {
         let signer = self.signer();
         let client = self.rpc_client.clone();
@@ -91,7 +90,7 @@ impl Miner {
             if attempts % 10 == 0 {
                 // Reset the compute unit price
                 if self.dynamic_fee {
-                    let fee = match self.dynamic_fee(difficulty).await {
+                    let fee = match self.dynamic_fee().await {
                         Ok(fee) => {
                             progress_bar.println(format!("  Priority fee: {} microlamports", fee));
                             fee
