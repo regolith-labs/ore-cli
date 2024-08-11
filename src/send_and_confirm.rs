@@ -89,14 +89,6 @@ impl Miner {
         };
         let mut tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
 
-        // Sign tx
-        let (hash, _slot) = get_latest_blockhash_with_retries(&client).await?;
-
-        if signer.pubkey() == fee_payer.pubkey() {
-            tx.sign(&[&signer], hash);
-        } else {
-            tx.sign(&[&signer, &fee_payer], hash);
-        }
         // Submit tx
         let progress_bar = spinner::new_progress_bar();
         let mut attempts = 0;
