@@ -8,15 +8,14 @@ use ore_api::{
     },
     state::{Config, Proof, Treasury},
 };
-use serde::Deserialize;
 use ore_utils::AccountDeserialize;
+use serde::Deserialize;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar};
 use solana_rpc_client::spinner;
 use solana_sdk::{clock::Clock, hash::Hash};
 use spl_associated_token_account::get_associated_token_address;
-use std::time::Duration;
 use tokio::time::sleep;
 
 pub const BLOCKHASH_QUERY_RETRIES: usize = 5;

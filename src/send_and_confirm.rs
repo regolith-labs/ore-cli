@@ -1,4 +1,4 @@
-use std::{time::Duration, str::FromStr};
+use std::{str::FromStr, time::Duration};
 
 use chrono::Local;
 use colored::*;
@@ -9,7 +9,9 @@ use solana_client::{
 };
 use solana_program::{
     instruction::Instruction,
-    native_token::{lamports_to_sol, sol_to_lamports}, system_instruction::transfer, pubkey::Pubkey,
+    native_token::{lamports_to_sol, sol_to_lamports},
+    pubkey::Pubkey,
+    system_instruction::transfer,
 };
 use solana_rpc_client::spinner;
 use solana_sdk::{
@@ -49,7 +51,6 @@ impl Miner {
         let client = self.rpc_client.clone();
         let fee_payer = self.fee_payer();
         let mut send_client = self.rpc_client.clone();
-
 
         let current_tip = *self.tip.read().unwrap();
 
@@ -92,15 +93,12 @@ impl Miner {
                 "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
             ];
 
-            final_ixs.push(
-                transfer(
-                    &signer.pubkey(),
-                    &Pubkey::from_str(
-                        &tips.choose(&mut rand::thread_rng()).unwrap().to_string()
-                    ).unwrap(),
-                    current_tip
-                )
-            );
+            final_ixs.push(transfer(
+                &signer.pubkey(),
+                &Pubkey::from_str(&tips.choose(&mut rand::thread_rng()).unwrap().to_string())
+                    .unwrap(),
+                current_tip,
+            ));
         }
 
         // Build tx
@@ -146,7 +144,7 @@ impl Miner {
                 }
 
                 // Resign the tx
-                let (hash, _slot) = get_latest_blockhash_with_retries(client).await?;
+                let (hash, _slot) = get_latest_blockhash_with_retries(&client).await?;
                 if signer.pubkey() == fee_payer.pubkey() {
                     tx.sign(&[&signer], hash);
                 } else {
@@ -155,7 +153,10 @@ impl Miner {
             }
 
             // Send transaction
-            match send_client.send_transaction_with_config(&tx, send_cfg).await {
+            match send_client
+                .send_transaction_with_config(&tx, send_cfg)
+                .await
+            {
                 Ok(sig) => {
                     // Skip confirmation
                     if skip_confirm {
