@@ -1,14 +1,15 @@
-use std::time::Duration;
+use std::{time::Duration, str::FromStr};
 
 use chrono::Local;
 use colored::*;
+use rand::seq::SliceRandom;
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
     rpc_config::RpcSendTransactionConfig,
 };
 use solana_program::{
     instruction::Instruction,
-    native_token::{lamports_to_sol, sol_to_lamports},
+    native_token::{lamports_to_sol, sol_to_lamports}, system_instruction::transfer, pubkey::Pubkey,
 };
 use solana_rpc_client::spinner;
 use solana_sdk::{
@@ -47,6 +48,14 @@ impl Miner {
         let signer = self.signer();
         let client = self.rpc_client.clone();
         let fee_payer = self.fee_payer();
+        let mut send_client = self.rpc_client.clone();
+
+
+        let current_tip = *self.tip.read().unwrap();
+
+        if current_tip > 0 {
+            send_client = self.jito_client.clone();
+        }
 
         // Return error, if balance is zero
         self.check_balance().await;
@@ -70,6 +79,29 @@ impl Miner {
 
         // Add in user instructions
         final_ixs.extend_from_slice(ixs);
+
+        if current_tip > 0 {
+            let tips = [
+                "96gYZGLnJYVFmbjzopPSU6QiEV5fGqZNyN9nmNhvrZU5",
+                "HFqU5x63VTqvQss8hp11i4wVV8bD44PvwucfZ2bU7gRe",
+                "Cw8CFyM9FkoMi7K7Crf6HNQqf4uEMzpKw6QNghXLvLkY",
+                "ADaUMid9yfUytqMBgopwjb2DTLSokTSzL1zt6iGPaS49",
+                "DfXygSm4jCyNCybVYYK6DwvWqjKee8pbDmJGcLWNDXjh",
+                "ADuUkR4vqLUMWXxW9gh6D6L8pMSawimctcNZ5pGwDcEt",
+                "DttWaMuVvTiduZRnguLF7jNxTgiMBZ1hyAumKUiL2KRL",
+                "3AVi9Tg9Uo68tJfuvoKvqKNWKkC5wPdSSdeBnizKZ6jT",
+            ];
+
+            final_ixs.push(
+                transfer(
+                    &signer.pubkey(),
+                    &Pubkey::from_str(
+                        &tips.choose(&mut rand::thread_rng()).unwrap().to_string()
+                    ).unwrap(),
+                    current_tip
+                )
+            );
+        }
 
         // Build tx
         let send_cfg = RpcSendTransactionConfig {
@@ -123,7 +155,7 @@ impl Miner {
             }
 
             // Send transaction
-            match client.send_transaction_with_config(&tx, send_cfg).await {
+            match send_client.send_transaction_with_config(&tx, send_cfg).await {
                 Ok(sig) => {
                     // Skip confirmation
                     if skip_confirm {
