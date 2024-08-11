@@ -49,6 +49,7 @@ impl Miner {
         compute_budget: ComputeBudget,
         skip_confirm: bool,
     ) -> ClientResult<Signature> {
+        let progress_bar = spinner::new_progress_bar();
         let signer = self.signer();
         let client = self.rpc_client.clone();
         let fee_payer = self.fee_payer();
@@ -103,6 +104,7 @@ impl Miner {
                 .unwrap(),
                 jito_tip,
             ));
+            progress_bar.println(format!("  Jito tip: {} SOL", lamports_to_sol(jito_tip)));
         }
 
         // Build tx
@@ -116,7 +118,6 @@ impl Miner {
         let mut tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
 
         // Submit tx
-        let progress_bar = spinner::new_progress_bar();
         let mut attempts = 0;
         loop {
             progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts,));
