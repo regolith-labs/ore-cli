@@ -106,8 +106,7 @@ impl Miner {
                 }
 
                 // Resign the tx
-                let (hash, _slot) = get_latest_blockhash_with_retries(client)
-                    .await?;
+                let (hash, _slot) = get_latest_blockhash_with_retries(client).await?;
                 if signer.pubkey() == fee_payer.pubkey() {
                     tx.sign(&[&signer], hash);
                 } else {
