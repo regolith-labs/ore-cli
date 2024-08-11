@@ -2772,7 +2772,7 @@ dependencies = [
 
 [[package]]
 name = "ore-cli"
-version = "2.2.1"
+version = "2.3.0"
 dependencies = [
  "bincode",
  "bs58 0.5.1",
@@ -2784,6 +2784,7 @@ dependencies = [
  "core_affinity",
  "drillx",
  "futures",
+ "indicatif",
  "num_cpus",
  "ore-api",
  "ore-utils",
