@@ -19,7 +19,7 @@ enum FeeStrategy {
 }
 
 impl Miner {
-    pub async fn dynamic_fee(&self, difficulty: Option<u32>) -> Result<u64, String> {
+    pub async fn dynamic_fee(&self) -> Result<u64, String> {
         // Get url
         let rpc_url = self
             .dynamic_fee_url
@@ -91,6 +91,8 @@ impl Miner {
             })),
             FeeStrategy::LOCAL => None,
         };
+
+        // Send rpc request
         let response = if let Some(body) = body {
             let response: Value = client
                 .post(rpc_url)
@@ -105,6 +107,7 @@ impl Miner {
         } else {
             Value::Null
         };
+
         // Parse response
         let calculated_fee = match strategy {
             FeeStrategy::Helius => response["result"]["priorityFeeEstimate"]
@@ -142,10 +145,10 @@ impl Miner {
                     })
             },
             FeeStrategy::LOCAL => {
-                let difficulty = difficulty.unwrap_or(18);
-                self.dynamic_fee_strategy(difficulty).await.or_else(|err| {
-                Err(format!("Failed to parse priority fee response: {err}"))
-            })},
+                self.local_dynamic_fee().await.or_else(|err| {
+                    Err(format!("Failed to parse priority fee response: {err}"))
+                })
+            },
         };
 
         // Check if the calculated fee is higher than max
@@ -160,14 +163,11 @@ impl Miner {
             }
         }
     }
-    pub async fn dynamic_fee_strategy(
-        &self,
-        difficulty: u32,
-    ) -> Result<u64, Box<dyn std::error::Error>> {
+
+    pub async fn local_dynamic_fee(&self) -> Result<u64, Box<dyn std::error::Error>> {
         let client = self.rpc_client.clone();
         let pubkey = [
             "oreV2ZymfyeXgNgBdqMkumTqqAprVqgBWQfoYkrtKWQ",
-            // "noop8ytexvkpCuqbf6FB89BSuNemHtPRqaNC31GWivW",
             "5HngGmYzvSuh3XyU11brHDpMTHXQQRQQT4udGFtQSjgR",
             "2oLNTQKRb4a2117kFi6BYTUDu3RPrMVAHFhCfPKMosxX",
         ];
@@ -178,16 +178,14 @@ impl Miner {
             .into_iter()
             .map(|addr_str| Pubkey::from_str(addr_str).expect("Invalid address"))
             .collect();
+
         // Get recent prioritization fees
         let recent_prioritization_fees = client.get_recent_prioritization_fees(&addresses).await?;
-
         if recent_prioritization_fees.is_empty() {
-            println!("no recent prioritization fees");
-            return Err("no recent prioritization fees".into());
+            return Err("No recent prioritization fees".into());
         }
         let mut sorted_fees: Vec<_> = recent_prioritization_fees.into_iter().collect();
         sorted_fees.sort_by(|a, b| b.slot.cmp(&a.slot));
-
         let chunk_size = 150;
         let chunks: Vec<_> = sorted_fees.chunks(chunk_size).take(3).collect();
         let mut percentiles: HashMap<u8, u64> = HashMap::new();
@@ -195,23 +193,16 @@ impl Miner {
             let fees: Vec<u64> = chunk.iter().map(|fee| fee.prioritization_fee).collect();
             percentiles = Self::calculate_percentiles(&fees);
         }
-        let fee = if difficulty > 30 {
-            *percentiles.get(&85).unwrap_or(&0)
-        } else if difficulty > 22 {
-            *percentiles.get(&80).unwrap_or(&0)
-        } else if difficulty > 17 {
-            *percentiles.get(&75).unwrap_or(&0)
-        } else {
-            *percentiles.get(&70).unwrap_or(&0)
-        };
-        println!("difficulty: {}, fee: {}", difficulty, fee);
+
+        // Default to 75 percentile
+        let fee = *percentiles.get(&75).unwrap_or(&0);
         Ok(fee)
     }
+
     fn calculate_percentiles(fees: &[u64]) -> HashMap<u8, u64> {
         let mut sorted_fees = fees.to_vec();
         sorted_fees.sort_unstable();
         let len = sorted_fees.len();
-
         let percentiles = vec![10, 25, 50, 60, 70, 75, 80, 85, 90, 100];
         percentiles
             .into_iter()
