@@ -2,6 +2,7 @@ use std::{str::FromStr, time::Duration};
 
 use chrono::Local;
 use colored::*;
+use indicatif::ProgressBar;
 use ore_api::error::OreError;
 use rand::seq::SliceRandom;
 use solana_client::{
@@ -19,7 +20,7 @@ use solana_sdk::{
     commitment_config::CommitmentLevel,
     compute_budget::ComputeBudgetInstruction,
     signature::{Signature, Signer},
-    transaction::Transaction,
+    transaction::{Transaction, TransactionError},
 };
 use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
 
@@ -133,12 +134,13 @@ impl Miner {
                         }
                         Err(err) => {
                             let fee = self.priority_fee.unwrap_or(0);
-                            progress_bar.println(format!(
-                                "  {} {} Falling back to static value: {} microlamports",
-                                "WARNING".bold().yellow(),
-                                err,
-                                fee
-                            ));
+                            log_warning(
+                                &progress_bar,
+                                &format!(
+                                    "{} Falling back to static value: {} microlamports",
+                                    err, fee
+                                ),
+                            );
                             fee
                         }
                     };
@@ -158,6 +160,7 @@ impl Miner {
             }
 
             // Send transaction
+            attempts += 1;
             match send_client
                 .send_transaction_with_config(&tx, send_cfg)
                 .await
@@ -170,7 +173,7 @@ impl Miner {
                     }
 
                     // Confirm transaction
-                    for _ in 0..CONFIRM_RETRIES {
+                    'confirm: for _ in 0..CONFIRM_RETRIES {
                         std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
                         match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
@@ -186,17 +189,11 @@ impl Miner {
                                                             match err_code {
                                                                 e if e == OreError::NeedsReset as u32 => {
                                                                     attempts = 0;
-                                                                    progress_bar.println(format!(
-                                                                        "  {} Needs reset. Retrying...",
-                                                                        "ERROR".bold().red(),
-                                                                    ));
+                                                                    log_error(&progress_bar, "Needs reset. Retrying...", false);
+                                                                    break 'confirm;
                                                                 },
                                                                 _ => {
-                                                                    progress_bar.finish_with_message(format!(
-                                                                        "{} {}",
-                                                                        "ERROR".bold().red(),
-                                                                        err
-                                                                    ));
+                                                                    log_error(&progress_bar, &err.to_string(), true);
                                                                     return Err(ClientError {
                                                                         request: None,
                                                                         kind: ClientErrorKind::Custom(err.to_string()),
@@ -207,11 +204,7 @@ impl Miner {
 
                                                         // Non custom instruction error, return
                                                         _ => {
-                                                            progress_bar.finish_with_message(format!(
-                                                                "{} {}",
-                                                                "ERROR".bold().red(),
-                                                                err
-                                                            ));
+                                                            log_error(&progress_bar, &err.to_string(), true);
                                                             return Err(ClientError {
                                                                 request: None,
                                                                 kind: ClientErrorKind::Custom(err.to_string()),
@@ -222,19 +215,16 @@ impl Miner {
 
                                                 // Non instruction error, return
                                                 _ => {
-                                                    progress_bar.finish_with_message(format!(
-                                                        "{} {}",
-                                                        "ERROR".bold().red(),
-                                                        err
-                                                    ));
+                                                    log_error(&progress_bar, &err.to_string(), true);
                                                     return Err(ClientError {
                                                         request: None,
                                                         kind: ClientErrorKind::Custom(err.to_string()),
                                                     });
                                                 }
                                             }
-                                        }
-                                        if let Some(confirmation) = status.confirmation_status {
+                                        } else if let Some(confirmation) =
+                                            status.confirmation_status
+                                        {
                                             match confirmation {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
@@ -261,11 +251,7 @@ impl Miner {
 
                             // Handle confirmation errors
                             Err(err) => {
-                                progress_bar.set_message(format!(
-                                    "{} {}",
-                                    "ERROR".bold().red(),
-                                    err.kind().to_string()
-                                ));
+                                log_error(&progress_bar, &err.kind().to_string(), false);
                             }
                         }
                     }
@@ -273,19 +259,14 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    progress_bar.set_message(format!(
-                        "{} {}",
-                        "ERROR".bold().red(),
-                        err.kind().to_string()
-                    ));
+                    log_error(&progress_bar, &err.kind().to_string(), false);
                 }
             }
 
             // Retry
             std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
-            attempts += 1;
             if attempts > GATEWAY_RETRIES {
-                progress_bar.finish_with_message(format!("{} Max retries", "ERROR".bold().red()));
+                log_error(&progress_bar, "Max retries", true);
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),
@@ -368,4 +349,16 @@ impl Miner {
         //     }
         // }
     }
+}
+
+fn log_error(progress_bar: &ProgressBar, err: &str, finish: bool) {
+    if finish {
+        progress_bar.finish_with_message(format!("{} {}", "ERROR".bold().red(), err));
+    } else {
+        progress_bar.println(format!("  {} {}", "ERROR".bold().red(), err));
+    }
+}
+
+fn log_warning(progress_bar: &ProgressBar, msg: &str) {
+    progress_bar.println(format!("  {} {}", "WARNING".bold().yellow(), msg));
 }
