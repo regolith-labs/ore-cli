@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use chrono::Local;
 use colored::*;
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},
@@ -48,16 +49,7 @@ impl Miner {
         let fee_payer = self.fee_payer();
 
         // Return error, if balance is zero
-        if let Ok(balance) = client.get_balance(&fee_payer.pubkey()).await {
-            if balance <= sol_to_lamports(MIN_SOL_BALANCE) {
-                panic!(
-                    "{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
-                    "ERROR".bold().red(),
-                    lamports_to_sol(balance),
-                    MIN_SOL_BALANCE
-                );
-            }
-        }
+        self.check_balance().await;
 
         // Set compute budget
         let mut final_ixs = vec![];
@@ -95,14 +87,30 @@ impl Miner {
         loop {
             progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts,));
 
-            // Sign tx with a new blockhash
-            if attempts % 5 == 0 {
+            // Sign tx with a new blockhash (after approximately ~45 sec)
+            if attempts % 10 == 0 {
                 // Reset the compute unit price
-                if self.dynamic_fee_strategy.is_some() {
-                    let fee = self.dynamic_fee().await;
+                if self.dynamic_fee {
+                    let fee = match self.dynamic_fee().await {
+                        Ok(fee) => {
+                            progress_bar.println(format!("  Priority fee: {} microlamports", fee));
+                            fee
+                        }
+                        Err(err) => {
+                            let fee = self.priority_fee.unwrap_or(0);
+                            progress_bar.println(format!(
+                                "  {} {} Falling back to static value: {} microlamports",
+                                "WARNING".bold().yellow(),
+                                err,
+                                fee
+                            ));
+                            fee
+                        }
+                    };
+
                     final_ixs.remove(1);
                     final_ixs.insert(1, ComputeBudgetInstruction::set_compute_unit_price(fee));
-                    progress_bar.println(format!("  Priority fee: {} microlamports", fee));
+                    tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
                 }
 
                 // Resign the tx
@@ -146,6 +154,13 @@ impl Miner {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
+                                                    let now = Local::now();
+                                                    let formatted_time =
+                                                        now.format("%Y-%m-%d %H:%M:%S").to_string();
+                                                    progress_bar.println(format!(
+                                                        "  Timestamp: {}",
+                                                        formatted_time
+                                                    ));
                                                     progress_bar.finish_with_message(format!(
                                                         "{} {}",
                                                         "OK".bold().green(),
@@ -190,6 +205,24 @@ impl Miner {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),
                 });
+            }
+        }
+    }
+
+    pub async fn check_balance(&self) {
+        // Throw error if balance is less than min
+        if let Ok(balance) = self
+            .rpc_client
+            .get_balance(&self.fee_payer().pubkey())
+            .await
+        {
+            if balance <= sol_to_lamports(MIN_SOL_BALANCE) {
+                panic!(
+                    "{} Insufficient balance: {} SOL\nPlease top up with at least {} SOL",
+                    "ERROR".bold().red(),
+                    lamports_to_sol(balance),
+                    MIN_SOL_BALANCE
+                );
             }
         }
     }
