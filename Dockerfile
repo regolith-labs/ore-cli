@@ -7,9 +7,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /usr/src/ore-cli
 
-COPY . .
+COPY Cargo.toml Cargo.lock rust-toolchain.toml .
+COPY src ./src
 
-RUN cargo clean && cargo update && cargo build --release --verbose
+RUN cargo clean && cargo update && cargo build --release
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal AS intermediate
 
