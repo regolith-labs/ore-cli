@@ -127,7 +127,7 @@ struct Args {
         long,
         value_name = "MICROLAMPORTS",
         help = "Price to pay for compute units. If dynamic fees are enabled, this value will be used as the cap.",
-        default_value = "500000",
+        default_value = "0",
         global = true
     )]
     priority_fee: Option<u64>,
@@ -147,6 +147,7 @@ struct Args {
         long,
         value_name = "JITO", 
         help = "Add jito tip to the miner. Defaults to false.",
+        default_value_t = true,
         global = true
     )]
     jito: bool,
@@ -181,7 +182,6 @@ async fn main() {
 
     let tip = Arc::new(RwLock::new(0_u64));
     let tip_clone = Arc::clone(&tip);
-
     if args.jito {
         let url = "ws://bundles-api-rest.jito.wtf/api/v1/bundles/tip_stream";
         let (ws_stream, _) = connect_async(url).await.unwrap();

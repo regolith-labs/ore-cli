@@ -34,8 +34,8 @@ const _SIMULATION_RETRIES: usize = 4;
 const GATEWAY_RETRIES: usize = 150;
 const CONFIRM_RETRIES: usize = 8;
 
-const CONFIRM_DELAY: u64 = 500;
-const GATEWAY_DELAY: u64 = 0;
+const CONFIRM_DELAY: u64 = 10;
+const GATEWAY_DELAY: u64 = 300;
 
 pub enum ComputeBudget {
     #[allow(dead_code)]
@@ -174,7 +174,7 @@ impl Miner {
 
                     // Confirm transaction
                     'confirm: for _ in 0..CONFIRM_RETRIES {
-                        std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
+                        tokio::time::sleep(Duration::from_millis(CONFIRM_DELAY)).await;
                         match client.get_signature_statuses(&[sig]).await {
                             Ok(signature_statuses) => {
                                 for status in signature_statuses.value {
@@ -264,7 +264,7 @@ impl Miner {
             }
 
             // Retry
-            std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+            tokio::time::sleep(Duration::from_millis(GATEWAY_DELAY)).await;
             if attempts > GATEWAY_RETRIES {
                 log_error(&progress_bar, "Max retries", true);
                 return Err(ClientError {
