@@ -1,5 +1,4 @@
 use std::{sync::Arc, sync::RwLock, time::Instant};
-
 use colored::*;
 use drillx::{
     equix::{self},
