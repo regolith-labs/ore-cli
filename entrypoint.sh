@@ -37,6 +37,7 @@ Environment Variables:
   PRIORITY_FEE         Price to pay for compute unit. If dynamic fee url is also set, this value will be the max. [default: 500000]
   DYNAMIC_FEE_URL      RPC URL to use for dynamic fee estimation.
   DYNAMIC_FEE_STRATEGY Strategy to use for dynamic fee estimation. Must be one of 'helius', or 'triton'.
+  JITO                 Add jito tip to the miner. [default: false]
 
 Volumes:
   To use your wallet files, mount them as volumes:
@@ -93,6 +94,7 @@ validate_params() {
     [ -n "$PRIORITY_FEE" ] && ! echo "$PRIORITY_FEE" | grep -qE '^[0-9]+$' && echo -e "${RED}Error: PRIORITY_FEE must be a non-negative integer${NC}" && exit 1
     [ -n "$DYNAMIC_FEE_URL" ] && ! echo "$DYNAMIC_FEE_URL" | grep -qE '^https?://' && echo -e "${RED}Error: Invalid DYNAMIC_FEE_URL: $DYNAMIC_FEE_URL${NC}" && exit 1
     [ -n "$DYNAMIC_FEE_STRATEGY" ] && ! echo "$DYNAMIC_FEE_STRATEGY" | grep -qE '^(helius|triton)$' && echo -e "${RED}Error: DYNAMIC_FEE_STRATEGY must be 'helius' or 'triton'${NC}" && exit 1
+    [ -n "$JITO" ] && ! echo "$JITO" | grep -qE '^(true|false)$' && echo -e "${RED}Error: JITO must be 'true' or 'false'${NC}" && exit 1
 }
 
 build_command() {
@@ -108,6 +110,7 @@ build_command() {
             [ -n "$PRIORITY_FEE" ] && cmd="$cmd --priority-fee \"$PRIORITY_FEE\""
             [ -n "$DYNAMIC_FEE_URL" ] && cmd="$cmd --dynamic-fee-url \"$DYNAMIC_FEE_URL\""
             [ -n "$DYNAMIC_FEE_STRATEGY" ] && cmd="$cmd --dynamic-fee-strategy \"$DYNAMIC_FEE_STRATEGY\""
+            [ "$JITO" = "true" ] && cmd="$cmd --jito"
         fi
     fi
 }
