@@ -69,6 +69,13 @@ pub struct MineArgs {
         default_value = "5"
     )]
     pub buffer_time: u64,
+
+    #[arg(
+        long,
+        value_name = "PROOF_AUTHORITY",
+        help = "Authority of the Proof to mine for, if different from signer keypair."
+    )]
+    pub proof_authority: Option<String>,
 }
 
 #[derive(Parser, Debug)]

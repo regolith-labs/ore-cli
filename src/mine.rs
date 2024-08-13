@@ -1,4 +1,4 @@
-use std::{sync::Arc, sync::RwLock, time::Instant};
+use std::{sync::Arc, sync::RwLock, time::Instant, str::FromStr};
 use colored::*;
 use drillx::{
     equix::{self},
@@ -25,9 +25,15 @@ use crate::{
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) {
+      let proof_authority = if let Some(v) = &args.proof_authority {
+          Pubkey::from_str(v).unwrap()
+      } else {
+          self.signer().pubkey()
+      };
+
         // Open account, if needed.
         let signer = self.signer();
-        self.open().await;
+        self.open(proof_authority).await;
 
         // Check num threads
         self.check_num_cores(args.cores);
@@ -39,7 +45,7 @@ impl Miner {
             // Fetch proof
             let config = get_config(&self.rpc_client).await;
             let proof =
-                get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
+                get_updated_proof_with_authority(&self.rpc_client, proof_authority, last_hash_at)
                     .await;
             println!(
                 "\n\nStake: {} ORE\n{}  Multiplier: {:12}x",
@@ -66,7 +72,7 @@ impl Miner {
                     .await;
 
             // Build instruction set
-            let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
+            let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(proof_authority))];
             let mut compute_budget = 500_000;
             if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
                 compute_budget += 100_000;
@@ -76,7 +82,7 @@ impl Miner {
             // Build mine ix
             ixs.push(ore_api::instruction::mine(
                 signer.pubkey(),
-                signer.pubkey(),
+                proof_authority,
                 self.find_bus().await,
                 solution,
             ));
