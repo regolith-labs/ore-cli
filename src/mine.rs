@@ -4,11 +4,11 @@ use drillx::{
     equix::{self},
     Hash, Solution,
 };
-use ore_api::{
+use coal_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
     state::{Bus, Config, Proof},
 };
-use ore_utils::AccountDeserialize;
+use coal_utils::AccountDeserialize;
 use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
@@ -42,11 +42,11 @@ impl Miner {
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
             println!(
-                "\n\nStake: {} ORE\n{}  Multiplier: {:12}x",
+                "\n\nStake: {} COAL\n{}  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
                 if last_hash_at.gt(&0) {
                     format!(
-                        "  Change: {} ORE\n",
+                        "  Change: {} COAL\n",
                         amount_u64_to_string(proof.balance.saturating_sub(last_balance))
                     )
                 } else {
@@ -66,15 +66,15 @@ impl Miner {
                     .await;
 
             // Build instruction set
-            let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
+            let mut ixs = vec![coal_api::instruction::auth(proof_pubkey(signer.pubkey()))];
             let mut compute_budget = 500_000;
-            if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
+            if self.should_reset(config).await && rand::thread_rng().gen_range(0..10).eq(&0) {
                 compute_budget += 100_000;
-                ixs.push(ore_api::instruction::reset(signer.pubkey()));
+                ixs.push(coal_api::instruction::reset(signer.pubkey()));
             }
 
             // Build mine ix
-            ixs.push(ore_api::instruction::mine(
+            ixs.push(coal_api::instruction::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,

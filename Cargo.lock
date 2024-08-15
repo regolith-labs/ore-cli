@@ -945,6 +945,73 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4b82cf0babdbd58558212896d1a4272303a57bdb245c2bf1147185fb45640e70"
 
 [[package]]
+name = "coal-api"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c978460c01575f3f5372a7e5f392325eaf915f6b9d91e9e5322e92e0364913d6"
+dependencies = [
+ "array-const-fn-init",
+ "bytemuck",
+ "coal-utils",
+ "const-crypto",
+ "drillx",
+ "mpl-token-metadata",
+ "num_enum 0.7.2",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+ "static_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "coal-cli"
+version = "2.3.0"
+dependencies = [
+ "bincode",
+ "bs58 0.5.1",
+ "bytemuck",
+ "cached",
+ "chrono",
+ "clap 4.5.9",
+ "coal-api",
+ "coal-utils",
+ "colored",
+ "core_affinity",
+ "drillx",
+ "futures",
+ "indicatif",
+ "num_cpus",
+ "rand 0.8.5",
+ "reqwest 0.12.4",
+ "serde",
+ "serde_json",
+ "solana-cli-config",
+ "solana-client",
+ "solana-program",
+ "solana-rpc-client",
+ "solana-sdk",
+ "solana-transaction-status",
+ "spl-associated-token-account",
+ "spl-token",
+ "tokio",
+ "tokio-tungstenite 0.16.1",
+ "url",
+]
+
+[[package]]
+name = "coal-utils"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "004ef5c3b810336cc9ebbdc559692dfeed7a3a4f29a90b594ed477c389ea4b0b"
+dependencies = [
+ "bytemuck",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+]
+
+[[package]]
 name = "colorchoice"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2748,73 +2815,6 @@ dependencies = [
  "libc",
  "pkg-config",
  "vcpkg",
-]
-
-[[package]]
-name = "ore-api"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0697cf6480f6c81117db19ceeaa66206b76f1d5b0e2896767f6d797f50181475"
-dependencies = [
- "array-const-fn-init",
- "bytemuck",
- "const-crypto",
- "drillx",
- "mpl-token-metadata",
- "num_enum 0.7.2",
- "ore-utils",
- "solana-program",
- "spl-associated-token-account",
- "spl-token",
- "static_assertions",
- "thiserror",
-]
-
-[[package]]
-name = "ore-cli"
-version = "2.3.0"
-dependencies = [
- "bincode",
- "bs58 0.5.1",
- "bytemuck",
- "cached",
- "chrono",
- "clap 4.5.9",
- "colored",
- "core_affinity",
- "drillx",
- "futures",
- "indicatif",
- "num_cpus",
- "ore-api",
- "ore-utils",
- "rand 0.8.5",
- "reqwest 0.12.4",
- "serde",
- "serde_json",
- "solana-cli-config",
- "solana-client",
- "solana-program",
- "solana-rpc-client",
- "solana-sdk",
- "solana-transaction-status",
- "spl-associated-token-account",
- "spl-token",
- "tokio",
- "tokio-tungstenite 0.16.1",
- "url",
-]
-
-[[package]]
-name = "ore-utils"
-version = "2.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90a09a7a1e296ce157c75cf41145edb3608b838f9503125897552f4fe49acf64"
-dependencies = [
- "bytemuck",
- "solana-program",
- "spl-associated-token-account",
- "spl-token",
 ]
 
 [[package]]

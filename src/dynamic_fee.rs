@@ -1,10 +1,10 @@
 use crate::Miner;
 
-use ore_api::consts::BUS_ADDRESSES;
+use coal_api::consts::BUS_ADDRESSES;
 use reqwest::Client;
 use serde_json::{json, Value};
 
-use solana_sdk::pubkey::Pubkey;
+use solana_sdk::{msg, pubkey::Pubkey};
 use std::{collections::HashMap, str::FromStr};
 
 use solana_client::rpc_response::RpcPrioritizationFee;
@@ -32,6 +32,7 @@ impl Miner {
             .host_str()
             .unwrap()
             .to_string();
+        msg!("HOST {}", host);
         let strategy = if host.contains("helius-rpc.com") {
             FeeStrategy::Helius
         } else if host.contains("alchemy.com") {
@@ -46,7 +47,7 @@ impl Miner {
 
         // Build fee estimate request
         let client = Client::new();
-        let ore_addresses: Vec<String> = std::iter::once(ore_api::ID.to_string())
+        let ore_addresses: Vec<String> = std::iter::once(coal_api::ID.to_string())
             .chain(BUS_ADDRESSES.iter().map(|pubkey| pubkey.to_string()))
             .collect();
         let body = match strategy {

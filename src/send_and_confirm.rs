@@ -3,7 +3,7 @@ use std::{str::FromStr, time::Duration};
 use chrono::Local;
 use colored::*;
 use indicatif::ProgressBar;
-use ore_api::error::OreError;
+use coal_api::error::OreError;
 use rand::seq::SliceRandom;
 use solana_client::{
     client_error::{ClientError, ClientErrorKind, Result as ClientResult},

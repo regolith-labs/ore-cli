@@ -1,14 +1,15 @@
 use std::{io::Read, time::Duration};
 
 use cached::proc_macro::cached;
-use ore_api::{
+use coal_api::{
     consts::{
-        CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TOKEN_DECIMALS_V1, TREASURY_ADDRESS,
+        CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS
     },
     state::{Config, Proof, Treasury},
 };
-use ore_utils::AccountDeserialize;
+use coal_utils::AccountDeserialize;
 use serde::Deserialize;
+
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar};
@@ -82,10 +83,6 @@ pub fn amount_f64_to_u64(amount: f64) -> u64 {
     (amount * 10f64.powf(TOKEN_DECIMALS as f64)) as u64
 }
 
-pub fn amount_f64_to_u64_v1(amount: f64) -> u64 {
-    (amount * 10f64.powf(TOKEN_DECIMALS_V1 as f64)) as u64
-}
-
 pub fn ask_confirm(question: &str) -> bool {
     println!("{}", question);
     loop {
@@ -128,8 +125,13 @@ pub async fn get_latest_blockhash_with_retries(
 
 #[cached]
 pub fn proof_pubkey(authority: Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[PROOF, authority.as_ref()], &ore_api::ID).0
+    Pubkey::find_program_address(&[PROOF, authority.as_ref()], &coal_api::ID).0
 }
+
+// #[cached]
+// pub fn ore_proof_pubkey(authority: Pubkey) -> Pubkey {
+//     Pubkey::find_program_address(&[PROOF, authority.as_ref()], &ORE_PROGRAM_ID).0
+// }
 
 #[cached]
 pub fn treasury_tokens_pubkey() -> Pubkey {
