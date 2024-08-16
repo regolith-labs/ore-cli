@@ -99,6 +99,7 @@ impl Miner {
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
         progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().unwrap();
+        let core_num = heim_cpu::logical_count().await.unwrap();
         let handles: Vec<_> = core_ids
             .into_iter()
             .take(cores as usize)
@@ -114,7 +115,7 @@ impl Miner {
 
                         // Start hashing
                         let timer = Instant::now();
-                        let mut nonce = u64::MAX.saturating_div(cores).saturating_mul(i.id as u64);
+                        let mut nonce = u64::MAX.saturating_div(core_num).saturating_mul(i.id as u64);
                         let mut best_nonce = nonce;
                         let mut best_difficulty = 0;
                         let mut best_hash = Hash::default();
