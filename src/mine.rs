@@ -82,10 +82,17 @@ impl Miner {
                 solution,
             ));
 
-            // Submit transaction
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
-                .await
-                .ok();
+            if args.bloxroute {
+                // submit transaction to bloxroute
+                self.send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget), false)
+                    .await
+                    .ok();
+            } else {
+                // Submit transaction
+                self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
+                    .await
+                    .ok();
+            }
         }
     }
 
