@@ -16,7 +16,7 @@ use crate::{send_and_confirm::ComputeBudget, Miner};
 
 const CONFIRM_DELAY: u64 = 500;
 const CONFIRM_RETRIES: usize = 8;
-const BLOXROUTE_URL: &str = "http://localhost:9000/api/v2/mine-ore";
+const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
 
 impl Miner {
     pub async fn send_and_confirm_bx(
