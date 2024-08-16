@@ -22,6 +22,7 @@ impl Miner {
         let core_ids = core_affinity::get_core_ids().unwrap();
         let handles: Vec<_> = core_ids
             .into_iter()
+            .take(args.cores as usize)
             .map(|i| {
                 std::thread::spawn({
                     move || {
@@ -31,15 +32,11 @@ impl Miner {
                             .saturating_mul(i.id as u64);
                         let mut nonce = first_nonce;
                         let mut memory = equix::SolverMemory::new();
+
+                        // Pin to core
+                        let _ = core_affinity::set_for_current(i);
+
                         loop {
-                            // Return if core should not be used
-                            if (i.id as u64).ge(&args.cores) {
-                                return 0;
-                            }
-
-                            // Pin to core
-                            let _ = core_affinity::set_for_current(i);
-
                             // Create hash
                             let _hx = drillx::hash_with_memory(
                                 &mut memory,

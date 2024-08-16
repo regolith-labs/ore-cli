@@ -101,6 +101,7 @@ impl Miner {
         let core_ids = core_affinity::get_core_ids().unwrap();
         let handles: Vec<_> = core_ids
             .into_iter()
+            .take(cores as usize)
             .map(|i| {
                 let global_best_difficulty = Arc::clone(&global_best_difficulty);
                 std::thread::spawn({
@@ -108,11 +109,6 @@ impl Miner {
                     let progress_bar = progress_bar.clone();
                     let mut memory = equix::SolverMemory::new();
                     move || {
-                        // Return if core should not be used
-                        if (i.id as u64).ge(&cores) {
-                            return (0, 0, Hash::default());
-                        }
-
                         // Pin to core
                         let _ = core_affinity::set_for_current(i);
 
