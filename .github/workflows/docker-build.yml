@@ -1,11 +1,8 @@
-name: Docker CI
+name: Docker Build
 
 on:
   release:
     types: [published]
-    paths-ignore:
-      - 'README.md'
-      - '.gitignore'
 
 env:
   REGISTRY: ghcr.io
