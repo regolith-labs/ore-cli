@@ -28,7 +28,7 @@ const GATEWAY_DELAY: u64 = 0;
 const CONFIRM_DELAY: u64 = 750;
 const CONFIRM_RETRIES: usize = 12;
 const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
-const BLOXROUTE_URL_LOCAL: &str = "http://localhost:9000/api/v2/mine-ore";
+// const BLOXROUTE_URL_LOCAL: &str = "http://localhost:9000/api/v2/mine-ore";
 
 #[derive(Serialize)]
 struct TransactionMessage {
@@ -150,7 +150,7 @@ impl Miner {
                 progress_bar.set_message("Submitting transaction to Bloxroute...");
                 let client = reqwest::Client::new();
                 let response = client
-                    .post(BLOXROUTE_URL_LOCAL)
+                    .post(BLOXROUTE_URL)
                     .json(&request)
                     .send()
                     .await
