@@ -26,8 +26,11 @@ use crate::{
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) {
+        println!("Starting mining process with args: {:?}", args);
+
         // Open account, if needed.
         let signer = self.signer();
+        println!("Signer public key: {}", signer.pubkey());
         self.open().await;
 
         // Check num threads
@@ -36,12 +39,19 @@ impl Miner {
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance = 0;
+        let mut loop_count = 0;
         loop {
+            loop_count += 1;
+            println!("Starting mining loop iteration {}", loop_count);
+
             // Fetch proof
             let config = get_config(&self.rpc_client).await;
+            println!("Fetched config: {:?}", config);
             let proof =
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
+            println!("Fetched proof: {:?}", proof);
+
             println!(
                 "\n\nStake: {} ORE\n{}  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
@@ -60,39 +70,68 @@ impl Miner {
 
             // Calculate cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
+            println!("Calculated cutoff time: {}", cutoff_time);
 
             // Run drillx
+            println!("Starting hash finding process");
             let solution =
                 Self::find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32)
                     .await;
+            println!("Found solution: {:?}", solution);
 
             // Build instruction set
             let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
             let mut compute_budget = 500_000;
             if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
                 compute_budget += 100_000;
+                println!("Adding reset instruction");
                 ixs.push(ore_api::instruction::reset(signer.pubkey()));
             }
 
             // Build mine ix
+            println!("Finding bus");
+            let bus = self.find_bus().await;
+            println!("Found bus: {}", bus);
             ixs.push(ore_api::instruction::mine(
                 signer.pubkey(),
                 signer.pubkey(),
-                self.find_bus().await,
+                bus,
                 solution,
             ));
 
+            println!("Built {} instructions", ixs.len());
+
             if args.bloxroute {
                 // submit transaction to bloxroute
-                self.send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget), false)
-                    .await
-                    .ok();
+                println!("Submitting transaction to bloxroute");
+                match self.send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget), false).await {
+                    Ok(signature) => println!("Transaction submitted successfully. Signature: {}", signature),
+                    Err(e) => {
+                        if e.to_string().contains("Invalid hash") || e.to_string().contains("Needs reset") {
+                            println!("Refreshing miner state due to: {}", e);
+                            continue;
+                        } else {
+                            println!("Error submitting transaction: {:?}", e);
+                            // Handle other errors as needed
+                        }
+                    }
+                }
             } else {
                 // Submit transaction
-                self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
+                println!("Submitting transaction to regular RPC");
+                match self
+                    .send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
                     .await
-                    .ok();
+                {
+                    Ok(signature) => println!(
+                        "Transaction submitted successfully. Signature: {}",
+                        signature
+                    ),
+                    Err(e) => println!("Error submitting transaction: {:?}", e),
+                }
             }
+
+            println!("Completed mining loop iteration {}", loop_count);
         }
     }
 

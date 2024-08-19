@@ -1,22 +1,55 @@
 use base64::Engine;
 use chrono::Local;
 use colored::Colorize;
-use serde_json::json;
+use ore_api::error::OreError;
+use serde::Serialize;
+use serde_json::Value;
 use solana_client::client_error::{ClientError, ClientErrorKind, Result as ClientResult};
-use solana_program::instruction::Instruction;
+use solana_program::{
+    instruction::{Instruction, InstructionError},
+    pubkey::Pubkey,
+    system_instruction,
+};
 use solana_rpc_client::spinner;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, signature::Signature, signer::Signer,
-    transaction::Transaction,
+    commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
+    signature::Signature,
+    signer::Signer,
+    transaction::{Transaction, TransactionError},
 };
 use std::str::FromStr;
 use std::time::Duration;
 
 use crate::{send_and_confirm::ComputeBudget, Miner};
 
-const CONFIRM_DELAY: u64 = 500;
-const CONFIRM_RETRIES: usize = 8;
+const GATEWAY_RETRIES: usize = 150;
+const GATEWAY_DELAY: u64 = 0;
+const CONFIRM_DELAY: u64 = 750;
+const CONFIRM_RETRIES: usize = 12;
 const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
+const BLOXROUTE_URL_LOCAL: &str = "http://localhost:9000/api/v2/mine-ore";
+
+#[derive(Serialize)]
+struct TransactionMessage {
+    content: String,
+    #[serde(rename = "isCleanup")]
+    is_cleanup: bool,
+}
+
+#[derive(Serialize)]
+struct PostSubmitRequest {
+    transaction: TransactionMessage,
+    #[serde(rename = "skipPreFlight")]
+    skip_pre_flight: bool,
+    #[serde(rename = "frontRunningProtection")]
+    front_running_protection: Option<bool>,
+    tip: Option<u64>,
+    #[serde(rename = "useStakedRPCs")]
+    use_staked_rpcs: Option<bool>,
+    #[serde(rename = "fastBestEffort")]
+    fast_best_effort: Option<bool>,
+}
 
 impl Miner {
     pub async fn send_and_confirm_bx(
@@ -29,12 +62,10 @@ impl Miner {
         let signer = self.signer();
         let fee_payer = self.fee_payer();
 
-        // Build transaction
+        // Prepare instructions
         let mut final_ixs = vec![];
         match compute_budget {
-            ComputeBudget::Dynamic => {
-                // TODO: Implement dynamic compute budget logic
-            }
+            ComputeBudget::Dynamic => todo!("simulate tx"),
             ComputeBudget::Fixed(cus) => {
                 final_ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(cus))
             }
@@ -42,108 +73,233 @@ impl Miner {
         final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
             self.priority_fee.unwrap_or(0),
         ));
-        final_ixs.extend_from_slice(ixs);
 
-        let mut tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
-        let recent_blockhash = self.rpc_client.get_latest_blockhash().await?;
-
-        if signer.pubkey() == fee_payer.pubkey() {
-            tx.sign(&[&signer], recent_blockhash);
-        } else {
-            tx.sign(&[&signer, &fee_payer], recent_blockhash);
-        }
-
-        // Encode transaction
-        let tx_data =
-            base64::prelude::BASE64_STANDARD.encode(bincode::serialize(&tx).map_err(|e| {
-                ClientError::from(ClientErrorKind::Custom(format!(
-                    "Bincode serialization error: {}",
-                    e
-                )))
-            })?);
-
-        let body = json!({
-            "transactions": vec![tx_data]
-        });
-
-        // Send transaction to custom endpoint
-        progress_bar.set_message("Submitting transaction to custom endpoint...");
-        let client = reqwest::Client::new();
-        let response = client
-            .post(BLOXROUTE_URL)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| {
-                ClientError::from(ClientErrorKind::Custom(format!("Request error: {}", e)))
-            })?;
-
-        let response_text = response.text().await.map_err(|e| {
-            ClientError::from(ClientErrorKind::Custom(format!(
-                "Response body error: {}",
-                e
-            )))
-        })?;
-
-        let response_json: serde_json::Value =
-            serde_json::from_str(&response_text).map_err(|e| {
-                ClientError::from(ClientErrorKind::Custom(format!(
-                    "JSON parsing error: {}",
-                    e
-                )))
-            })?;
-
-        let signature = response_json["signature"].as_str().ok_or_else(|| {
-            ClientError::from(ClientErrorKind::Custom(
-                "Signature not found in response".to_string(),
-            ))
-        })?;
-
-        let signature = Signature::from_str(signature).map_err(|e| {
-            ClientError::from(ClientErrorKind::Custom(format!(
-                "Signature parsing error: {}",
-                e
-            )))
-        })?;
-
-        // Skip confirmation if requested
-        if skip_confirm {
-            progress_bar.finish_with_message(format!("Sent: {}", signature));
-            return Ok(signature);
-        }
-
-        // Confirm transaction
-        progress_bar.set_message("Confirming transaction...");
-        for _ in 0..CONFIRM_RETRIES {
-            std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
-            match self.rpc_client.get_signature_status(&signature).await {
-                Ok(Some(status)) => {
-                    if status.is_ok() {
-                        let now = Local::now();
-                        let formatted_time = now.format("%Y-%m-%d %H:%M:%S").to_string();
-                        progress_bar.println(format!("  Timestamp: {}", formatted_time));
-                        progress_bar.finish_with_message(format!(
-                            "{} {}",
-                            "OK".bold().green(),
-                            signature
-                        ));
-                        return Ok(signature);
-                    } else {
-                        return Err(ClientError::from(ClientErrorKind::Custom(format!(
-                            "Transaction failed: {:?}",
-                            status
-                        ))));
-                    }
-                }
-                Ok(None) => continue,
-                Err(err) => {
-                    progress_bar.println(format!("  {} {}", "ERROR".bold().red(), err));
-                }
+        if let Some(priority_fee) = self.priority_fee {
+            if priority_fee > 0 {
+                let tip_amount = priority_fee / 2;
+                let tip_pubkey =
+                    Pubkey::from_str("HWEoBxYs7ssKuudEjzjmpfJVX7Dvi7wescFsVx2L5yoY").unwrap();
+                let tip_instruction =
+                    system_instruction::transfer(&signer.pubkey(), &tip_pubkey, tip_amount);
+                final_ixs.push(tip_instruction);
+                progress_bar.println(format!("  Additional tip: {} lamports", tip_amount));
+            } else {
+                progress_bar.println("  No additional tip: Priority fee is zero");
             }
         }
 
-        Err(ClientError::from(ClientErrorKind::Custom(
-            "Transaction confirmation timeout".into(),
-        )))
+        final_ixs.extend_from_slice(ixs);
+
+        let mut outer_attempts = 0;
+        const MAX_OUTER_ATTEMPTS: usize = 3;
+
+        'outer: loop {
+            outer_attempts += 1;
+            if outer_attempts > MAX_OUTER_ATTEMPTS {
+                return Err(ClientError::from(ClientErrorKind::Custom(
+                    "Max outer retries reached".into(),
+                )));
+            }
+
+            let mut attempts = 0;
+            let signature: Option<Signature>;
+
+            'submission: loop {
+                attempts += 1;
+                if attempts > GATEWAY_RETRIES {
+                    progress_bar.println("Max gateway retries reached. Restarting from the beginning.");
+                    continue 'outer;
+                }
+
+                progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts));
+
+                // Prepare transaction
+                let recent_blockhash = self.rpc_client.get_latest_blockhash().await?;
+                let mut tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
+                if signer.pubkey() == fee_payer.pubkey() {
+                    tx.sign(&[&signer], recent_blockhash);
+                } else {
+                    tx.sign(&[&signer, &fee_payer], recent_blockhash);
+                }
+
+                let tx_data =
+                    base64::prelude::BASE64_STANDARD.encode(bincode::serialize(&tx).map_err(|e| {
+                        ClientError::from(ClientErrorKind::Custom(format!(
+                            "Bincode serialization error: {}",
+                            e
+                        )))
+                    })?);
+
+                // Prepare request
+                let request = PostSubmitRequest {
+                    transaction: TransactionMessage {
+                        content: tx_data,
+                        is_cleanup: false,
+                    },
+                    skip_pre_flight: true,
+                    front_running_protection: Some(true),
+                    tip: self.priority_fee,
+                    use_staked_rpcs: Some(true),
+                    fast_best_effort: Some(false),
+                };
+
+                // Submit transaction
+                progress_bar.set_message("Submitting transaction to Bloxroute...");
+                let client = reqwest::Client::new();
+                let response = client
+                    .post(BLOXROUTE_URL_LOCAL)
+                    .json(&request)
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        ClientError::from(ClientErrorKind::Custom(format!("Request error: {}", e)))
+                    })?;
+
+                let status = response.status();
+                let response_text = response.text().await.map_err(|e| {
+                    ClientError::from(ClientErrorKind::Custom(format!(
+                        "Error reading response body: {}",
+                        e
+                    )))
+                })?;
+
+                progress_bar.println(format!("Response status: {}", status));
+                progress_bar.println(format!("Raw response: {}", response_text));
+
+                if status.is_success() {
+                    let json_response: Value = serde_json::from_str(&response_text).map_err(|e| {
+                        ClientError::from(ClientErrorKind::Custom(format!(
+                            "Error parsing JSON response: {}",
+                            e
+                        )))
+                    })?;
+
+                    let signature_str = json_response["signature"].as_str().ok_or_else(|| {
+                        ClientError::from(ClientErrorKind::Custom(
+                            "Signature not found in response".to_string(),
+                        ))
+                    })?;
+
+                    signature = Some(Signature::from_str(signature_str).map_err(|e| {
+                        ClientError::from(ClientErrorKind::Custom(format!(
+                            "Signature parsing error: {}",
+                            e
+                        )))
+                    })?);
+
+                    if skip_confirm {
+                        progress_bar.finish_with_message(format!("Sent: {}", signature.unwrap()));
+                        return Ok(signature.unwrap());
+                    }
+
+                    break 'submission;
+                } else {
+                    let json_response: Value = serde_json::from_str(&response_text).unwrap_or_default();
+                    if let Some(code) = json_response["code"].as_i64() {
+                        match code {
+                            6 => {
+                                progress_bar
+                                    .println("Transaction already submitted. Moving to confirmation.");
+                                if let Some(sig) = json_response["signature"].as_str() {
+                                    signature = Some(Signature::from_str(sig).map_err(|e| {
+                                        ClientError::from(ClientErrorKind::Custom(format!(
+                                            "Signature parsing error: {}",
+                                            e
+                                        )))
+                                    })?);
+                                    break 'submission;
+                                } else {
+                                    progress_bar.println("No signature found in 'already submitted' response. Retrying...");
+                                }
+                            }
+                            _ => {
+                                progress_bar.println(format!(
+                                    "Bloxroute submission failed (code {}). Retrying with new blockhash...",
+                                    code
+                                ));
+                            }
+                        }
+                    } else {
+                        progress_bar
+                            .println("Bloxroute submission failed. Retrying with new blockhash...");
+                    }
+                }
+
+                std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+            }
+
+            // Confirmation stage
+            let sig = signature.ok_or_else(|| {
+                ClientError::from(ClientErrorKind::Custom(
+                    "No signature available for confirmation".into(),
+                ))
+            })?;
+
+            progress_bar.set_message("Confirming transaction...");
+            for attempt in 1..=CONFIRM_RETRIES {
+                std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
+                progress_bar.println(format!("Confirmation attempt {} of {}", attempt, CONFIRM_RETRIES));
+                
+                match self
+                    .rpc_client
+                    .get_signature_status_with_commitment(&sig, CommitmentConfig::confirmed())
+                    .await
+                {
+                    Ok(Some(status)) => {
+                        progress_bar.println(format!("  Received status: {:?}", status));
+                        match status {
+                            Ok(()) => {
+                                let now = Local::now();
+                                let formatted_time = now.format("%Y-%m-%d %H:%M:%S").to_string();
+                                progress_bar.println(format!("  Timestamp: {}", formatted_time));
+                                progress_bar.finish_with_message(format!(
+                                    "{} {}",
+                                    "OK".bold().green(),
+                                    sig
+                                ));
+                                return Ok(sig);
+                            }
+                            Err(err) => match err {
+                                TransactionError::InstructionError(
+                                    _,
+                                    InstructionError::Custom(err_code),
+                                ) => {
+                                    if err_code == 0x1 {
+                                        progress_bar.println("Invalid hash. Restarting from the beginning...");
+                                        continue 'outer;
+                                    } else if err_code == OreError::NeedsReset as u32 {
+                                        progress_bar.println("Needs reset. Restarting from the beginning...");
+                                        continue 'outer;
+                                    } else {
+                                        progress_bar.println(format!("Transaction failed with instruction error. Error code: {}. Retrying...", err_code));
+                                    }
+                                }
+                                _ => {
+                                    progress_bar.println(format!("Transaction failed: {:?}. Restarting from the beginning...", err));
+                                    continue 'outer;
+                                }
+                            },
+                        }
+                    }
+                    Ok(None) => {
+                        if attempt == CONFIRM_RETRIES {
+                            progress_bar.println("Transaction not found after all retries. Restarting from the beginning...");
+                            continue 'outer;
+                        } else {
+                            progress_bar.println("  Transaction not yet processed. Continuing to next attempt.");
+                        }
+                    }
+                    Err(err) => {
+                        progress_bar.println(format!("  {} {}", "ERROR".bold().red(), err));
+                        if attempt == CONFIRM_RETRIES {
+                            progress_bar.println("Failed to get signature status after all retries. Restarting from the beginning...");
+                            continue 'outer;
+                        } else {
+                            progress_bar.println("  Failed to get signature status. Continuing to next attempt.");
+                        }
+                    }
+                }
+            }
+        }
     }
 }

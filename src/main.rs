@@ -152,6 +152,14 @@ struct Args {
     )]
     jito: bool,
 
+    #[arg(
+        long,
+        value_name = "BLOXROUTE",
+        help = "Use Bloxroute for transaction propegation.",
+        global = true
+    )]
+    bloxroute: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -183,7 +191,7 @@ async fn main() {
     let tip = Arc::new(RwLock::new(0_u64));
     let tip_clone = Arc::clone(&tip);
 
-    if args.jito {
+    if args.jito || args.bloxroute {
         let url = "ws://bundles-api-rest.jito.wtf/api/v1/bundles/tip_stream";
         let (ws_stream, _) = connect_async(url).await.unwrap();
         let (_, mut read) = ws_stream.split();
