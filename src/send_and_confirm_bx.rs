@@ -74,18 +74,18 @@ impl Miner {
             self.priority_fee.unwrap_or(0),
         ));
 
-        if let Some(priority_fee) = self.priority_fee {
-            if priority_fee > 0 {
-                let tip_amount = priority_fee / 2;
-                let tip_pubkey =
-                    Pubkey::from_str("HWEoBxYs7ssKuudEjzjmpfJVX7Dvi7wescFsVx2L5yoY").unwrap();
-                let tip_instruction =
-                    system_instruction::transfer(&signer.pubkey(), &tip_pubkey, tip_amount);
-                final_ixs.push(tip_instruction);
-                progress_bar.println(format!("  Additional tip: {} lamports", tip_amount));
-            } else {
-                progress_bar.println("  No additional tip: Priority fee is zero");
-            }
+        let tip = *self.tip.read().unwrap();
+
+        if tip > 0 {
+            let tip_amount = tip / 2;
+            let tip_pubkey =
+                Pubkey::from_str("HWEoBxYs7ssKuudEjzjmpfJVX7Dvi7wescFsVx2L5yoY").unwrap();
+            let tip_instruction =
+                system_instruction::transfer(&signer.pubkey(), &tip_pubkey, tip_amount);
+            final_ixs.push(tip_instruction);
+            progress_bar.println(format!("  Additional tip: {} lamports", tip_amount));
+        } else {
+            progress_bar.println("  No additional tip: Priority fee is zero");
         }
 
         final_ixs.extend_from_slice(ixs);
@@ -107,11 +107,13 @@ impl Miner {
             'submission: loop {
                 attempts += 1;
                 if attempts > GATEWAY_RETRIES {
-                    progress_bar.println("Max gateway retries reached. Restarting from the beginning.");
+                    progress_bar
+                        .println("Max gateway retries reached. Restarting from the beginning.");
                     continue 'outer;
                 }
 
-                progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts));
+                progress_bar
+                    .set_message(format!("Submitting transaction... (attempt {})", attempts));
 
                 // Prepare transaction
                 let recent_blockhash = self.rpc_client.get_latest_blockhash().await?;
@@ -122,13 +124,14 @@ impl Miner {
                     tx.sign(&[&signer, &fee_payer], recent_blockhash);
                 }
 
-                let tx_data =
-                    base64::prelude::BASE64_STANDARD.encode(bincode::serialize(&tx).map_err(|e| {
+                let tx_data = base64::prelude::BASE64_STANDARD.encode(
+                    bincode::serialize(&tx).map_err(|e| {
                         ClientError::from(ClientErrorKind::Custom(format!(
                             "Bincode serialization error: {}",
                             e
                         )))
-                    })?);
+                    })?,
+                );
 
                 // Prepare request
                 let request = PostSubmitRequest {
@@ -167,12 +170,13 @@ impl Miner {
                 progress_bar.println(format!("Raw response: {}", response_text));
 
                 if status.is_success() {
-                    let json_response: Value = serde_json::from_str(&response_text).map_err(|e| {
-                        ClientError::from(ClientErrorKind::Custom(format!(
-                            "Error parsing JSON response: {}",
-                            e
-                        )))
-                    })?;
+                    let json_response: Value =
+                        serde_json::from_str(&response_text).map_err(|e| {
+                            ClientError::from(ClientErrorKind::Custom(format!(
+                                "Error parsing JSON response: {}",
+                                e
+                            )))
+                        })?;
 
                     let signature_str = json_response["signature"].as_str().ok_or_else(|| {
                         ClientError::from(ClientErrorKind::Custom(
@@ -194,12 +198,14 @@ impl Miner {
 
                     break 'submission;
                 } else {
-                    let json_response: Value = serde_json::from_str(&response_text).unwrap_or_default();
+                    let json_response: Value =
+                        serde_json::from_str(&response_text).unwrap_or_default();
                     if let Some(code) = json_response["code"].as_i64() {
                         match code {
                             6 => {
-                                progress_bar
-                                    .println("Transaction already submitted. Moving to confirmation.");
+                                progress_bar.println(
+                                    "Transaction already submitted. Moving to confirmation.",
+                                );
                                 if let Some(sig) = json_response["signature"].as_str() {
                                     signature = Some(Signature::from_str(sig).map_err(|e| {
                                         ClientError::from(ClientErrorKind::Custom(format!(
@@ -238,8 +244,11 @@ impl Miner {
             progress_bar.set_message("Confirming transaction...");
             for attempt in 1..=CONFIRM_RETRIES {
                 std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
-                progress_bar.println(format!("Confirmation attempt {} of {}", attempt, CONFIRM_RETRIES));
-                
+                progress_bar.println(format!(
+                    "Confirmation attempt {} of {}",
+                    attempt, CONFIRM_RETRIES
+                ));
+
                 match self
                     .rpc_client
                     .get_signature_status_with_commitment(&sig, CommitmentConfig::confirmed())
@@ -265,10 +274,14 @@ impl Miner {
                                     InstructionError::Custom(err_code),
                                 ) => {
                                     if err_code == 0x1 {
-                                        progress_bar.println("Invalid hash. Restarting from the beginning...");
+                                        progress_bar.println(
+                                            "Invalid hash. Restarting from the beginning...",
+                                        );
                                         continue 'outer;
                                     } else if err_code == OreError::NeedsReset as u32 {
-                                        progress_bar.println("Needs reset. Restarting from the beginning...");
+                                        progress_bar.println(
+                                            "Needs reset. Restarting from the beginning...",
+                                        );
                                         continue 'outer;
                                     } else {
                                         progress_bar.println(format!("Transaction failed with instruction error. Error code: {}. Retrying...", err_code));
@@ -286,7 +299,9 @@ impl Miner {
                             progress_bar.println("Transaction not found after all retries. Restarting from the beginning...");
                             continue 'outer;
                         } else {
-                            progress_bar.println("  Transaction not yet processed. Continuing to next attempt.");
+                            progress_bar.println(
+                                "  Transaction not yet processed. Continuing to next attempt.",
+                            );
                         }
                     }
                     Err(err) => {
@@ -295,7 +310,9 @@ impl Miner {
                             progress_bar.println("Failed to get signature status after all retries. Restarting from the beginning...");
                             continue 'outer;
                         } else {
-                            progress_bar.println("  Failed to get signature status. Continuing to next attempt.");
+                            progress_bar.println(
+                                "  Failed to get signature status. Continuing to next attempt.",
+                            );
                         }
                     }
                 }

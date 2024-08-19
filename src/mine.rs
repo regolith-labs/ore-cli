@@ -104,10 +104,18 @@ impl Miner {
             if args.bloxroute {
                 // submit transaction to bloxroute
                 println!("Submitting transaction to bloxroute");
-                match self.send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget), false).await {
-                    Ok(signature) => println!("Transaction submitted successfully. Signature: {}", signature),
+                match self
+                    .send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget), false)
+                    .await
+                {
+                    Ok(signature) => println!(
+                        "Transaction submitted successfully. Signature: {}",
+                        signature
+                    ),
                     Err(e) => {
-                        if e.to_string().contains("Invalid hash") || e.to_string().contains("Needs reset") {
+                        if e.to_string().contains("Invalid hash")
+                            || e.to_string().contains("Needs reset")
+                        {
                             println!("Refreshing miner state due to: {}", e);
                             continue;
                         } else {
