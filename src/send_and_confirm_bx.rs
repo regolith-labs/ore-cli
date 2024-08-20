@@ -90,32 +90,22 @@ impl Miner {
 
         final_ixs.extend_from_slice(ixs);
 
-        let mut outer_attempts = 0;
-        const MAX_OUTER_ATTEMPTS: usize = 3;
+        let mut attempts = 0;
+        let signature: Option<Signature>;
 
-        'outer: loop {
-            outer_attempts += 1;
-            if outer_attempts > MAX_OUTER_ATTEMPTS {
+        loop {
+            attempts += 1;
+            if attempts > GATEWAY_RETRIES {
                 return Err(ClientError::from(ClientErrorKind::Custom(
-                    "Max outer retries reached".into(),
+                    "Max gateway retries reached".into(),
                 )));
             }
 
-            let mut attempts = 0;
-            let signature: Option<Signature>;
+            progress_bar
+                .set_message(format!("Submitting transaction... (attempt {})", attempts));
 
-            'submission: loop {
-                attempts += 1;
-                if attempts > GATEWAY_RETRIES {
-                    progress_bar
-                        .println("Max gateway retries reached. Restarting from the beginning.");
-                    continue 'outer;
-                }
-
-                progress_bar
-                    .set_message(format!("Submitting transaction... (attempt {})", attempts));
-
-                // Prepare transaction
+            // Prepare transaction
+            if attempts % 10 == 1 {
                 let recent_blockhash = self.rpc_client.get_latest_blockhash().await?;
                 let mut tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
                 if signer.pubkey() == fee_payer.pubkey() {
@@ -196,7 +186,7 @@ impl Miner {
                         return Ok(signature.unwrap());
                     }
 
-                    break 'submission;
+                    break;
                 } else {
                     let json_response: Value =
                         serde_json::from_str(&response_text).unwrap_or_default();
@@ -213,7 +203,7 @@ impl Miner {
                                             e
                                         )))
                                     })?);
-                                    break 'submission;
+                                    break;
                                 } else {
                                     progress_bar.println("No signature found in 'already submitted' response. Retrying...");
                                 }
@@ -230,93 +220,91 @@ impl Miner {
                             .println("Bloxroute submission failed. Retrying with new blockhash...");
                     }
                 }
-
-                std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
             }
 
-            // Confirmation stage
-            let sig = signature.ok_or_else(|| {
-                ClientError::from(ClientErrorKind::Custom(
-                    "No signature available for confirmation".into(),
-                ))
-            })?;
+            std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+        }
 
-            progress_bar.set_message("Confirming transaction...");
-            for attempt in 1..=CONFIRM_RETRIES {
-                std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
-                progress_bar.println(format!(
-                    "Confirmation attempt {} of {}",
-                    attempt, CONFIRM_RETRIES
-                ));
+        // Confirmation stage
+        let sig = signature.ok_or_else(|| {
+            ClientError::from(ClientErrorKind::Custom(
+                "No signature available for confirmation".into(),
+            ))
+        })?;
 
-                match self
-                    .rpc_client
-                    .get_signature_status_with_commitment(&sig, CommitmentConfig::confirmed())
-                    .await
-                {
-                    Ok(Some(status)) => {
-                        progress_bar.println(format!("  Received status: {:?}", status));
-                        match status {
-                            Ok(()) => {
-                                let now = Local::now();
-                                let formatted_time = now.format("%Y-%m-%d %H:%M:%S").to_string();
-                                progress_bar.println(format!("  Timestamp: {}", formatted_time));
-                                progress_bar.finish_with_message(format!(
-                                    "{} {}",
-                                    "OK".bold().green(),
-                                    sig
-                                ));
-                                return Ok(sig);
+        progress_bar.set_message("Confirming transaction...");
+        for attempt in 1..=CONFIRM_RETRIES {
+            std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
+            progress_bar.println(format!(
+                "Confirmation attempt {} of {}",
+                attempt, CONFIRM_RETRIES
+            ));
+
+            match self
+                .rpc_client
+                .get_signature_status_with_commitment(&sig, CommitmentConfig::confirmed())
+                .await
+            {
+                Ok(Some(status)) => {
+                    progress_bar.println(format!("  Received status: {:?}", status));
+                    match status {
+                        Ok(()) => {
+                            let now = Local::now();
+                            let formatted_time = now.format("%Y-%m-%d %H:%M:%S").to_string();
+                            progress_bar.println(format!("  Timestamp: {}", formatted_time));
+                            progress_bar.finish_with_message(format!(
+                                "{} {}",
+                                "OK".bold().green(),
+                                sig
+                            ));
+                            return Ok(sig);
+                        }
+                        Err(err) => match err {
+                            TransactionError::InstructionError(
+                                _,
+                                InstructionError::Custom(err_code),
+                            ) => {
+                                if err_code == OreError::NeedsReset as u32 {
+                                    progress_bar.println("Needs reset. Restarting from the beginning...");
+                                    return Err(ClientError::from(ClientErrorKind::Custom("Needs reset".into())));
+                                } else {
+                                    progress_bar.println(format!("Transaction failed with instruction error. Error code: {}. Retrying...", err_code));
+                                }
                             }
-                            Err(err) => match err {
-                                TransactionError::InstructionError(
-                                    _,
-                                    InstructionError::Custom(err_code),
-                                ) => {
-                                    if err_code == 0x1 {
-                                        progress_bar.println(
-                                            "Invalid hash. Restarting from the beginning...",
-                                        );
-                                        continue 'outer;
-                                    } else if err_code == OreError::NeedsReset as u32 {
-                                        progress_bar.println(
-                                            "Needs reset. Restarting from the beginning...",
-                                        );
-                                        continue 'outer;
-                                    } else {
-                                        progress_bar.println(format!("Transaction failed with instruction error. Error code: {}. Retrying...", err_code));
-                                    }
-                                }
-                                _ => {
-                                    progress_bar.println(format!("Transaction failed: {:?}. Restarting from the beginning...", err));
-                                    continue 'outer;
-                                }
-                            },
-                        }
+                            _ => {
+                                progress_bar.println(format!("Transaction failed: {:?}. Restarting from the beginning...", err));
+                                return Err(ClientError::from(ClientErrorKind::Custom(format!("Transaction failed: {:?}", err))));
+                            }
+                        },
                     }
-                    Ok(None) => {
-                        if attempt == CONFIRM_RETRIES {
-                            progress_bar.println("Transaction not found after all retries. Restarting from the beginning...");
-                            continue 'outer;
-                        } else {
-                            progress_bar.println(
-                                "  Transaction not yet processed. Continuing to next attempt.",
-                            );
-                        }
+                }
+                Ok(None) => {
+                    if attempt == CONFIRM_RETRIES {
+                        return Err(ClientError::from(ClientErrorKind::Custom(
+                            "Transaction not found after all retries".into(),
+                        )));
+                    } else {
+                        progress_bar.println(
+                            "  Transaction not yet processed. Continuing to next attempt.",
+                        );
                     }
-                    Err(err) => {
-                        progress_bar.println(format!("  {} {}", "ERROR".bold().red(), err));
-                        if attempt == CONFIRM_RETRIES {
-                            progress_bar.println("Failed to get signature status after all retries. Restarting from the beginning...");
-                            continue 'outer;
-                        } else {
-                            progress_bar.println(
-                                "  Failed to get signature status. Continuing to next attempt.",
-                            );
-                        }
+                }
+                Err(err) => {
+                    progress_bar.println(format!("  {} {}", "ERROR".bold().red(), err));
+                    if attempt == CONFIRM_RETRIES {
+                        return Err(ClientError::from(ClientErrorKind::Custom(
+                            "Failed to get signature status after all retries".into(),
+                        )));
+                    } else {
+                        progress_bar.println(
+                            "  Failed to get signature status. Continuing to next attempt.",
+                        );
                     }
                 }
             }
         }
+        Err(ClientError::from(ClientErrorKind::Custom(
+            "Transaction confirmation failed after all retries".into(),
+        )))
     }
 }
