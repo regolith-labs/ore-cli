@@ -146,7 +146,7 @@ impl Miner {
 
             // Reset if needed
             let coal_config = get_config(&self.rpc_client, false).await;
-            if self.should_reset(coal_config).await && rand::thread_rng().gen_range(0..5).eq(&0) {
+            if self.should_reset(coal_config).await {
                 compute_budget += 100_000;
                 ixs.push(coal_api::instruction::reset(signer.pubkey()));
             }
