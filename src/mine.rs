@@ -5,7 +5,7 @@ use drillx::{
     Hash, Solution,
 };
 use coal_api::{
-    consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
+    consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, ORE_BUS_ADDRESSES},
     state::{Bus, Config, Proof},
 };
 use coal_utils::AccountDeserialize;
@@ -13,12 +13,17 @@ use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
+use tokio; // Added for parallel execution
 
 use crate::{
     args::MineArgs,
     send_and_confirm::ComputeBudget,
     utils::{
-        amount_u64_to_string, get_clock, get_config, get_updated_proof_with_authority, proof_pubkey,
+        amount_u64_to_string,
+        get_clock, get_config,
+        get_updated_proof_with_authority, 
+        ore_proof_pubkey,
+        proof_pubkey
     },
     Miner,
 };
@@ -26,49 +31,122 @@ use crate::{
 impl Miner {
     pub async fn mine(&self, args: MineArgs) {
         // Open account, if needed.
+        let merged = args.merged.clone();
+
+        match merged.as_str() {
+            "ore" => {
+                println!("{} {}", "INFO".bold().green(), "Started merged mining...");
+            }
+            "none" => {
+                println!("{} {}", "INFO".bold().green(), "Started coal mining...");
+            }
+            _ => {
+                println!("{} {} \"{}\" {}", "ERROR".bold().red(), "Argument value", merged, "not recognized");
+                return;
+            }
+        }
+
         let signer = self.signer();
-        self.open().await;
+        let result = self.open(args.merged).await;
+        if result.is_err() {
+            println!("{} {}", "ERROR".bold().red(), result.err().unwrap());
+            return;
+        }
 
         // Check num threads
         self.check_num_cores(args.cores);
 
         // Start mining loop
-        let mut last_hash_at = 0;
-        let mut last_balance = 0;
+        let mut last_coal_hash_at = 0;
+        let mut last_coal_balance = 0;
+        let mut last_ore_hash_at = 0;
+        let mut last_ore_balance = 0;
         loop {
-            // Fetch proof
-            let config = get_config(&self.rpc_client).await;
-            let proof =
-                get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
-                    .await;
+            // Fetch coal_proof
+            let (coal_config, ore_config) = tokio::join!(
+                get_config(&self.rpc_client, false),
+                get_config(&self.rpc_client, true)
+            );
+            let coal_proof = get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_coal_hash_at, false).await;
+            let ore_proof = match merged.as_str() {
+                "ore" => get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_ore_hash_at, true).await,
+                _ => coal_proof,
+            };
+
             println!(
                 "\n\nStake: {} COAL\n{}  Multiplier: {:12}x",
-                amount_u64_to_string(proof.balance),
-                if last_hash_at.gt(&0) {
+                amount_u64_to_string(coal_proof.balance),
+                if last_coal_hash_at.gt(&0) {
                     format!(
                         "  Change: {} COAL\n",
-                        amount_u64_to_string(proof.balance.saturating_sub(last_balance))
+                        amount_u64_to_string(coal_proof.balance.saturating_sub(last_coal_balance))
                     )
                 } else {
                     "".to_string()
                 },
-                calculate_multiplier(proof.balance, config.top_balance)
+                calculate_multiplier(coal_proof.balance, coal_config.top_balance)
             );
-            last_hash_at = proof.last_hash_at;
-            last_balance = proof.balance;
+
+            match merged.as_str() {
+                "ore" => {
+                    println!(
+                        "Stake: {} ORE\n{}  Multiplier: {:12}x",
+                        amount_u64_to_string(ore_proof.balance),
+                        if last_ore_hash_at.gt(&0) {
+                            format!(
+                                "  Change: {} ORE\n",
+                                amount_u64_to_string(ore_proof.balance.saturating_sub(last_ore_balance))
+                            )
+                        } else {
+                            "".to_string()
+                        },
+                        calculate_multiplier(ore_proof.balance, ore_config.top_balance)
+                    );
+                }
+                _ => {}
+            }
+            
+
+            last_coal_hash_at = coal_proof.last_hash_at;
+            last_coal_balance = coal_proof.balance;
+            last_ore_hash_at = ore_proof.last_hash_at;
+            last_ore_balance = ore_proof.balance;
 
             // Calculate cutoff time
-            let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
+            let cutoff_time = self.get_cutoff(coal_proof, args.buffer_time).await;
 
             // Run drillx
-            let solution =
-                Self::find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32)
-                    .await;
+            let min_difficulty = match merged.as_str() { 
+                "ore" => coal_config.min_difficulty.min(ore_config.min_difficulty),
+                _ => coal_config.min_difficulty,
+            };
+            let solution = Self::find_hash_par(coal_proof, cutoff_time, args.cores, min_difficulty as u32)
+                .await;
 
-            // Build instruction set
-            let mut ixs = vec![coal_api::instruction::auth(proof_pubkey(signer.pubkey()))];
+
             let mut compute_budget = 500_000;
-            if self.should_reset(config).await && rand::thread_rng().gen_range(0..10).eq(&0) {
+            // Build instruction set
+            let mut ixs = vec![
+                ore_api::instruction::auth(ore_proof_pubkey(signer.pubkey())),
+                coal_api::instruction::auth(proof_pubkey(signer.pubkey())),
+            ];
+
+            match merged.as_str() {
+                "ore" => {
+                    compute_budget += 500_000;
+                    ixs.push(ore_api::instruction::mine(
+                        signer.pubkey(),
+                        signer.pubkey(),
+                        self.find_bus(true).await,
+                        solution,
+                    ));
+                }
+                _ => {}
+            }
+
+            // Reset if needed
+            let coal_config = get_config(&self.rpc_client, false).await;
+            if self.should_reset(coal_config).await {
                 compute_budget += 100_000;
                 ixs.push(coal_api::instruction::reset(signer.pubkey()));
             }
@@ -77,19 +155,17 @@ impl Miner {
             ixs.push(coal_api::instruction::mine(
                 signer.pubkey(),
                 signer.pubkey(),
-                self.find_bus().await,
+                self.find_bus(false).await,
                 solution,
             ));
 
-            // Submit transaction
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
-                .await
-                .ok();
+            // Submit transactions
+            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false).await.ok();
         }
     }
 
     async fn find_hash_par(
-        proof: Proof,
+        coal_proof: Proof,
         cutoff_time: u64,
         cores: u64,
         min_difficulty: u32,
@@ -104,7 +180,7 @@ impl Miner {
             .map(|i| {
                 let global_best_difficulty = Arc::clone(&global_best_difficulty);
                 std::thread::spawn({
-                    let proof = proof.clone();
+                    let coal_proof = coal_proof.clone();
                     let progress_bar = progress_bar.clone();
                     let mut memory = equix::SolverMemory::new();
                     move || {
@@ -126,7 +202,7 @@ impl Miner {
                             // Create hash
                             if let Ok(hx) = drillx::hash_with_memory(
                                 &mut memory,
-                                &proof.challenge,
+                                &coal_proof.challenge,
                                 &nonce.to_le_bytes(),
                             ) {
                                 let difficulty = hx.difficulty();
@@ -225,9 +301,9 @@ impl Miner {
             .le(&clock.unix_timestamp)
     }
 
-    async fn get_cutoff(&self, proof: Proof, buffer_time: u64) -> u64 {
+    async fn get_cutoff(&self, coal_proof: Proof, buffer_time: u64) -> u64 {
         let clock = get_clock(&self.rpc_client).await;
-        proof
+        coal_proof
             .last_hash_at
             .saturating_add(60)
             .saturating_sub(buffer_time as i64)
@@ -235,17 +311,18 @@ impl Miner {
             .max(0) as u64
     }
 
-    async fn find_bus(&self) -> Pubkey {
+    async fn find_bus(&self, ore: bool) -> Pubkey {
         // Fetch the bus with the largest balance
-        if let Ok(accounts) = self.rpc_client.get_multiple_accounts(&BUS_ADDRESSES).await {
+        let bus_addresses = if ore { ORE_BUS_ADDRESSES } else { BUS_ADDRESSES };
+        if let Ok(accounts) = self.rpc_client.get_multiple_accounts(&bus_addresses).await {
             let mut top_bus_balance: u64 = 0;
-            let mut top_bus = BUS_ADDRESSES[0];
+            let mut top_bus = bus_addresses[0];
             for account in accounts {
                 if let Some(account) = account {
                     if let Ok(bus) = Bus::try_from_bytes(&account.data) {
                         if bus.rewards.gt(&top_bus_balance) {
                             top_bus_balance = bus.rewards;
-                            top_bus = BUS_ADDRESSES[bus.id as usize];
+                            top_bus = bus_addresses[bus.id as usize];
                         }
                     }
                 }
@@ -255,7 +332,7 @@ impl Miner {
 
         // Otherwise return a random bus
         let i = rand::thread_rng().gen_range(0..BUS_COUNT);
-        BUS_ADDRESSES[i]
+        bus_addresses[i]
     }
 }
 
