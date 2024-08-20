@@ -112,17 +112,7 @@ impl Miner {
                         "Transaction submitted successfully. Signature: {}",
                         signature
                     ),
-                    Err(e) => {
-                        if e.to_string().contains("Invalid hash")
-                            || e.to_string().contains("Needs reset")
-                        {
-                            println!("Refreshing miner state due to: {}", e);
-                            continue;
-                        } else {
-                            println!("Error submitting transaction: {:?}", e);
-                            // Handle other errors as needed
-                        }
-                    }
+                    Err(e) => println!("Error submitting transaction: {:?}", e),
                 }
             } else {
                 // Submit transaction
