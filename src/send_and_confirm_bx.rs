@@ -91,7 +91,7 @@ impl Miner {
         final_ixs.extend_from_slice(ixs);
 
         let mut attempts = 0;
-        let signature: Option<Signature>;
+        let mut signature: Option<Signature> = None;
 
         loop {
             attempts += 1;
@@ -195,11 +195,7 @@ impl Miner {
                                 progress_bar.println(
                                     "Transaction already submitted. Moving to confirmation.",
                                 );
-                                if let Some(sig) = signature {
-                                    break;
-                                } else {
-                                    progress_bar.println("No signature available for already submitted transaction. Retrying...");
-                                }
+                                break;
                             }
                             _ => {
                                 progress_bar.println(format!(
