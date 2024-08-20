@@ -101,8 +101,7 @@ impl Miner {
                 )));
             }
 
-            progress_bar
-                .set_message(format!("Submitting transaction... (attempt {})", attempts));
+            progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts));
 
             // Prepare transaction
             if attempts % 10 == 1 {
@@ -196,16 +195,10 @@ impl Miner {
                                 progress_bar.println(
                                     "Transaction already submitted. Moving to confirmation.",
                                 );
-                                if let Some(sig) = json_response["signature"].as_str() {
-                                    signature = Some(Signature::from_str(sig).map_err(|e| {
-                                        ClientError::from(ClientErrorKind::Custom(format!(
-                                            "Signature parsing error: {}",
-                                            e
-                                        )))
-                                    })?);
+                                if let Some(sig) = signature {
                                     break;
                                 } else {
-                                    progress_bar.println("No signature found in 'already submitted' response. Retrying...");
+                                    progress_bar.println("No signature available for already submitted transaction. Retrying...");
                                 }
                             }
                             _ => {
@@ -259,23 +252,31 @@ impl Miner {
                             ));
                             return Ok(sig);
                         }
-                        Err(err) => match err {
-                            TransactionError::InstructionError(
-                                _,
-                                InstructionError::Custom(err_code),
-                            ) => {
-                                if err_code == OreError::NeedsReset as u32 {
-                                    progress_bar.println("Needs reset. Restarting from the beginning...");
-                                    return Err(ClientError::from(ClientErrorKind::Custom("Needs reset".into())));
-                                } else {
-                                    progress_bar.println(format!("Transaction failed with instruction error. Error code: {}. Retrying...", err_code));
+                        Err(err) => {
+                            match err {
+                                TransactionError::InstructionError(
+                                    _,
+                                    InstructionError::Custom(err_code),
+                                ) => {
+                                    if err_code == OreError::NeedsReset as u32 {
+                                        progress_bar.println(
+                                            "Needs reset. Restarting from the beginning...",
+                                        );
+                                        return Err(ClientError::from(ClientErrorKind::Custom(
+                                            "Needs reset".into(),
+                                        )));
+                                    } else {
+                                        progress_bar.println(format!("Transaction failed with instruction error. Error code: {}. Retrying...", err_code));
+                                    }
+                                }
+                                _ => {
+                                    progress_bar.println(format!("Transaction failed: {:?}. Restarting from the beginning...", err));
+                                    return Err(ClientError::from(ClientErrorKind::Custom(
+                                        format!("Transaction failed: {:?}", err),
+                                    )));
                                 }
                             }
-                            _ => {
-                                progress_bar.println(format!("Transaction failed: {:?}. Restarting from the beginning...", err));
-                                return Err(ClientError::from(ClientErrorKind::Custom(format!("Transaction failed: {:?}", err))));
-                            }
-                        },
+                        }
                     }
                 }
                 Ok(None) => {
