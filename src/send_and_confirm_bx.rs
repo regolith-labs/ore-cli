@@ -27,8 +27,8 @@ const GATEWAY_RETRIES: usize = 150;
 const GATEWAY_DELAY: u64 = 0;
 const CONFIRM_DELAY: u64 = 750;
 const CONFIRM_RETRIES: usize = 12;
-// const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
-const BLOXROUTE_URL: &str = "http://localhost:9000/api/v2/mine-ore";
+const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
+// const BLOXROUTE_URL: &str = "http://localhost:9000/api/v2/mine-ore";
 
 #[derive(Serialize)]
 struct TransactionMessage {
