@@ -27,8 +27,8 @@ const GATEWAY_RETRIES: usize = 150;
 const GATEWAY_DELAY: u64 = 0;
 const CONFIRM_DELAY: u64 = 750;
 const CONFIRM_RETRIES: usize = 12;
-const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
-// const BLOXROUTE_URL_LOCAL: &str = "http://localhost:9000/api/v2/mine-ore";
+// const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
+const BLOXROUTE_URL: &str = "http://localhost:9000/api/v2/mine-ore";
 
 #[derive(Serialize)]
 struct TransactionMessage {
@@ -138,14 +138,15 @@ impl Miner {
                 // Submit transaction
                 progress_bar.set_message("Submitting transaction to Bloxroute...");
                 let client = reqwest::Client::new();
-                let response = client
-                    .post(BLOXROUTE_URL)
-                    .json(&request)
-                    .send()
-                    .await
-                    .map_err(|e| {
-                        ClientError::from(ClientErrorKind::Custom(format!("Request error: {}", e)))
-                    })?;
+                let response = match client.post(BLOXROUTE_URL).json(&request).send().await {
+                    Ok(response) => response,
+                    Err(e) => {
+                        progress_bar
+                            .println(format!("Bloxroute request error: {}. Retrying...", e));
+                        std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+                        continue;
+                    }
+                };
 
                 let status = response.status();
                 let response_text = response.text().await.map_err(|e| {
