@@ -351,7 +351,7 @@ impl Miner {
     }
 }
 
-fn log_error(progress_bar: &ProgressBar, err: &str, finish: bool) {
+pub fn log_error(progress_bar: &ProgressBar, err: &str, finish: bool) {
     if finish {
         progress_bar.finish_with_message(format!("{} {}", "ERROR".bold().red(), err));
     } else {
@@ -359,6 +359,6 @@ fn log_error(progress_bar: &ProgressBar, err: &str, finish: bool) {
     }
 }
 
-fn log_warning(progress_bar: &ProgressBar, msg: &str) {
+pub fn log_warning(progress_bar: &ProgressBar, msg: &str) {
     progress_bar.println(format!("  {} {}", "WARNING".bold().yellow(), msg));
 }

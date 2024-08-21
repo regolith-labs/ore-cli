@@ -105,7 +105,7 @@ impl Miner {
                 // submit transaction to bloxroute
                 println!("Submitting transaction to bloxroute");
                 match self
-                    .send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget), false)
+                    .send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget))
                     .await
                 {
                     Ok(signature) => println!(
