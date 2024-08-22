@@ -188,6 +188,11 @@ impl Miner {
                 )))
             })?;
 
+            progress_bar.println(format!(
+                "Bloxroute Endpoint Response: {}",
+                json_response
+            ));
+
             if status.is_success() {
                 let signature_str = json_response["signature"].as_str().ok_or_else(|| {
                     ClientError::from(ClientErrorKind::Custom(
@@ -202,10 +207,6 @@ impl Miner {
                     Value::Number(n) => {
                         if let Some(code) = n.as_u64() {
                             if code != 6 {
-                                progress_bar.println(format!(
-                                    "Bloxroute Endpoint Response: {}",
-                                    json_response
-                                ));
                                 progress_bar.println("Sending via fallback RPC...");
                                 // attempt to send via RPC client
                                 let send_cfg = RpcSendTransactionConfig {
