@@ -200,11 +200,7 @@ impl Miner {
                         let mut best_hash = Hash::default();
                         loop {
                             // Create hash
-                            if let Ok(hx) = drillx_2::hash_with_memory(
-                                &mut memory,
-                                &coal_proof.challenge,
-                                &nonce.to_le_bytes(),
-                            ) {
+                            for hx in drillx_2::get_hashes_with_memory(&mut memory, &coal_proof.challenge, &nonce.to_le_bytes()) {
                                 let difficulty = hx.difficulty();
                                 if difficulty.gt(&best_difficulty) {
                                     best_nonce = nonce;
@@ -218,6 +214,7 @@ impl Miner {
                                     // {{ edit_1 }}
                                 }
                             }
+            
 
                             // Exit if time has elapsed
                             if nonce % 100 == 0 {
