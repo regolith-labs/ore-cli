@@ -93,14 +93,13 @@ impl Miner {
 
         let mut attempts = 0;
         let mut signature: Option<Signature> = None;
+        let mut tx: Transaction = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
         loop {
             if attempts > GATEWAY_RETRIES {
                 return Err(ClientError::from(ClientErrorKind::Custom(
                     "Max gateway retries reached".into(),
                 )));
             }
-
-            let mut tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
 
             if attempts % 10 == 0 {
                 // Reset the compute unit price
