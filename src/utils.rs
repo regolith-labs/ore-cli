@@ -54,7 +54,6 @@ pub async fn get_updated_proof_with_authority(
         if proof.last_hash_at.gt(&lash_hash_at) {
             return proof;
         }
-        println!("No proof found yet. Sleeping...");
         std::thread::sleep(Duration::from_millis(1000));
     }
 }
