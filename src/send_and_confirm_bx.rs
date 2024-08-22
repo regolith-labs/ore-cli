@@ -94,14 +94,11 @@ impl Miner {
         let mut attempts = 0;
         let mut signature: Option<Signature> = None;
         loop {
-            attempts += 1;
             if attempts > GATEWAY_RETRIES {
                 return Err(ClientError::from(ClientErrorKind::Custom(
                     "Max gateway retries reached".into(),
                 )));
             }
-
-            progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts));
 
             let mut tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
 
@@ -160,6 +157,8 @@ impl Miner {
                 use_staked_rpcs: Some(true),
                 fast_best_effort: Some(false),
             };
+
+            attempts += 1;
 
             // Submit transaction
             progress_bar.set_message("Submitting transaction to Bloxroute...");
