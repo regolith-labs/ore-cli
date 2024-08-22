@@ -27,7 +27,7 @@ chrono = "0.4.38"
 clap = { version = "4.4.12", features = ["derive"] }
 colored = "2.0"
 core_affinity = "0.8.1" 
-drillx = "2.0.0"
+drillx = "2.1.0"
 futures = "0.3.30"
 indicatif = "0.17.8"
 num_cpus = "1.16.0"
