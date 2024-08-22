@@ -181,17 +181,14 @@ impl Miner {
                 )))
             })?;
 
+            println!("Bloxroute Endpoint Response: {}", response_text);
+
             let json_response: Value = serde_json::from_str(&response_text).map_err(|e| {
                 ClientError::from(ClientErrorKind::Custom(format!(
                     "JSON parsing error: {}",
                     e
                 )))
             })?;
-
-            progress_bar.println(format!(
-                "Bloxroute Endpoint Response: {}",
-                json_response
-            ));
 
             if status.is_success() {
                 let signature_str = json_response["signature"].as_str().ok_or_else(|| {
