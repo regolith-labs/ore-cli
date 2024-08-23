@@ -1,6 +1,7 @@
 use base64::Engine;
 use chrono::Local;
 use colored::Colorize;
+use futures::TryFutureExt;
 use ore_api::error::OreError;
 use serde::Serialize;
 use serde_json::Value;
@@ -93,7 +94,8 @@ impl Miner {
 
         let mut attempts = 0;
         let mut signature: Option<Signature> = None;
-        let mut tx: Transaction = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
+        let mut tx: Transaction =
+            Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
         loop {
             if attempts > GATEWAY_RETRIES {
                 return Err(ClientError::from(ClientErrorKind::Custom(
@@ -212,8 +214,11 @@ impl Miner {
                                     min_context_slot: None,
                                 };
 
-                                self.rpc_client
+                                self.jito_client
                                     .send_transaction_with_config(&tx, send_cfg)
+                                    .or_else(|_| {
+                                        self.rpc_client.send_transaction_with_config(&tx, send_cfg)
+                                    })
                                     .await
                                     .ok();
                             }
