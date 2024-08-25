@@ -25,10 +25,10 @@ use crate::{
     Miner,
 };
 
-const GATEWAY_RETRIES: usize = 200;
+const GATEWAY_RETRIES: usize = 50;
 const GATEWAY_DELAY: u64 = 0;
 const CONFIRM_DELAY: u64 = 500;
-const CONFIRM_RETRIES: usize = 16;
+const CONFIRM_RETRIES: usize = 8;
 const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
 // const BLOXROUTE_URL: &str = "http://localhost:9000/api/v2/mine-ore";
 
@@ -99,13 +99,17 @@ impl Miner {
         let mut skip_submit = false;
 
         loop {
+            progress_bar.println(format!("Attempt {} of {}", attempts + 1, GATEWAY_RETRIES));
+            progress_bar.println(format!("skip_submit is currently {}", skip_submit));
             if attempts > GATEWAY_RETRIES {
+                progress_bar.println("Max gateway retries reached. Exiting send_and_confirm_bx.");
                 return Err(ClientError::from(ClientErrorKind::Custom(
                     "Max gateway retries reached".into(),
                 )));
             }
 
             if attempts % 10 == 0 {
+                progress_bar.println("Resigning transaction and resetting skip_submit");
                 // Reset the compute unit price and resign the transaction
                 if self.dynamic_fee {
                     let fee = match self.dynamic_fee().await {
@@ -144,8 +148,11 @@ impl Miner {
             }
 
             if !skip_submit {
+                progress_bar.println("Preparing to submit to Bloxroute");
+
                 let tx_data = base64::prelude::BASE64_STANDARD.encode(
                     bincode::serialize(&tx).map_err(|e| {
+                        progress_bar.println("Failed to serialize TX");
                         ClientError::from(ClientErrorKind::Custom(format!(
                             "Serialization error: {}",
                             e
@@ -182,15 +189,18 @@ impl Miner {
 
                 let status = response.status();
                 let response_text = response.text().await.map_err(|e| {
+                    progress_bar.println(format!("Failed to get response text: {}", e));
                     ClientError::from(ClientErrorKind::Custom(format!(
                         "Failed to get response text: {}",
                         e
                     )))
                 })?;
 
+                println!("Response Status: {}", status);
                 println!("Bloxroute Endpoint Response: {}", response_text);
 
                 let json_response: Value = serde_json::from_str(&response_text).map_err(|e| {
+                    progress_bar.println(format!("Failed to get parse reponse json: {}", e));
                     ClientError::from(ClientErrorKind::Custom(format!(
                         "JSON parsing error: {}",
                         e
@@ -199,11 +209,13 @@ impl Miner {
 
                 if status.is_success() {
                     let signature_str = json_response["signature"].as_str().ok_or_else(|| {
+                        progress_bar.println(format!("Failed to get signature"));
                         ClientError::from(ClientErrorKind::Custom(
                             "Signature not found in response".to_string(),
                         ))
                     })?;
                     signature = Some(Signature::from_str(signature_str).map_err(|e| {
+                        progress_bar.println(format!("Failed to get parse signature: {}", e));
                         ClientError::from(ClientErrorKind::Custom(format!(
                             "Invalid signature: {}",
                             e
@@ -243,6 +255,11 @@ impl Miner {
                         _ => {}
                     }
                 }
+            } else {
+                progress_bar.println(format!(
+                    "Skipping BLXR Endpoint: Signature for confirmation: {:?}",
+                    signature
+                ));
             }
 
             if let Some(sig) = signature {
