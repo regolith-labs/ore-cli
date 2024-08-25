@@ -25,7 +25,7 @@ use crate::{
     Miner,
 };
 
-const GATEWAY_RETRIES: usize = 150;
+const GATEWAY_RETRIES: usize = 200;
 const GATEWAY_DELAY: u64 = 0;
 const CONFIRM_DELAY: u64 = 500;
 const CONFIRM_RETRIES: usize = 16;
@@ -96,6 +96,8 @@ impl Miner {
         let mut signature: Option<Signature> = None;
         let mut tx: Transaction =
             Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
+        let mut skip_submit = false;
+
         loop {
             if attempts > GATEWAY_RETRIES {
                 return Err(ClientError::from(ClientErrorKind::Custom(
@@ -104,7 +106,7 @@ impl Miner {
             }
 
             if attempts % 10 == 0 {
-                // Reset the compute unit price
+                // Reset the compute unit price and resign the transaction
                 if self.dynamic_fee {
                     let fee = match self.dynamic_fee().await {
                         Ok(fee) => {
@@ -136,95 +138,110 @@ impl Miner {
                 } else {
                     tx.sign(&[&signer, &fee_payer], hash);
                 }
+
+                // Reset skip_submit flag as we have a new transaction
+                skip_submit = false;
             }
 
-            let tx_data =
-                base64::prelude::BASE64_STANDARD.encode(bincode::serialize(&tx).map_err(|e| {
+            if !skip_submit {
+                let tx_data = base64::prelude::BASE64_STANDARD.encode(
+                    bincode::serialize(&tx).map_err(|e| {
+                        ClientError::from(ClientErrorKind::Custom(format!(
+                            "Serialization error: {}",
+                            e
+                        )))
+                    })?,
+                );
+
+                // Prepare request
+                let request = PostSubmitRequest {
+                    transaction: TransactionMessage {
+                        content: tx_data,
+                        is_cleanup: false,
+                    },
+                    skip_pre_flight: true,
+                    front_running_protection: Some(true),
+                    tip: self.priority_fee,
+                    use_staked_rpcs: Some(true),
+                    fast_best_effort: Some(false),
+                };
+
+                // Submit transaction
+                progress_bar.set_message("Submitting transaction to Bloxroute...");
+                let client = reqwest::Client::new();
+                let response = match client.post(BLOXROUTE_URL).json(&request).send().await {
+                    Ok(response) => response,
+                    Err(e) => {
+                        progress_bar
+                            .println(format!("Bloxroute request error: {}. Retrying...", e));
+                        std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+                        attempts += 1;
+                        continue;
+                    }
+                };
+
+                let status = response.status();
+                let response_text = response.text().await.map_err(|e| {
                     ClientError::from(ClientErrorKind::Custom(format!(
-                        "Serialization error: {}",
+                        "Failed to get response text: {}",
                         e
                     )))
-                })?);
-
-            // Prepare request
-            let request = PostSubmitRequest {
-                transaction: TransactionMessage {
-                    content: tx_data,
-                    is_cleanup: false,
-                },
-                skip_pre_flight: true,
-                front_running_protection: Some(true),
-                tip: self.priority_fee,
-                use_staked_rpcs: Some(true),
-                fast_best_effort: Some(false),
-            };
-
-            attempts += 1;
-
-            // Submit transaction
-            progress_bar.set_message("Submitting transaction to Bloxroute...");
-            let client = reqwest::Client::new();
-            let response = match client.post(BLOXROUTE_URL).json(&request).send().await {
-                Ok(response) => response,
-                Err(e) => {
-                    progress_bar.println(format!("Bloxroute request error: {}. Retrying...", e));
-                    std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
-                    continue;
-                }
-            };
-
-            let status = response.status();
-            let response_text = response.text().await.map_err(|e| {
-                ClientError::from(ClientErrorKind::Custom(format!(
-                    "Failed to get response text: {}",
-                    e
-                )))
-            })?;
-
-            println!("Bloxroute Endpoint Response: {}", response_text);
-
-            let json_response: Value = serde_json::from_str(&response_text).map_err(|e| {
-                ClientError::from(ClientErrorKind::Custom(format!(
-                    "JSON parsing error: {}",
-                    e
-                )))
-            })?;
-
-            if status.is_success() {
-                let signature_str = json_response["signature"].as_str().ok_or_else(|| {
-                    ClientError::from(ClientErrorKind::Custom(
-                        "Signature not found in response".to_string(),
-                    ))
                 })?;
-                signature = Some(Signature::from_str(signature_str).map_err(|e| {
-                    ClientError::from(ClientErrorKind::Custom(format!("Invalid signature: {}", e)))
-                })?);
-            } else {
-                match &json_response["code"] {
-                    Value::Number(n) => {
-                        if let Some(code) = n.as_u64() {
-                            if code != 6 {
-                                progress_bar.println("Sending via fallback RPC...");
-                                // attempt to send via RPC client
-                                let send_cfg = RpcSendTransactionConfig {
-                                    skip_preflight: true,
-                                    preflight_commitment: Some(CommitmentLevel::Confirmed),
-                                    encoding: Some(UiTransactionEncoding::Base64),
-                                    max_retries: Some(0),
-                                    min_context_slot: None,
-                                };
 
-                                self.jito_client
-                                    .send_transaction_with_config(&tx, send_cfg)
-                                    .or_else(|_| {
-                                        self.rpc_client.send_transaction_with_config(&tx, send_cfg)
-                                    })
-                                    .await
-                                    .ok();
+                println!("Bloxroute Endpoint Response: {}", response_text);
+
+                let json_response: Value = serde_json::from_str(&response_text).map_err(|e| {
+                    ClientError::from(ClientErrorKind::Custom(format!(
+                        "JSON parsing error: {}",
+                        e
+                    )))
+                })?;
+
+                if status.is_success() {
+                    let signature_str = json_response["signature"].as_str().ok_or_else(|| {
+                        ClientError::from(ClientErrorKind::Custom(
+                            "Signature not found in response".to_string(),
+                        ))
+                    })?;
+                    signature = Some(Signature::from_str(signature_str).map_err(|e| {
+                        ClientError::from(ClientErrorKind::Custom(format!(
+                            "Invalid signature: {}",
+                            e
+                        )))
+                    })?);
+                } else {
+                    match &json_response["code"] {
+                        Value::Number(n) => {
+                            if let Some(code) = n.as_u64() {
+                                if code == 6 {
+                                    progress_bar.println(
+                                        "Transaction already submitted. Skipping submission...",
+                                    );
+                                    skip_submit = true;
+                                } else {
+                                    progress_bar.println("Sending via fallback RPC...");
+                                    // attempt to send via RPC client
+                                    let send_cfg = RpcSendTransactionConfig {
+                                        skip_preflight: true,
+                                        preflight_commitment: Some(CommitmentLevel::Confirmed),
+                                        encoding: Some(UiTransactionEncoding::Base64),
+                                        max_retries: Some(0),
+                                        min_context_slot: None,
+                                    };
+
+                                    self.jito_client
+                                        .send_transaction_with_config(&tx, send_cfg)
+                                        .or_else(|_| {
+                                            self.rpc_client
+                                                .send_transaction_with_config(&tx, send_cfg)
+                                        })
+                                        .await
+                                        .ok();
+                                }
                             }
                         }
+                        _ => {}
                     }
-                    _ => {}
                 }
             }
 
@@ -314,6 +331,7 @@ impl Miner {
             // If we've exhausted all confirmation retries, continue to the next submission attempt
             progress_bar.println("Confirmation attempts exhausted. Retrying submission...");
             std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+            attempts += 1;
         }
     }
 }
