@@ -1,7 +1,6 @@
 use base64::Engine;
 use chrono::Local;
 use colored::Colorize;
-use futures::TryFutureExt;
 use ore_api::error::OreError;
 use serde::Serialize;
 use serde_json::Value;
@@ -17,18 +16,18 @@ use solana_sdk::{
 };
 use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
 use std::str::FromStr;
-use std::time::Duration;
 
 use crate::{
     send_and_confirm::{log_error, log_warning, ComputeBudget},
     utils::get_latest_blockhash_with_retries,
     Miner,
 };
+use tokio::time::{sleep, Duration};
 
-const GATEWAY_RETRIES: usize = 50;
+const GATEWAY_RETRIES: usize = 150;
 const GATEWAY_DELAY: u64 = 0;
 const CONFIRM_DELAY: u64 = 500;
-const CONFIRM_RETRIES: usize = 8;
+const CONFIRM_RETRIES: usize = 12;
 const BLOXROUTE_URL: &str = "https://ore-ny.solana.dex.blxrbdn.com/api/v2/mine-ore";
 // const BLOXROUTE_URL: &str = "http://localhost:9000/api/v2/mine-ore";
 
@@ -100,7 +99,6 @@ impl Miner {
 
         loop {
             progress_bar.println(format!("Attempt {} of {}", attempts + 1, GATEWAY_RETRIES));
-            progress_bar.println(format!("skip_submit is currently {}", skip_submit));
             if attempts > GATEWAY_RETRIES {
                 progress_bar.println("Max gateway retries reached. Exiting send_and_confirm_bx.");
                 return Err(ClientError::from(ClientErrorKind::Custom(
@@ -176,25 +174,32 @@ impl Miner {
                 // Submit transaction
                 progress_bar.set_message("Submitting transaction to Bloxroute...");
                 let client = reqwest::Client::new();
-                let response = match client.post(BLOXROUTE_URL).json(&request).send().await {
-                    Ok(response) => response,
+
+                let response = client.post(BLOXROUTE_URL).json(&request).send().await;
+
+                let (status, response_text) = match response {
+                    Ok(response) => {
+                        let status = response.status();
+                        match response.text().await {
+                            Ok(text) => (status, text),
+                            Err(e) => {
+                                progress_bar.println(format!(
+                                    "Failed to get response text: {}. Continuing...",
+                                    e
+                                ));
+                                (status, String::from("{}"))
+                            }
+                        }
+                    }
                     Err(e) => {
                         progress_bar
-                            .println(format!("Bloxroute request error: {}. Retrying...", e));
-                        std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
-                        attempts += 1;
-                        continue;
+                            .println(format!("Bloxroute request error: {}. Continuing...", e));
+                        (
+                            reqwest::StatusCode::INTERNAL_SERVER_ERROR,
+                            String::from("{}"),
+                        )
                     }
                 };
-
-                let status = response.status();
-                let response_text = response.text().await.map_err(|e| {
-                    progress_bar.println(format!("Failed to get response text: {}", e));
-                    ClientError::from(ClientErrorKind::Custom(format!(
-                        "Failed to get response text: {}",
-                        e
-                    )))
-                })?;
 
                 println!("Response Status: {}", status);
                 println!("Bloxroute Endpoint Response: {}", response_text);
@@ -221,38 +226,81 @@ impl Miner {
                             e
                         )))
                     })?);
+                    skip_submit = true;
                 } else {
-                    match &json_response["code"] {
-                        Value::Number(n) => {
+                    let should_retry_rpc = match &json_response.get("code") {
+                        Some(Value::Number(n)) => {
                             if let Some(code) = n.as_u64() {
                                 if code == 6 {
                                     progress_bar.println(
                                         "Transaction already submitted. Skipping submission...",
                                     );
                                     skip_submit = true;
+                                    false // Don't retry with RPC if code is 6
                                 } else {
-                                    progress_bar.println("Sending via fallback RPC...");
-                                    // attempt to send via RPC client
-                                    let send_cfg = RpcSendTransactionConfig {
-                                        skip_preflight: true,
-                                        preflight_commitment: Some(CommitmentLevel::Confirmed),
-                                        encoding: Some(UiTransactionEncoding::Base64),
-                                        max_retries: Some(0),
-                                        min_context_slot: None,
-                                    };
+                                    true // Retry with RPC for any other code
+                                }
+                            } else {
+                                true // Retry with RPC if code is not a u64
+                            }
+                        }
+                        _ => true, // Retry with RPC if there's no 'code' field or it's not a number
+                    };
 
-                                    self.jito_client
+                    if should_retry_rpc {
+                        progress_bar.println("Attempting via fallback Jito...");
+                        // attempt to send via RPC client
+                        let send_cfg = RpcSendTransactionConfig {
+                            skip_preflight: true,
+                            preflight_commitment: Some(CommitmentLevel::Confirmed),
+                            encoding: Some(UiTransactionEncoding::Base64),
+                            max_retries: Some(0),
+                            min_context_slot: None,
+                        };
+
+                        match self
+                            .jito_client
+                            .send_transaction_with_config(&tx, send_cfg)
+                            .await
+                        {
+                            Ok(sig) => {
+                                signature = Some(sig);
+                                skip_submit = true;
+                                progress_bar.println(format!(
+                                    "Transaction sent via Jito. Signature: {}",
+                                    sig
+                                ));
+                            }
+                            Err(e) => {
+                                progress_bar
+                                    .println(format!("Failed to send transaction via Jito: {}", e));
+
+                                // Only try the fallback RPC if we still don't have a signature
+                                if signature.is_none() {
+                                    progress_bar.println("Attempting via fallback RPC...");
+                                    match self
+                                        .rpc_client
                                         .send_transaction_with_config(&tx, send_cfg)
-                                        .or_else(|_| {
-                                            self.rpc_client
-                                                .send_transaction_with_config(&tx, send_cfg)
-                                        })
                                         .await
-                                        .ok();
+                                    {
+                                        Ok(sig) => {
+                                            signature = Some(sig);
+                                            skip_submit = true;
+                                            progress_bar.println(format!(
+                                                "Transaction sent via fallback RPC. Signature: {}",
+                                                sig
+                                            ));
+                                        }
+                                        Err(e) => {
+                                            progress_bar.println(format!(
+                                                "Failed to send transaction via fallback RPC: {}",
+                                                e
+                                            ));
+                                        }
+                                    }
                                 }
                             }
                         }
-                        _ => {}
                     }
                 }
             } else {
@@ -264,7 +312,7 @@ impl Miner {
 
             if let Some(sig) = signature {
                 'confirm: for _ in 0..CONFIRM_RETRIES {
-                    std::thread::sleep(Duration::from_millis(CONFIRM_DELAY));
+                    sleep(Duration::from_millis(CONFIRM_DELAY)).await;
                     match self.rpc_client.get_signature_statuses(&[sig]).await {
                         Ok(signature_statuses) => {
                             for status in signature_statuses.value {
@@ -347,7 +395,7 @@ impl Miner {
 
             // If we've exhausted all confirmation retries, continue to the next submission attempt
             progress_bar.println("Confirmation attempts exhausted. Retrying submission...");
-            std::thread::sleep(Duration::from_millis(GATEWAY_DELAY));
+            sleep(Duration::from_millis(GATEWAY_DELAY)).await;
             attempts += 1;
         }
     }

@@ -41,7 +41,6 @@ impl Miner {
         let mut last_balance = 0;
         let mut loop_count = 0;
         loop {
-            loop_count += 1;
             println!("Starting mining loop iteration {}", loop_count);
 
             // Fetch proof
@@ -65,8 +64,6 @@ impl Miner {
                 },
                 calculate_multiplier(proof.balance, config.top_balance)
             );
-            last_hash_at = proof.last_hash_at;
-            last_balance = proof.balance;
 
             // Calculate cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
@@ -108,10 +105,15 @@ impl Miner {
                     .send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget))
                     .await
                 {
-                    Ok(signature) => println!(
-                        "Transaction submitted successfully. Signature: {}",
-                        signature
-                    ),
+                    Ok(signature) => {
+                        last_hash_at = proof.last_hash_at;
+                        last_balance = proof.balance;
+                        loop_count += 1;
+                        println!(
+                            "Transaction submitted successfully. Signature: {}",
+                            signature
+                        )
+                    }
                     Err(e) => println!("Error submitting transaction: {:?}", e),
                 }
             } else {
@@ -121,10 +123,15 @@ impl Miner {
                     .send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
                     .await
                 {
-                    Ok(signature) => println!(
-                        "Transaction submitted successfully. Signature: {}",
-                        signature
-                    ),
+                    Ok(signature) => {
+                        last_hash_at = proof.last_hash_at;
+                        last_balance = proof.balance;
+                        loop_count += 1;
+                        println!(
+                            "Transaction submitted successfully. Signature: {}",
+                            signature
+                        )
+                    }
                     Err(e) => println!("Error submitting transaction: {:?}", e),
                 }
             }
