@@ -1,4 +1,8 @@
-use std::{sync::Arc, sync::RwLock, time::Instant};
+use std::{
+    sync::{Arc, RwLock},
+    time::Instant,
+    usize,
+};
 
 use colored::*;
 use drillx::{
@@ -61,10 +65,23 @@ impl Miner {
             // Calculate cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
 
+            // Build nonce indices
+            let mut nonce_indices = Vec::with_capacity(args.cores as usize);
+            for n in 0..(args.cores) {
+                let nonce = u64::MAX.saturating_div(args.cores).saturating_mul(n);
+                println!("nonce: {}", nonce);
+                nonce_indices.push(nonce);
+            }
+
             // Run drillx
-            let solution =
-                Self::find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32)
-                    .await;
+            let solution = Self::find_hash_par(
+                proof.challenge,
+                cutoff_time,
+                args.cores,
+                config.min_difficulty as u32,
+                nonce_indices.as_slice(),
+            )
+            .await;
 
             // Build instruction set
             let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
@@ -90,36 +107,33 @@ impl Miner {
     }
 
     async fn find_hash_par(
-        proof: Proof,
+        challenge: [u8; 32],
         cutoff_time: u64,
         cores: u64,
         min_difficulty: u32,
+        nonce_indices: &[u64],
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
         progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().unwrap();
+        let core_ids = core_ids.into_iter().filter(|id| id.id < (cores as usize));
         let handles: Vec<_> = core_ids
-            .into_iter()
             .map(|i| {
                 let global_best_difficulty = Arc::clone(&global_best_difficulty);
                 std::thread::spawn({
-                    let proof = proof.clone();
                     let progress_bar = progress_bar.clone();
+                    println!("{:?}", i);
+                    let nonce = nonce_indices[i.id];
                     let mut memory = equix::SolverMemory::new();
                     move || {
-                        // Return if core should not be used
-                        if (i.id as u64).ge(&cores) {
-                            return (0, 0, Hash::default());
-                        }
-
                         // Pin to core
                         let _ = core_affinity::set_for_current(i);
 
                         // Start hashing
                         let timer = Instant::now();
-                        let mut nonce = u64::MAX.saturating_div(cores).saturating_mul(i.id as u64);
+                        let mut nonce = nonce;
                         let mut best_nonce = nonce;
                         let mut best_difficulty = 0;
                         let mut best_hash = Hash::default();
@@ -127,7 +141,7 @@ impl Miner {
                             // Get hashes
                             let hxs = drillx::hashes_with_memory(
                                 &mut memory,
-                                &proof.challenge,
+                                &challenge,
                                 &nonce.to_le_bytes(),
                             );
 

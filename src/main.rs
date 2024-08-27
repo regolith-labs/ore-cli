@@ -42,6 +42,8 @@ struct Miner {
     pub fee_payer_filepath: Option<String>,
     pub jito_client: Arc<RpcClient>,
     pub tip: Arc<std::sync::RwLock<u64>>,
+    pub pool: bool,
+    pub pool_url: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -151,6 +153,21 @@ struct Args {
     )]
     jito: bool,
 
+    #[arg(
+        long,
+        value_name = "POOL_URL",
+        help = "Mining Pool URL to forward solutions to.",
+        global = true
+    )]
+    pool_url: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "POOL",
+        help = "Join a Mining Pool of your choice. Defaults to false."
+    )]
+    pool: bool,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -210,6 +227,8 @@ async fn main() {
         Some(fee_payer_filepath),
         Arc::new(jito_client),
         tip,
+        args.pool,
+        args.pool_url,
     ));
 
     // Execute user command.
@@ -267,6 +286,8 @@ impl Miner {
         fee_payer_filepath: Option<String>,
         jito_client: Arc<RpcClient>,
         tip: Arc<std::sync::RwLock<u64>>,
+        pool: bool,
+        pool_url: Option<String>,
     ) -> Self {
         Self {
             rpc_client,
@@ -277,6 +298,8 @@ impl Miner {
             fee_payer_filepath,
             jito_client,
             tip,
+            pool,
+            pool_url,
         }
     }
 
