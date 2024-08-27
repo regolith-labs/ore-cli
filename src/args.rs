@@ -84,14 +84,17 @@ pub struct RewardsArgs {}
 pub struct StakeArgs {
     #[arg(
         value_name = "AMOUNT",
-        help = "The amount of ORE to stake. Defaults to max."
+        help = "The amount of the token to stake. Defaults to max."
     )]
     pub amount: Option<f64>,
+
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake.")]
+    pub mint: String,
 
     #[arg(
         long,
         value_name = "TOKEN_ACCOUNT_ADDRESS",
-        help = "Token account to send ORE from. Defaults to the associated token account."
+        help = "Token account to send from. Defaults to the associated token account."
     )]
     pub token_account: Option<String>,
 }
@@ -106,6 +109,25 @@ pub struct TransferArgs {
         help = "The account address of the receipient."
     )]
     pub to: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct UnstakeArgs {
+    #[arg(
+        value_name = "AMOUNT",
+        help = "The amount of the token to unstake. Defaults to max."
+    )]
+    pub amount: Option<f64>,
+
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint to unstake.")]
+    pub mint: String,
+
+    #[arg(
+        long,
+        value_name = "TOKEN_ACCOUNT_ADDRESS",
+        help = "Token account to receive unstaked funds. Defaults to the associated token account."
+    )]
+    pub token_account: Option<String>,
 }
 
 #[derive(Parser, Debug)]
