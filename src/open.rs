@@ -1,13 +1,14 @@
+use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 
 use crate::{send_and_confirm::ComputeBudget, utils::proof_pubkey, Miner};
 
 impl Miner {
-    pub async fn open(&self) {
+    pub async fn open(&self, proof_authority: Pubkey) {
         // Return early if miner is already registered
         let signer = self.signer();
         let fee_payer = self.fee_payer();
-        let proof_address = proof_pubkey(signer.pubkey());
+        let proof_address = proof_pubkey(proof_authority);
         if self.rpc_client.get_account(&proof_address).await.is_ok() {
             return;
         }
