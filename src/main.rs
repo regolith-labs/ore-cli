@@ -7,10 +7,12 @@ mod close;
 mod config;
 mod cu_limits;
 mod dynamic_fee;
+mod error;
 #[cfg(feature = "admin")]
 mod initialize;
 mod mine;
 mod open;
+mod pool;
 mod proof;
 mod rewards;
 mod send_and_confirm;
@@ -42,7 +44,6 @@ struct Miner {
     pub fee_payer_filepath: Option<String>,
     pub jito_client: Arc<RpcClient>,
     pub tip: Arc<std::sync::RwLock<u64>>,
-    pub pool: bool,
     pub pool_url: Option<String>,
 }
 
@@ -227,7 +228,6 @@ async fn main() {
         Some(fee_payer_filepath),
         Arc::new(jito_client),
         tip,
-        args.pool,
         args.pool_url,
     ));
 
@@ -251,9 +251,14 @@ async fn main() {
         Commands::Config(_) => {
             miner.config().await;
         }
-        Commands::Mine(args) => {
-            miner.mine(args).await;
-        }
+        Commands::Mine(mine_args) => match args.pool {
+            true => {
+                let _ = miner.mine_pool(mine_args).await;
+            }
+            false => {
+                miner.mine(mine_args).await;
+            }
+        },
         Commands::Proof(args) => {
             miner.proof(args).await;
         }
@@ -286,7 +291,6 @@ impl Miner {
         fee_payer_filepath: Option<String>,
         jito_client: Arc<RpcClient>,
         tip: Arc<std::sync::RwLock<u64>>,
-        pool: bool,
         pool_url: Option<String>,
     ) -> Self {
         Self {
@@ -298,7 +302,6 @@ impl Miner {
             fee_payer_filepath,
             jito_client,
             tip,
-            pool,
             pool_url,
         }
     }

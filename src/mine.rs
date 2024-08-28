@@ -21,6 +21,7 @@ use solana_sdk::signer::Signer;
 
 use crate::{
     args::MineArgs,
+    error::Error,
     send_and_confirm::ComputeBudget,
     utils::{
         amount_u64_to_string, get_clock, get_config, get_updated_proof_with_authority, proof_pubkey,
@@ -103,6 +104,46 @@ impl Miner {
             self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
                 .await
                 .ok();
+        }
+    }
+
+    // TODO: register with pool, if needed.
+    pub async fn mine_pool(&self, args: MineArgs) -> Result<(), Error> {
+        // Check num threads
+        self.check_num_cores(args.cores);
+        // Start mining loop
+        let mut last_hash_at = 0;
+        let http_client = &reqwest::Client::new();
+        loop {
+            // Fetch latest challenge
+            let member_challenge = self
+                .get_updated_pool_challenge(http_client, last_hash_at)
+                .await?;
+            last_hash_at = member_challenge.challenge.lash_hash_at;
+            let cutoff_time = member_challenge.challenge.cutoff_time;
+            // Build nonce indices
+            let u64_unit = u64::MAX.saturating_div(member_challenge.num_total_members);
+            let left_bound = u64_unit.saturating_mul(member_challenge.nonce_index);
+            let right_bound = u64_unit.saturating_div(member_challenge.nonce_index + 1);
+            let total_range = right_bound - left_bound + 1;
+            let range_per_core = total_range.saturating_div(args.cores);
+            let mut nonce_indices = Vec::with_capacity(args.cores as usize);
+            for n in 0..(args.cores) {
+                let index = left_bound + n * range_per_core;
+                println!("index: {}", index);
+                nonce_indices.push(index);
+            }
+            // Run drillx
+            let solution = Self::find_hash_par(
+                member_challenge.challenge.challenge,
+                cutoff_time,
+                args.cores,
+                member_challenge.challenge.min_difficulty as u32,
+                nonce_indices.as_slice(),
+            )
+            .await;
+            // Post solution to operator
+            self.post_pool_solution(http_client, &solution).await?;
         }
     }
 
