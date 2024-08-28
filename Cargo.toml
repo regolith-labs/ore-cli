@@ -1,6 +1,6 @@
 [package]
 name = "coal-cli"
-version = "2.4.2"
+version = "2.5.0"
 edition = "2021"
 license = "Apache-2.0"
 description = "A command line interface for ORE cryptocurrency mining."
@@ -33,6 +33,8 @@ indicatif = "0.17.8"
 num_cpus = "1.16.0"
 coal-api = "2.3.0"
 coal-utils = "2.3.0"
+smelter-api = "1.0.0"
+smelter-utils = "1.0.0"
 ore-api = "2.1.0"
 ore-utils = "2.1.0"
 rand = "0.8.4"
@@ -59,4 +61,6 @@ serde = { version = "1.0", features = ["derive"] }
 # coal-utils = { path = "../coal/utils" }
 # ore-api = { path = "../ore/api" }
 # ore-utils = { path = "../ore/utils" }
+# smelter-api = { path = "../smelter/api" }
+# smelter-utils = { path = "../smelter/utils" }
 

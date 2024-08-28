@@ -5,25 +5,27 @@ use drillx_2::{
     Hash, Solution,
 };
 use coal_api::{
-    consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION, ORE_BUS_ADDRESSES},
+    consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
     state::{Bus, Config, Proof},
 };
+use ore_api::consts::BUS_ADDRESSES as ORE_BUS_ADDRESSES;
+use smelter_api::consts::BUS_ADDRESSES as SMELTER_BUS_ADDRESSES;
 use coal_utils::AccountDeserialize;
 use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
-use tokio; // Added for parallel execution
+use tokio;
 
 use crate::{
     args::MineArgs,
     send_and_confirm::ComputeBudget,
     utils::{
+        Resource,
         amount_u64_to_string,
         get_clock, get_config,
         get_updated_proof_with_authority, 
-        ore_proof_pubkey,
-        proof_pubkey
+        proof_pubkey,
     },
     Miner,
 };
@@ -64,12 +66,12 @@ impl Miner {
         loop {
             // Fetch coal_proof
             let (coal_config, ore_config) = tokio::join!(
-                get_config(&self.rpc_client, false),
-                get_config(&self.rpc_client, true)
+                get_config(&self.rpc_client, Resource::Coal),
+                get_config(&self.rpc_client, Resource::Ore)
             );
-            let coal_proof = get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_coal_hash_at, false).await;
+            let coal_proof = get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_coal_hash_at, Resource::Coal).await;
             let ore_proof = match merged.as_str() {
-                "ore" => get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_ore_hash_at, true).await,
+                "ore" => get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_ore_hash_at, Resource::Ore).await,
                 _ => coal_proof,
             };
 
@@ -120,15 +122,15 @@ impl Miner {
                 "ore" => coal_config.min_difficulty.max(ore_config.min_difficulty),
                 _ => coal_config.min_difficulty,
             };
-            let solution = Self::find_hash_par(coal_proof, cutoff_time, args.cores, min_difficulty as u32)
+            let solution = Self::find_hash_par(coal_proof, cutoff_time, args.cores, min_difficulty as u32, Resource::Coal)
                 .await;
 
 
             let mut compute_budget = 500_000;
             // Build instruction set
             let mut ixs = vec![
-                ore_api::instruction::auth(ore_proof_pubkey(signer.pubkey())),
-                coal_api::instruction::auth(proof_pubkey(signer.pubkey())),
+                ore_api::instruction::auth(proof_pubkey(signer.pubkey(), Resource::Ore)),
+                coal_api::instruction::auth(proof_pubkey(signer.pubkey(), Resource::Coal)),
             ];
 
             match merged.as_str() {
@@ -137,7 +139,7 @@ impl Miner {
                     ixs.push(coal_api::instruction::mine_ore(
                         signer.pubkey(),
                         signer.pubkey(),
-                        self.find_bus(true).await,
+                        self.find_bus(Resource::Ore).await,
                         solution,
                     ));
                 }
@@ -145,7 +147,7 @@ impl Miner {
             }
 
             // Reset if needed
-            let coal_config = get_config(&self.rpc_client, false).await;
+            let coal_config = get_config(&self.rpc_client, Resource::Coal).await;
             if self.should_reset(coal_config).await {
                 compute_budget += 100_000;
                 ixs.push(coal_api::instruction::reset(signer.pubkey()));
@@ -155,7 +157,7 @@ impl Miner {
             ixs.push(coal_api::instruction::mine(
                 signer.pubkey(),
                 signer.pubkey(),
-                self.find_bus(false).await,
+                self.find_bus(Resource::Coal).await,
                 solution,
             ));
 
@@ -164,11 +166,12 @@ impl Miner {
         }
     }
 
-    async fn find_hash_par(
+    pub async fn find_hash_par(
         coal_proof: Proof,
         cutoff_time: u64,
         cores: u64,
         min_difficulty: u32,
+        resource: Resource,
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
@@ -183,6 +186,7 @@ impl Miner {
                     let coal_proof = coal_proof.clone();
                     let progress_bar = progress_bar.clone();
                     let mut memory = equix::SolverMemory::new();
+                    let resource = resource.clone(); // Clone resource here
                     move || {
                         // Return if core should not be used
                         if (i.id as u64).ge(&cores) {
@@ -223,7 +227,8 @@ impl Miner {
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
                                     if i.id == 0 {
                                         progress_bar.set_message(format!(
-                                            "Mining... (difficulty {})",
+                                            "{}... (difficulty {})",
+                                            get_action_name(&resource),
                                             global_best_difficulty,
                                         ));
                                     }
@@ -233,7 +238,8 @@ impl Miner {
                                     }
                                 } else if i.id == 0 {
                                     progress_bar.set_message(format!(
-                                        "Mining... (difficulty {}, time {})",
+                                        "{}... (difficulty {}, time {})",
+                                        get_action_name(&resource),
                                         global_best_difficulty,
                                         format_duration(
                                             cutoff_time.saturating_sub(timer.elapsed().as_secs())
@@ -289,7 +295,7 @@ impl Miner {
         }
     }
 
-    async fn should_reset(&self, config: Config) -> bool {
+    pub async fn should_reset(&self, config: Config) -> bool {
         let clock = get_clock(&self.rpc_client).await;
         config
             .last_reset_at
@@ -298,7 +304,7 @@ impl Miner {
             .le(&clock.unix_timestamp)
     }
 
-    async fn get_cutoff(&self, coal_proof: Proof, buffer_time: u64) -> u64 {
+    pub async fn get_cutoff(&self, coal_proof: Proof, buffer_time: u64) -> u64 {
         let clock = get_clock(&self.rpc_client).await;
         coal_proof
             .last_hash_at
@@ -308,9 +314,13 @@ impl Miner {
             .max(0) as u64
     }
 
-    async fn find_bus(&self, ore: bool) -> Pubkey {
+    pub async fn find_bus(&self, resource: Resource) -> Pubkey {
         // Fetch the bus with the largest balance
-        let bus_addresses = if ore { ORE_BUS_ADDRESSES } else { BUS_ADDRESSES };
+        let bus_addresses = match resource {
+            Resource::Coal => BUS_ADDRESSES,
+            Resource::Ore => ORE_BUS_ADDRESSES,
+            Resource::Ingots => SMELTER_BUS_ADDRESSES,
+        };
         if let Ok(accounts) = self.rpc_client.get_multiple_accounts(&bus_addresses).await {
             let mut top_bus_balance: u64 = 0;
             let mut top_bus = bus_addresses[0];
@@ -341,4 +351,12 @@ fn format_duration(seconds: u32) -> String {
     let minutes = seconds / 60;
     let remaining_seconds = seconds % 60;
     format!("{:02}:{:02}", minutes, remaining_seconds)
+}
+
+fn get_action_name(resource: &Resource) -> String {
+    match resource {
+        Resource::Coal => "Mining".to_string(),
+        Resource::Ore => "Mining".to_string(),
+        Resource::Ingots => "Smelting".to_string(),
+    }
 }

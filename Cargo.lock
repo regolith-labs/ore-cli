@@ -966,7 +966,7 @@ dependencies = [
 
 [[package]]
 name = "coal-cli"
-version = "2.4.2"
+version = "2.5.0"
 dependencies = [
  "bincode",
  "bs58 0.5.1",
@@ -988,6 +988,8 @@ dependencies = [
  "reqwest 0.12.4",
  "serde",
  "serde_json",
+ "smelter-api",
+ "smelter-utils",
  "solana-cli-config",
  "solana-client",
  "solana-program",
@@ -2834,9 +2836,9 @@ dependencies = [
 
 [[package]]
 name = "ore-api"
-version = "2.1.0"
+version = "2.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0697cf6480f6c81117db19ceeaa66206b76f1d5b0e2896767f6d797f50181475"
+checksum = "0c67c8c00902d0cb31d7e1bdcc6caf81c80e4a1f11ca48054eb609e41b6065b4"
 dependencies = [
  "array-const-fn-init",
  "bytemuck",
@@ -2854,9 +2856,9 @@ dependencies = [
 
 [[package]]
 name = "ore-utils"
-version = "2.1.0"
+version = "2.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90a09a7a1e296ce157c75cf41145edb3608b838f9503125897552f4fe49acf64"
+checksum = "6c92cb0b8a4c9583113b78c87a5372d71825ec3432402cb843e1ffc6af9f6b7d"
 dependencies = [
  "bytemuck",
  "solana-program",
@@ -3863,6 +3865,38 @@ name = "smallvec"
 version = "1.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
+
+[[package]]
+name = "smelter-api"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c1fc70bdec0ac926e5fbff7bcbf613a25b5253942aa86f2eeba7bf7d1d42fae5"
+dependencies = [
+ "array-const-fn-init",
+ "bytemuck",
+ "const-crypto",
+ "drillx_2",
+ "mpl-token-metadata",
+ "num_enum 0.7.2",
+ "smelter-utils",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+ "static_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "smelter-utils"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a17bb5c226064c4ad6ec7e009c9aecd10890147e0288aea12f3640ea2f378f3"
+dependencies = [
+ "bytemuck",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+]
 
 [[package]]
 name = "socket2"

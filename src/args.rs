@@ -1,5 +1,6 @@
 use clap::{arg, Parser};
 
+
 #[derive(Parser, Debug)]
 pub struct BalanceArgs {
     #[arg(
@@ -7,6 +8,12 @@ pub struct BalanceArgs {
         help = "The account address to fetch the balance of."
     )]
     pub address: Option<String>,
+    #[arg(
+        long,
+        value_name = "RESOURCE",
+        help = "The token to claim."
+    )]
+    pub resource: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -38,10 +45,24 @@ pub struct ClaimArgs {
         help = "Wallet address to receive claimed tokens."
     )]
     pub to: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "RESOURCE",
+        help = "The token to claim."
+    )]
+    pub resource: Option<String>,
 }
 
 #[derive(Parser, Debug)]
-pub struct CloseArgs {}
+pub struct CloseArgs {
+    #[arg(
+        long,
+        value_name = "RESOURCE",
+        help = "The token to claim."
+    )]
+    pub resource: Option<String>,
+}
 
 #[derive(Parser, Debug)]
 pub struct ConfigArgs {}
@@ -89,6 +110,28 @@ pub struct ProofArgs {
 #[derive(Parser, Debug)]
 pub struct RewardsArgs {}
 
+
+#[derive(Parser, Debug)]
+pub struct SmeltArgs {
+    #[arg(
+        long,
+        short,
+        value_name = "CORES_COUNT",
+        help = "The number of CPU cores to allocate to mining.",
+        default_value = "1"
+    )]
+    pub cores: u64,
+
+    #[arg(
+        long,
+        short,
+        value_name = "SECONDS",
+        help = "The number seconds before the deadline to stop mining and start submitting.",
+        default_value = "5"
+    )]
+    pub buffer_time: u64,
+}
+
 #[derive(Parser, Debug)]
 pub struct StakeArgs {
     #[arg(
@@ -115,6 +158,13 @@ pub struct TransferArgs {
         help = "The account address of the receipient."
     )]
     pub to: String,
+
+    #[arg(
+        long,
+        value_name = "RESOURCE",
+        help = "The token to transfer."
+    )]
+    pub resource: Option<String>,
 }
 
 #[derive(Parser, Debug)]
