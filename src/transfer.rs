@@ -9,7 +9,7 @@ use crate::{
     args::TransferArgs,
     cu_limits::CU_LIMIT_CLAIM,
     send_and_confirm::ComputeBudget,
-    utils::{amount_f64_to_u64, ask_confirm, get_resource_from_str, get_resource_mint},
+    utils::{amount_f64_to_u64, ask_confirm, get_resource_from_str, get_resource_mint, get_resource_name},
     Miner,
 };
 
@@ -51,8 +51,9 @@ impl Miner {
             format!(
                 "\nYou are about to transfer {}.\n\nAre you sure you want to continue? [Y/n]",
                 format!(
-                    "{} COAL",
-                    amount_to_ui_amount(amount, coal_api::consts::TOKEN_DECIMALS)
+                    "{} {}",
+                    amount_to_ui_amount(amount, coal_api::consts::TOKEN_DECIMALS),
+                    get_resource_name(&resource)
                 )
                 .bold(),
             )
