@@ -14,11 +14,14 @@ impl Miner {
         let max_retries = 10;
         loop {
             let challenge = self.get_pool_challenge(http_client).await?;
-            if challenge.challenge.lash_hash_at <= last_hash_at {
+            println!("fetched: {:?}", challenge.challenge.lash_hash_at);
+            println!("live: {:?}", last_hash_at);
+            if challenge.challenge.lash_hash_at == last_hash_at {
                 retries += 1;
                 if retries == max_retries {
                     return Err(Error::Internal("could not fetch new challenge".to_string()));
                 }
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
             } else {
                 return Ok(challenge);
             }
@@ -33,7 +36,7 @@ impl Miner {
             "must specify the pool url flag".to_string(),
         ))?;
         let pubkey = self.signer().pubkey();
-        let get_url = format!("{}/{}", pool_url, pubkey);
+        let get_url = format!("{}/challenge/{}", pool_url, pubkey);
         let resp = http_client.get(get_url).send().await?;
         resp.json::<MemberChallenge>().await.map_err(From::from)
     }
@@ -53,7 +56,15 @@ impl Miner {
             solution: *solution,
             signature,
         };
-        http_client.post(pool_url).json(&payload).send().await?;
+        let post_url = format!("{}/contribute", pool_url);
+        match http_client.post(post_url).json(&payload).send().await {
+            Ok(resp) => {
+                println!("resp: {:?}", resp);
+            }
+            Err(err) => {
+                println!("{:?}", err);
+            }
+        };
         Ok(())
     }
 

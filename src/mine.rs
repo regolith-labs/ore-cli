@@ -119,6 +119,7 @@ impl Miner {
             let member_challenge = self
                 .get_updated_pool_challenge(http_client, last_hash_at)
                 .await?;
+            println!("member challenge: {:?}", member_challenge);
             last_hash_at = member_challenge.challenge.lash_hash_at;
             let cutoff_time = member_challenge.challenge.cutoff_time;
             // Build nonce indices
@@ -142,6 +143,7 @@ impl Miner {
                 nonce_indices.as_slice(),
             )
             .await;
+            println!("solution: {:?}", solution);
             // Post solution to operator
             self.post_pool_solution(http_client, &solution).await?;
         }

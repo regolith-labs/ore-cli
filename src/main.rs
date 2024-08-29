@@ -165,7 +165,8 @@ struct Args {
     #[arg(
         long,
         value_name = "POOL",
-        help = "Join a Mining Pool of your choice. Defaults to false."
+        help = "Join a Mining Pool of your choice. Defaults to false.",
+        global = true
     )]
     pool: bool,
 
@@ -253,7 +254,9 @@ async fn main() {
         }
         Commands::Mine(mine_args) => match args.pool {
             true => {
-                let _ = miner.mine_pool(mine_args).await;
+                if let Err(err) = miner.mine_pool(mine_args).await {
+                    println!("{}", format!("{:?}", err));
+                }
             }
             false => {
                 miner.mine(mine_args).await;
