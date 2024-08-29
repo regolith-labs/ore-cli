@@ -146,6 +146,13 @@ pub struct StakeArgs {
         help = "Token account to send COAL from. Defaults to the associated token account."
     )]
     pub token_account: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "RESOURCE",
+        help = "The token to stake."
+    )]
+    pub resource: Option<String>,
 }
 
 #[derive(Parser, Debug)]

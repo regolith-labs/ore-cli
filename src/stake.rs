@@ -5,20 +5,23 @@ use solana_sdk::signature::Signer;
 
 use crate::{
     args::StakeArgs, cu_limits::CU_LIMIT_CLAIM, send_and_confirm::ComputeBudget,
-    utils::amount_f64_to_u64, Miner,
+    utils::{amount_f64_to_u64, get_resource_from_str, Resource, get_resource_mint}, Miner,
 };
 
 impl Miner {
     pub async fn stake(&self, args: StakeArgs) {
         // Get signer
         let signer = self.signer();
+        let resource = get_resource_from_str(&args.resource);
+        let mint = get_resource_mint(&resource);
+        
         let sender = match args.token_account {
             Some(address) => {
                 Pubkey::from_str(&address).expect("Failed to parse token account address")
             }
             None => spl_associated_token_account::get_associated_token_address(
                 &signer.pubkey(),
-                &coal_api::consts::MINT_ADDRESS,
+                &mint,
             ),
         };
 
@@ -37,7 +40,11 @@ impl Miner {
         };
 
         // Send tx
-        let ix = coal_api::instruction::stake(signer.pubkey(), sender, amount);
+        let ix = match resource {
+            Resource::Ingots => smelter_api::instruction::stake(signer.pubkey(), sender, amount),
+            Resource::Ore => ore_api::instruction::stake(signer.pubkey(), sender, amount),
+            _ => coal_api::instruction::stake(signer.pubkey(), sender, amount),
+        };
         self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
             .await
             .ok();
