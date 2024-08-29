@@ -11,7 +11,7 @@ impl Miner {
         last_hash_at: i64,
     ) -> Result<MemberChallenge, Error> {
         let mut retries = 0;
-        let max_retries = 10;
+        let max_retries = 12; // 60 seconds, should yield new challenge
         loop {
             let challenge = self.get_pool_challenge(http_client).await?;
             println!("fetched: {:?}", challenge.challenge.lash_hash_at);
