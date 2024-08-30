@@ -84,9 +84,6 @@ impl Miner {
                 &tip_pubkey,
                 tip_amount,
             ));
-            progress_bar.println(format!("  Additional tip: {} lamports", tip_amount));
-        } else {
-            progress_bar.println("  No additional tip: Priority fee is zero");
         }
 
         final_ixs.extend_from_slice(ixs);
@@ -100,15 +97,12 @@ impl Miner {
         loop {
             progress_bar.println(format!("Attempt {} of {}", attempts + 1, GATEWAY_RETRIES));
             if attempts > GATEWAY_RETRIES {
-                progress_bar.println("Max gateway retries reached. Exiting send_and_confirm_bx.");
                 return Err(ClientError::from(ClientErrorKind::Custom(
                     "Max gateway retries reached".into(),
                 )));
             }
 
             if attempts % 10 == 0 {
-                progress_bar.println("Resigning transaction and resetting skip_submit");
-                // Reset the compute unit price and resign the transaction
                 if self.dynamic_fee {
                     let fee = match self.dynamic_fee().await {
                         Ok(fee) => {
@@ -133,7 +127,6 @@ impl Miner {
                     tx = Transaction::new_with_payer(&final_ixs, Some(&fee_payer.pubkey()));
                 }
 
-                // Resign the tx
                 let (hash, _slot) = get_latest_blockhash_with_retries(&self.rpc_client).await?;
                 if signer.pubkey() == fee_payer.pubkey() {
                     tx.sign(&[&signer], hash);
@@ -141,13 +134,10 @@ impl Miner {
                     tx.sign(&[&signer, &fee_payer], hash);
                 }
 
-                // Reset skip_submit flag as we have a new transaction
                 skip_submit = false;
             }
 
             if !skip_submit {
-                progress_bar.println("Preparing to submit to Bloxroute");
-
                 let tx_data = base64::prelude::BASE64_STANDARD.encode(
                     bincode::serialize(&tx).map_err(|e| {
                         progress_bar.println("Failed to serialize TX");
@@ -158,7 +148,6 @@ impl Miner {
                     })?,
                 );
 
-                // Prepare request
                 let request = PostSubmitRequest {
                     transaction: TransactionMessage {
                         content: tx_data,
@@ -171,8 +160,6 @@ impl Miner {
                     fast_best_effort: Some(false),
                 };
 
-                // Submit transaction
-                progress_bar.set_message("Submitting transaction to Bloxroute...");
                 let client = reqwest::Client::new();
 
                 let response = client.post(BLOXROUTE_URL).json(&request).send().await;
@@ -201,8 +188,7 @@ impl Miner {
                     }
                 };
 
-                println!("Response Status: {}", status);
-                println!("Bloxroute Endpoint Response: {}", response_text);
+                println!("bloxroute response status: {}", status);
 
                 let json_response: Value = serde_json::from_str(&response_text).map_err(|e| {
                     progress_bar.println(format!("Failed to get parse reponse json: {}", e));
@@ -248,8 +234,6 @@ impl Miner {
                     };
 
                     if should_retry_rpc {
-                        progress_bar.println("Attempting via fallback Jito...");
-                        // attempt to send via RPC client
                         let send_cfg = RpcSendTransactionConfig {
                             skip_preflight: true,
                             preflight_commitment: Some(CommitmentLevel::Confirmed),
@@ -272,12 +256,7 @@ impl Miner {
                                 ));
                             }
                             Err(e) => {
-                                progress_bar
-                                    .println(format!("Failed to send transaction via Jito: {}", e));
-
-                                // Only try the fallback RPC if we still don't have a signature
                                 if signature.is_none() {
-                                    progress_bar.println("Attempting via fallback RPC...");
                                     match self
                                         .rpc_client
                                         .send_transaction_with_config(&tx, send_cfg)
@@ -305,7 +284,7 @@ impl Miner {
                 }
             } else {
                 progress_bar.println(format!(
-                    "Skipping BLXR Endpoint: Signature for confirmation: {:?}",
+                    "Skipping BLXR Endpoint: Active sig: {:?}",
                     signature
                 ));
             }

@@ -41,15 +41,11 @@ impl Miner {
         let mut last_balance = 0;
         let mut loop_count = 0;
         loop {
-            println!("Starting mining loop iteration {}", loop_count);
-
             // Fetch proof
             let config = get_config(&self.rpc_client).await;
-            println!("Fetched config: {:?}", config);
             let proof =
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
-            println!("Fetched proof: {:?}", proof);
 
             println!(
                 "\n\nStake: {} ORE\n{}  Multiplier: {:12}x",
@@ -67,10 +63,8 @@ impl Miner {
 
             // Calculate cutoff time
             let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
-            println!("Calculated cutoff time: {}", cutoff_time);
 
             // Run drillx
-            println!("Starting hash finding process");
             let solution =
                 Self::find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32)
                     .await;
@@ -86,9 +80,7 @@ impl Miner {
             }
 
             // Build mine ix
-            println!("Finding bus");
             let bus = self.find_bus().await;
-            println!("Found bus: {}", bus);
             ixs.push(ore_api::instruction::mine(
                 signer.pubkey(),
                 signer.pubkey(),
