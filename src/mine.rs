@@ -88,11 +88,8 @@ impl Miner {
                 solution,
             ));
 
-            println!("Built {} instructions", ixs.len());
-
             if args.bloxroute {
                 // submit transaction to bloxroute
-                println!("Submitting transaction to bloxroute");
                 match self
                     .send_and_confirm_bx(&ixs, ComputeBudget::Fixed(compute_budget))
                     .await
@@ -110,7 +107,6 @@ impl Miner {
                 }
             } else {
                 // Submit transaction
-                println!("Submitting transaction to regular RPC");
                 match self
                     .send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
                     .await
@@ -127,8 +123,6 @@ impl Miner {
                     Err(e) => println!("Error submitting transaction: {:?}", e),
                 }
             }
-
-            println!("Completed mining loop iteration {}", loop_count);
         }
     }
 
