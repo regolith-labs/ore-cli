@@ -45,10 +45,6 @@ pub async fn get_updated_proof_with_authority(
     authority: Pubkey,
     lash_hash_at: i64,
 ) -> Proof {
-    println!(
-        "Entering get_updated_proof_with_authority. Authority: {}, Last hash at: {}",
-        authority, lash_hash_at
-    );
     loop {
         let proof = get_proof_with_authority(client, authority).await;
         if proof.last_hash_at.gt(&lash_hash_at) {

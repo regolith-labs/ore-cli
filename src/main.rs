@@ -151,6 +151,7 @@ struct Args {
         global = true
     )]
     jito: bool,
+    
     #[command(subcommand)]
     command: Commands,
 }
