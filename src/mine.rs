@@ -26,11 +26,8 @@ use crate::{
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) {
-        println!("Starting mining process with args: {:?}", args);
-
         // Open account, if needed.
         let signer = self.signer();
-        println!("Signer public key: {}", signer.pubkey());
         self.open().await;
 
         // Check num threads
@@ -39,7 +36,6 @@ impl Miner {
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance = 0;
-        let mut loop_count = 0;
         loop {
             // Fetch proof
             let config = get_config(&self.rpc_client).await;
@@ -68,14 +64,12 @@ impl Miner {
             let solution =
                 Self::find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32)
                     .await;
-            println!("Found solution: {:?}", solution);
 
             // Build instruction set
             let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
             let mut compute_budget = 500_000;
             if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
                 compute_budget += 100_000;
-                println!("Adding reset instruction");
                 ixs.push(ore_api::instruction::reset(signer.pubkey()));
             }
 
