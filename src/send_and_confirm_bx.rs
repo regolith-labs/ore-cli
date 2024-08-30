@@ -277,6 +277,10 @@ impl Miner {
                                             ));
                                         }
                                     }
+                                    progress_bar.println(format!(
+                                        "Fallback rpc error: {}",
+                                        e
+                                    ))
                                 }
                             }
                         }

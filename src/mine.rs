@@ -74,11 +74,10 @@ impl Miner {
             }
 
             // Build mine ix
-            let bus = self.find_bus().await;
             ixs.push(ore_api::instruction::mine(
                 signer.pubkey(),
                 signer.pubkey(),
-                bus,
+                self.find_bus().await,
                 solution,
             ));
 
@@ -91,7 +90,6 @@ impl Miner {
                     Ok(signature) => {
                         last_hash_at = proof.last_hash_at;
                         last_balance = proof.balance;
-                        loop_count += 1;
                         println!(
                             "Transaction submitted successfully. Signature: {}",
                             signature
@@ -108,7 +106,6 @@ impl Miner {
                     Ok(signature) => {
                         last_hash_at = proof.last_hash_at;
                         last_balance = proof.balance;
-                        loop_count += 1;
                         println!(
                             "Transaction submitted successfully. Signature: {}",
                             signature
