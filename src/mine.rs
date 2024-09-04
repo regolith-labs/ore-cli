@@ -107,20 +107,32 @@ impl Miner {
         }
     }
 
-    // TODO: register with pool, if needed.
     pub async fn mine_pool(&self, args: MineArgs) -> Result<(), Error> {
+        let http_client = &reqwest::Client::new();
+        // register, if needed
+        let mut pool_member = self.post_pool_register(http_client).await?;
         // Check num threads
         self.check_num_cores(args.cores);
         // Start mining loop
         let mut last_hash_at = 0;
-        let http_client = &reqwest::Client::new();
+        let mut last_balance = 0;
         loop {
             // Fetch latest challenge
             let member_challenge = self
                 .get_updated_pool_challenge(http_client, last_hash_at)
                 .await?;
             println!("member challenge: {:?}", member_challenge);
+            if last_hash_at.gt(&0) {
+                println!(
+                    "Change: {} ORE",
+                    amount_u64_to_string(
+                        pool_member.total_balance.saturating_sub(last_balance) as u64
+                    )
+                )
+            }
+            last_balance = pool_member.total_balance;
             last_hash_at = member_challenge.challenge.lash_hash_at;
+            // TODO: cutoff time here
             let cutoff_time = member_challenge.challenge.cutoff_time;
             // Build nonce indices
             let u64_unit = u64::MAX.saturating_div(member_challenge.num_total_members);
@@ -146,6 +158,8 @@ impl Miner {
             println!("solution: {:?}", solution);
             // Post solution to operator
             self.post_pool_solution(http_client, &solution).await?;
+            // Get updated pool member
+            pool_member = self.get_pool_member(http_client).await?;
         }
     }
 

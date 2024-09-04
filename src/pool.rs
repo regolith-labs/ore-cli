@@ -1,10 +1,42 @@
 use drillx::Solution;
-use ore_pool_types::{ContributePayload, MemberChallenge};
+use ore_pool_types::{ContributePayload, Member, MemberChallenge, RegisterPayload};
 use solana_sdk::{signature::Signature, signer::Signer};
 
 use crate::{error::Error, Miner};
 
 impl Miner {
+    pub async fn post_pool_register(&self, http_client: &reqwest::Client) -> Result<Member, Error> {
+        let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
+            "must specify the pool url flag".to_string(),
+        ))?;
+        let pubkey = self.signer().pubkey();
+        let post_url = format!("{}/register", pool_url);
+        let body = RegisterPayload { authority: pubkey };
+        http_client
+            .post(post_url)
+            .json(&body)
+            .send()
+            .await?
+            .json::<Member>()
+            .await
+            .map_err(From::from)
+    }
+
+    pub async fn get_pool_member(&self, http_client: &reqwest::Client) -> Result<Member, Error> {
+        let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
+            "must specify the pool url flag".to_string(),
+        ))?;
+        let pubkey = self.signer().pubkey();
+        let get_url = format!("{}/member/{}", pool_url, pubkey);
+        http_client
+            .get(get_url)
+            .send()
+            .await?
+            .json::<Member>()
+            .await
+            .map_err(From::from)
+    }
+
     pub async fn get_updated_pool_challenge(
         &self,
         http_client: &reqwest::Client,
