@@ -111,6 +111,7 @@ impl Miner {
         let http_client = &reqwest::Client::new();
         // register, if needed
         let mut pool_member = self.post_pool_register(http_client).await?;
+        println!("{:?}", pool_member);
         let nonce_index = pool_member.id as u64;
         // Check num threads
         self.check_num_cores(args.cores);
