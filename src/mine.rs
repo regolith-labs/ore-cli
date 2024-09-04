@@ -140,9 +140,7 @@ impl Miner {
             // Build nonce indices
             let u64_unit = u64::MAX.saturating_div(member_challenge.num_total_members);
             let left_bound = u64_unit.saturating_mul(nonce_index);
-            let right_bound = u64_unit.saturating_div(nonce_index);
-            let total_range = right_bound - left_bound + 1;
-            let range_per_core = total_range.saturating_div(args.cores);
+            let range_per_core = u64_unit.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
             for n in 0..(args.cores) {
                 let index = left_bound + n * range_per_core;
