@@ -67,8 +67,7 @@ impl Miner {
         let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
             "must specify the pool url flag".to_string(),
         ))?;
-        let pubkey = self.signer().pubkey();
-        let get_url = format!("{}/challenge/{}", pool_url, pubkey);
+        let get_url = format!("{}/challenge", pool_url);
         let resp = http_client.get(get_url).send().await?;
         resp.json::<MemberChallenge>().await.map_err(From::from)
     }

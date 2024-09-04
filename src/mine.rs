@@ -11,7 +11,7 @@ use drillx::{
 };
 use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
-    state::{Bus, Config, Proof},
+    state::{Bus, Config},
 };
 use ore_utils::AccountDeserialize;
 use rand::Rng;
@@ -64,7 +64,7 @@ impl Miner {
             last_balance = proof.balance;
 
             // Calculate cutoff time
-            let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
+            let cutoff_time = self.get_cutoff(proof.last_hash_at, args.buffer_time).await;
 
             // Build nonce indices
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
@@ -111,6 +111,7 @@ impl Miner {
         let http_client = &reqwest::Client::new();
         // register, if needed
         let mut pool_member = self.post_pool_register(http_client).await?;
+        let nonce_index = pool_member.id as u64;
         // Check num threads
         self.check_num_cores(args.cores);
         // Start mining loop
@@ -122,6 +123,7 @@ impl Miner {
                 .get_updated_pool_challenge(http_client, last_hash_at)
                 .await?;
             println!("member challenge: {:?}", member_challenge);
+            // Print progress
             if last_hash_at.gt(&0) {
                 println!(
                     "Change: {} ORE",
@@ -130,14 +132,15 @@ impl Miner {
                     )
                 )
             }
+            // Increment last balance and hash
             last_balance = pool_member.total_balance;
             last_hash_at = member_challenge.challenge.lash_hash_at;
-            // TODO: cutoff time here
-            let cutoff_time = member_challenge.challenge.cutoff_time;
+            // Compute cutoff time
+            let cutoff_time = self.get_cutoff(last_hash_at, member_challenge.buffer).await;
             // Build nonce indices
             let u64_unit = u64::MAX.saturating_div(member_challenge.num_total_members);
-            let left_bound = u64_unit.saturating_mul(member_challenge.nonce_index);
-            let right_bound = u64_unit.saturating_div(member_challenge.nonce_index + 1);
+            let left_bound = u64_unit.saturating_mul(nonce_index);
+            let right_bound = u64_unit.saturating_div(nonce_index);
             let total_range = right_bound - left_bound + 1;
             let range_per_core = total_range.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
@@ -298,10 +301,9 @@ impl Miner {
             .le(&clock.unix_timestamp)
     }
 
-    async fn get_cutoff(&self, proof: Proof, buffer_time: u64) -> u64 {
+    async fn get_cutoff(&self, last_hash_at: i64, buffer_time: u64) -> u64 {
         let clock = get_clock(&self.rpc_client).await;
-        proof
-            .last_hash_at
+        last_hash_at
             .saturating_add(60)
             .saturating_sub(buffer_time as i64)
             .saturating_sub(clock.unix_timestamp)
