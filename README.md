@@ -42,6 +42,20 @@ To build the codebase from scratch, checkout the repo and use cargo to build:
 cargo build --release
 ```
 
+## Bloxroute
+
+To run using Trader Api use the following command:
+
+```
+ore \
+  --rpc <RPC_ENDPOINT> \
+  --priority-fee 30000 \
+  --jito mine \
+  --cores 8 \
+  --bxr \
+  --buffer-time 4
+```
+
 ## Help
 
 You can use the `-h` flag on any command to pull up a help menu with documentation:
