@@ -14,6 +14,7 @@ mod open;
 mod proof;
 mod rewards;
 mod send_and_confirm;
+mod send_and_confirm_bx;
 mod stake;
 mod transfer;
 mod upgrade;
@@ -150,7 +151,7 @@ struct Args {
         global = true
     )]
     jito: bool,
-
+    
     #[command(subcommand)]
     command: Commands,
 }

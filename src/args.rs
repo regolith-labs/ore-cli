@@ -69,6 +69,14 @@ pub struct MineArgs {
         default_value = "5"
     )]
     pub buffer_time: u64,
+
+    #[arg(
+        long = "bxr",
+        value_name = "BLOXROUTE",
+        help = "Enable bloxroute routing",
+        default_value = "false"
+    )]
+    pub bloxroute: bool,
 }
 
 #[derive(Parser, Debug)]
