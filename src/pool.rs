@@ -5,6 +5,7 @@ use solana_sdk::{signature::Signature, signer::Signer};
 use crate::{error::Error, Miner};
 
 impl Miner {
+    // TODO: build and sign tx here
     pub async fn post_pool_register(&self, http_client: &reqwest::Client) -> Result<Member, Error> {
         let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
             "must specify the pool url flag".to_string(),

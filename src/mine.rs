@@ -139,9 +139,14 @@ impl Miner {
             // Compute cutoff time
             let cutoff_time = self.get_cutoff(last_hash_at, member_challenge.buffer).await;
             // Build nonce indices
+            println!("num members: {}", member_challenge.num_total_members);
             let u64_unit = u64::MAX.saturating_div(member_challenge.num_total_members);
+            println!("unit: {}", u64_unit);
             let left_bound = u64_unit.saturating_mul(nonce_index);
+            println!("left bound: {}", left_bound);
             let range_per_core = u64_unit.saturating_div(args.cores);
+            println!("cores: {}", args.cores);
+            println!("range per core: {}", range_per_core);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
             for n in 0..(args.cores) {
                 let index = left_bound + n * range_per_core;
@@ -185,6 +190,7 @@ impl Miner {
                     let progress_bar = progress_bar.clone();
                     println!("{:?}", i);
                     let nonce = nonce_indices[i.id];
+                    println!("core nonce start: {}", nonce);
                     let mut memory = equix::SolverMemory::new();
                     move || {
                         // Pin to core
@@ -208,6 +214,7 @@ impl Miner {
                             for hx in hxs {
                                 let difficulty = hx.difficulty();
                                 if difficulty.gt(&best_difficulty) {
+                                    println!("new best nonce: {}", nonce);
                                     best_nonce = nonce;
                                     best_difficulty = difficulty;
                                     best_hash = hx;
@@ -277,6 +284,7 @@ impl Miner {
             best_difficulty
         ));
 
+        println!("final best nonce: {}", best_nonce);
         Solution::new(best_hash.d, best_nonce.to_le_bytes())
     }
 
