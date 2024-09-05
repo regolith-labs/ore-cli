@@ -1,6 +1,8 @@
 mod args;
 mod balance;
 mod benchmark;
+#[cfg(feature = "admin")]
+mod boost;
 mod busses;
 mod claim;
 mod close;
@@ -89,6 +91,10 @@ enum Commands {
     #[cfg(feature = "admin")]
     #[command(about = "Initialize the program")]
     Initialize(InitializeArgs),
+
+    #[cfg(feature = "admin")]
+    #[command(about = "Create a new boost")]
+    Boost(BoostArgs),
 }
 
 #[derive(Parser, Debug)]
@@ -260,6 +266,10 @@ async fn main() {
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {
             miner.initialize().await;
+        }
+        #[cfg(feature = "admin")]
+        Commands::Boost(args) => {
+            miner.boost(args).await;
         }
     }
 }

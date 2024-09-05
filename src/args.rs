@@ -50,6 +50,19 @@ pub struct ConfigArgs {}
 #[derive(Parser, Debug)]
 pub struct InitializeArgs {}
 
+#[cfg(feature = "admin")]
+#[derive(Parser, Debug)]
+pub struct BoostArgs {
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint to create a boost for.")]
+    pub mint: String,
+
+    #[arg(
+        value_name = "MULTIPLIER",
+        help = "The multiplier to give to this token"
+    )]
+    pub multiplier: u64,
+}
+
 #[derive(Parser, Debug)]
 pub struct MineArgs {
     #[arg(
@@ -69,6 +82,30 @@ pub struct MineArgs {
         default_value = "5"
     )]
     pub buffer_time: u64,
+
+    #[arg(
+        long,
+        short,
+        value_name = "MINT_ADDRESS",
+        help = "The token to apply as boost #1"
+    )]
+    pub boost_1: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "MINT_ADDRESS",
+        help = "The token to apply as boost #2"
+    )]
+    pub boost_2: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "MINT_ADDRESS",
+        help = "The token to apply as boost #3"
+    )]
+    pub boost_3: Option<String>,
 }
 
 #[derive(Parser, Debug)]

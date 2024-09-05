@@ -1,25 +1,33 @@
-use std::{sync::Arc, sync::RwLock, time::Instant};
+use std::{str::FromStr, sync::Arc, sync::RwLock, time::Instant};
 
 use colored::*;
 use drillx::{
     equix::{self},
     Hash, Solution,
 };
+use mpl_token_metadata::accounts::Metadata;
 use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
     state::{Bus, Config, Proof},
 };
+use ore_boost_api::state::{boost_pda, stake_pda};
 use ore_utils::AccountDeserialize;
 use rand::Rng;
-use solana_program::pubkey::Pubkey;
-use solana_rpc_client::spinner;
+use solana_program::{
+    instruction::{AccountMeta, Instruction},
+    program_pack::Pack,
+    pubkey::Pubkey,
+};
+use solana_rpc_client::{nonblocking::rpc_client::RpcClient, spinner};
 use solana_sdk::signer::Signer;
+use spl_token::state::Mint;
 
 use crate::{
     args::MineArgs,
     send_and_confirm::ComputeBudget,
     utils::{
-        amount_u64_to_string, get_clock, get_config, get_updated_proof_with_authority, proof_pubkey,
+        amount_u64_to_string, get_boost, get_clock, get_config, get_stake,
+        get_updated_proof_with_authority, proof_pubkey,
     },
     Miner,
 };
@@ -33,6 +41,14 @@ impl Miner {
         // Check num threads
         self.check_num_cores(args.cores);
 
+        // Fetch boost data
+        let boost_data_1 =
+            fetch_boost_data(self.rpc_client.clone(), signer.pubkey(), &args.boost_1).await;
+        let boost_data_2 =
+            fetch_boost_data(self.rpc_client.clone(), signer.pubkey(), &args.boost_2).await;
+        let boost_data_3 =
+            fetch_boost_data(self.rpc_client.clone(), signer.pubkey(), &args.boost_3).await;
+
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance = 0;
@@ -42,19 +58,25 @@ impl Miner {
             let proof =
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
+
+            // Print unclaimed balance
             println!(
-                "\n\nStake: {} ORE\n{}  Multiplier: {:12}x",
+                "\n\nBalance: {} ORE{}",
                 amount_u64_to_string(proof.balance),
                 if last_hash_at.gt(&0) {
                     format!(
-                        "  Change: {} ORE\n",
+                        "\n  Change: {} ORE",
                         amount_u64_to_string(proof.balance.saturating_sub(last_balance))
                     )
                 } else {
                     "".to_string()
                 },
-                calculate_multiplier(proof.balance, config.top_balance)
             );
+
+            // Print boosts
+            log_boost_data(self.rpc_client.clone(), &boost_data_1, 1).await;
+            log_boost_data(self.rpc_client.clone(), &boost_data_2, 2).await;
+            log_boost_data(self.rpc_client.clone(), &boost_data_3, 3).await;
             last_hash_at = proof.last_hash_at;
             last_balance = proof.balance;
 
@@ -68,7 +90,7 @@ impl Miner {
 
             // Build instruction set
             let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
-            let mut compute_budget = 500_000;
+            let mut compute_budget = 600_000;
             // if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
             if self.should_reset(config).await {
                 compute_budget += 100_000;
@@ -76,12 +98,16 @@ impl Miner {
             }
 
             // Build mine ix
-            ixs.push(ore_api::instruction::mine(
+            let mut ix = ore_api::instruction::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
-            ));
+            );
+            apply_boost(&mut ix, &boost_data_1);
+            apply_boost(&mut ix, &boost_data_2);
+            apply_boost(&mut ix, &boost_data_3);
+            ixs.push(ix);
 
             // Submit transaction
             self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
@@ -262,8 +288,73 @@ impl Miner {
     }
 }
 
-fn calculate_multiplier(balance: u64, top_balance: u64) -> f64 {
-    1.0 + (balance as f64 / top_balance as f64).min(1.0f64)
+#[derive(Clone)]
+struct BoostData {
+    boost_address: Pubkey,
+    stake_address: Pubkey,
+    mint: Mint,
+    metadata: Option<Metadata>,
+}
+
+async fn fetch_boost_data(
+    rpc: Arc<RpcClient>,
+    authority: Pubkey,
+    mint_address: &Option<String>,
+) -> Option<BoostData> {
+    let Some(mint_address) = mint_address else {
+        return None;
+    };
+    let mint_address = Pubkey::from_str(&mint_address).unwrap();
+    let boost_address = boost_pda(mint_address).0;
+    let stake_address = stake_pda(authority, boost_address).0;
+    let mint = rpc
+        .get_account_data(&mint_address)
+        .await
+        .map(|data| Mint::unpack(&data).unwrap())
+        .unwrap();
+    let metadata = rpc
+        .get_account_data(&Metadata::find_pda(&mint_address).0)
+        .await
+        .ok()
+        .map(|data| Metadata::from_bytes(&data).unwrap());
+    Some(BoostData {
+        boost_address,
+        stake_address,
+        mint,
+        metadata,
+    })
+}
+
+async fn log_boost_data(rpc: Arc<RpcClient>, boost_data: &Option<BoostData>, id: u64) {
+    if let Some(boost_data) = boost_data {
+        let boost = get_boost(&rpc, boost_data.boost_address).await;
+        let stake = get_stake(&rpc, boost_data.stake_address).await;
+        let multiplier =
+            (boost.multiplier as f64) * (stake.balance as f64) / (boost.total_stake as f64);
+        println!(
+            "  Boost {}: {:12}x ({})",
+            id,
+            multiplier,
+            format!(
+                "{} of {}{}",
+                stake.balance as f64 / 10f64.powf(boost_data.mint.decimals as f64),
+                boost.total_stake as f64 / 10f64.powf(boost_data.mint.decimals as f64),
+                boost_data
+                    .clone()
+                    .metadata
+                    .map_or("".to_string(), |m| format!(" {}", m.symbol))
+            )
+        );
+    }
+}
+
+fn apply_boost(ix: &mut Instruction, boost_data: &Option<BoostData>) {
+    if let Some(boost_data) = boost_data {
+        ix.accounts
+            .push(AccountMeta::new_readonly(boost_data.boost_address, false));
+        ix.accounts
+            .push(AccountMeta::new_readonly(boost_data.stake_address, false));
+    }
 }
 
 fn format_duration(seconds: u32) -> String {

@@ -63,6 +63,7 @@ impl Miner {
             .await
             .is_err()
         {
+            println!("Failed to fetch stake account");
             let ix = ore_boost_api::instruction::open(signer.pubkey(), mint_address);
             self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
                 .await
