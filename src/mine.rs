@@ -30,7 +30,19 @@ use crate::{
 };
 
 impl Miner {
-    pub async fn mine(&self, args: MineArgs) {
+    pub async fn mine(&self, args: MineArgs, pool_url: Option<String>) -> Result<(), Error> {
+        match pool_url {
+            Some(_) => {
+                self.mine_pool(args).await?;
+            }
+            None => {
+                self.mine_solo(args).await;
+            }
+        }
+        Ok(())
+    }
+
+    async fn mine_solo(&self, args: MineArgs) {
         // Open account, if needed.
         let signer = self.signer();
         self.open().await;
@@ -107,7 +119,7 @@ impl Miner {
         }
     }
 
-    pub async fn mine_pool(&self, args: MineArgs) -> Result<(), Error> {
+    async fn mine_pool(&self, args: MineArgs) -> Result<(), Error> {
         let http_client = &reqwest::Client::new();
         // register, if needed
         let mut pool_member = self.post_pool_register(http_client).await?;

@@ -162,14 +162,6 @@ struct Args {
     )]
     pool_url: Option<String>,
 
-    #[arg(
-        long,
-        value_name = "POOL",
-        help = "Join a Mining Pool of your choice. Defaults to false.",
-        global = true
-    )]
-    pool: bool,
-
     #[command(subcommand)]
     command: Commands,
 }
@@ -229,7 +221,7 @@ async fn main() {
         Some(fee_payer_filepath),
         Arc::new(jito_client),
         tip,
-        args.pool_url,
+        args.pool_url.clone(),
     ));
 
     // Execute user command.
@@ -252,16 +244,11 @@ async fn main() {
         Commands::Config(_) => {
             miner.config().await;
         }
-        Commands::Mine(mine_args) => match args.pool {
-            true => {
-                if let Err(err) = miner.mine_pool(mine_args).await {
-                    println!("{}", format!("{:?}", err));
-                }
+        Commands::Mine(mine_args) => {
+            if let Err(err) = miner.mine(mine_args, args.pool_url).await {
+                println!("{:?}", err);
             }
-            false => {
-                miner.mine(mine_args).await;
-            }
-        },
+        }
         Commands::Proof(args) => {
             miner.proof(args).await;
         }
