@@ -21,7 +21,7 @@ impl Miner {
         pool_url: Option<String>,
     ) -> Result<(), crate::error::Error> {
         match pool_url {
-            Some(pool_url) => {
+            Some(_pool_url) => {
                 let _ = self.claim_from_pool(args).await?;
                 Ok(())
             }
