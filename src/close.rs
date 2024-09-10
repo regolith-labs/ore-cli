@@ -28,7 +28,7 @@ impl Miner {
 
         // Claim stake
         if proof.balance.gt(&0) {
-            self.claim(ClaimArgs {
+            self.claim_from_proof(ClaimArgs {
                 amount: None,
                 to: None,
             })

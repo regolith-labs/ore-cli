@@ -235,8 +235,10 @@ async fn main() {
         Commands::Busses(_) => {
             miner.busses().await;
         }
-        Commands::Claim(args) => {
-            miner.claim(args).await;
+        Commands::Claim(claim_args) => {
+            if let Err(err) = miner.claim(claim_args, args.pool_url).await {
+                println!("{:?}", err);
+            }
         }
         Commands::Close(_) => {
             miner.close().await;

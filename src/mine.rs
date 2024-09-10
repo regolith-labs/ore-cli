@@ -82,7 +82,6 @@ impl Miner {
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
             for n in 0..(args.cores) {
                 let nonce = u64::MAX.saturating_div(args.cores).saturating_mul(n);
-                println!("nonce: {}", nonce);
                 nonce_indices.push(nonce);
             }
 
@@ -123,8 +122,10 @@ impl Miner {
         let http_client = &reqwest::Client::new();
         // register, if needed
         let mut pool_member = self.post_pool_register(http_client).await?;
-        println!("{:?}", pool_member);
         let nonce_index = pool_member.id as u64;
+        // get on-chain pool accounts
+        let pool_address = self.get_pool_address(http_client).await?;
+        let mut pool_member_onchain = self.get_pool_member_onchain(pool_address.address).await?;
         // Check num threads
         self.check_num_cores(args.cores);
         // Start mining loop
@@ -135,11 +136,14 @@ impl Miner {
             let member_challenge = self
                 .get_updated_pool_challenge(http_client, last_hash_at)
                 .await?;
-            println!("member challenge: {:?}", member_challenge);
             // Print progress
+            println!(
+                "Claimable ORE balance: {}",
+                amount_u64_to_string(pool_member_onchain.balance)
+            );
             if last_hash_at.gt(&0) {
                 println!(
-                    "Change: {} ORE",
+                    "Change of ORE credits in pool from last hash: {}",
                     amount_u64_to_string(
                         pool_member.total_balance.saturating_sub(last_balance) as u64
                     )
@@ -151,18 +155,12 @@ impl Miner {
             // Compute cutoff time
             let cutoff_time = self.get_cutoff(last_hash_at, member_challenge.buffer).await;
             // Build nonce indices
-            println!("num members: {}", member_challenge.num_total_members);
             let u64_unit = u64::MAX.saturating_div(member_challenge.num_total_members);
-            println!("unit: {}", u64_unit);
             let left_bound = u64_unit.saturating_mul(nonce_index);
-            println!("left bound: {}", left_bound);
             let range_per_core = u64_unit.saturating_div(args.cores);
-            println!("cores: {}", args.cores);
-            println!("range per core: {}", range_per_core);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
             for n in 0..(args.cores) {
                 let index = left_bound + n * range_per_core;
-                println!("index: {}", index);
                 nonce_indices.push(index);
             }
             // Run drillx
@@ -174,11 +172,12 @@ impl Miner {
                 nonce_indices.as_slice(),
             )
             .await;
-            println!("solution: {:?}", solution);
             // Post solution to operator
             self.post_pool_solution(http_client, &solution).await?;
             // Get updated pool member
             pool_member = self.get_pool_member(http_client).await?;
+            // Get updated on-chain pool member
+            pool_member_onchain = self.get_pool_member_onchain(pool_address.address).await?;
         }
     }
 
@@ -200,9 +199,7 @@ impl Miner {
                 let global_best_difficulty = Arc::clone(&global_best_difficulty);
                 std::thread::spawn({
                     let progress_bar = progress_bar.clone();
-                    println!("{:?}", i);
                     let nonce = nonce_indices[i.id];
-                    println!("core nonce start: {}", nonce);
                     let mut memory = equix::SolverMemory::new();
                     move || {
                         // Pin to core
@@ -226,7 +223,6 @@ impl Miner {
                             for hx in hxs {
                                 let difficulty = hx.difficulty();
                                 if difficulty.gt(&best_difficulty) {
-                                    println!("new best nonce: {}", nonce);
                                     best_nonce = nonce;
                                     best_difficulty = difficulty;
                                     best_hash = hx;
@@ -296,7 +292,6 @@ impl Miner {
             best_difficulty
         ));
 
-        println!("final best nonce: {}", best_nonce);
         Solution::new(best_hash.d, best_nonce.to_le_bytes())
     }
 

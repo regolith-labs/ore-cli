@@ -2752,9 +2752,9 @@ dependencies = [
 
 [[package]]
 name = "ore-api"
-version = "2.1.8"
+version = "2.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c67c8c00902d0cb31d7e1bdcc6caf81c80e4a1f11ca48054eb609e41b6065b4"
+checksum = "26f004e50a7fba301eb53caa4f8ce772c1a512f314de64cff580f90fb1dff8d1"
 dependencies = [
  "array-const-fn-init",
  "bytemuck",
@@ -2787,6 +2787,7 @@ dependencies = [
  "indicatif",
  "num_cpus",
  "ore-api",
+ "ore-pool-api",
  "ore-utils",
  "rand 0.8.5",
  "reqwest 0.12.4",
@@ -2808,10 +2809,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "ore-pool-api"
+version = "0.0.1"
+dependencies = [
+ "array-const-fn-init",
+ "bytemuck",
+ "const-crypto",
+ "drillx",
+ "mpl-token-metadata",
+ "num_enum 0.7.2",
+ "ore-api",
+ "ore-utils",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+ "static_assertions",
+ "thiserror",
+]
+
+[[package]]
 name = "ore-utils"
-version = "2.1.8"
+version = "2.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c92cb0b8a4c9583113b78c87a5372d71825ec3432402cb843e1ffc6af9f6b7d"
+checksum = "7a2d6933b14c84fb91ad7ab2e8fccff589884a81507c1a198dea4f03f3180ef4"
 dependencies = [
  "bytemuck",
  "solana-program",

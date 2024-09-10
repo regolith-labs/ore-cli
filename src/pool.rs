@@ -1,6 +1,7 @@
 use drillx::Solution;
-use ore_pool_types::{ContributePayload, Member, MemberChallenge, RegisterPayload};
-use solana_sdk::{signature::Signature, signer::Signer};
+use ore_pool_types::{ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload};
+use ore_utils::AccountDeserialize;
+use solana_sdk::{pubkey::Pubkey, signature::Signature, signer::Signer};
 
 use crate::{error::Error, Miner};
 
@@ -21,6 +22,33 @@ impl Miner {
             .json::<Member>()
             .await
             .map_err(From::from)
+    }
+
+    pub async fn get_pool_address(
+        &self,
+        http_client: &reqwest::Client,
+    ) -> Result<PoolAddress, Error> {
+        let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
+            "must specify the pool url flag".to_string(),
+        ))?;
+        let get_url = format!("{}/pool-address", pool_url);
+        http_client
+            .get(get_url)
+            .send()
+            .await?
+            .json::<PoolAddress>()
+            .await
+            .map_err(From::from)
+    }
+
+    pub async fn get_pool_member_onchain(
+        &self,
+        pool_address: Pubkey,
+    ) -> Result<ore_pool_api::state::Member, Error> {
+        let (member_pda, _) = ore_pool_api::state::member_pda(self.signer().pubkey(), pool_address);
+        let data = self.rpc_client.get_account_data(&member_pda).await?;
+        let pool = ore_pool_api::state::Member::try_from_bytes(data.as_slice())?;
+        Ok(*pool)
     }
 
     pub async fn get_pool_member(&self, http_client: &reqwest::Client) -> Result<Member, Error> {
@@ -89,14 +117,7 @@ impl Miner {
             signature,
         };
         let post_url = format!("{}/contribute", pool_url);
-        match http_client.post(post_url).json(&payload).send().await {
-            Ok(resp) => {
-                println!("resp: {:?}", resp);
-            }
-            Err(err) => {
-                println!("{:?}", err);
-            }
-        };
+        let _ = http_client.post(post_url).json(&payload).send().await;
         Ok(())
     }
 
