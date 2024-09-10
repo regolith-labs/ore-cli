@@ -22,8 +22,7 @@ impl Miner {
     ) -> Result<(), crate::error::Error> {
         match pool_url {
             Some(pool_url) => {
-                let sig = self.claim_from_pool(args).await?;
-                println!("{:?}", sig);
+                let _ = self.claim_from_pool(args).await?;
                 Ok(())
             }
             None => {
