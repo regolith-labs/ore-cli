@@ -159,7 +159,8 @@ impl Miner {
             // Compute cutoff time
             let cutoff_time = self.get_cutoff(last_hash_at, member_challenge.buffer).await;
             // Build nonce indices
-            let u64_unit = u64::MAX.saturating_div(member_challenge.num_total_members);
+            let num_total_members = member_challenge.num_total_members.max(1);
+            let u64_unit = u64::MAX.saturating_div(num_total_members);
             let left_bound = u64_unit.saturating_mul(nonce_index);
             let range_per_core = u64_unit.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
