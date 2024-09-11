@@ -2752,9 +2752,9 @@ dependencies = [
 
 [[package]]
 name = "ore-api"
-version = "2.1.8"
+version = "2.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c67c8c00902d0cb31d7e1bdcc6caf81c80e4a1f11ca48054eb609e41b6065b4"
+checksum = "26f004e50a7fba301eb53caa4f8ce772c1a512f314de64cff580f90fb1dff8d1"
 dependencies = [
  "array-const-fn-init",
  "bytemuck",
@@ -2787,6 +2787,7 @@ dependencies = [
  "indicatif",
  "num_cpus",
  "ore-api",
+ "ore-pool-api",
  "ore-utils",
  "rand 0.8.5",
  "reqwest 0.12.4",
@@ -2800,16 +2801,37 @@ dependencies = [
  "solana-transaction-status",
  "spl-associated-token-account",
  "spl-token",
+ "thiserror",
  "tokio",
  "tokio-tungstenite 0.16.1",
+ "types",
  "url",
 ]
 
 [[package]]
+name = "ore-pool-api"
+version = "0.0.1"
+dependencies = [
+ "array-const-fn-init",
+ "bytemuck",
+ "const-crypto",
+ "drillx",
+ "mpl-token-metadata",
+ "num_enum 0.7.2",
+ "ore-api",
+ "ore-utils",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+ "static_assertions",
+ "thiserror",
+]
+
+[[package]]
 name = "ore-utils"
-version = "2.1.8"
+version = "2.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c92cb0b8a4c9583113b78c87a5372d71825ec3432402cb843e1ffc6af9f6b7d"
+checksum = "7a2d6933b14c84fb91ad7ab2e8fccff589884a81507c1a198dea4f03f3180ef4"
 dependencies = [
  "bytemuck",
  "solana-program",
@@ -4967,18 +4989,18 @@ checksum = "23d434d3f8967a09480fb04132ebe0a3e088c173e6d0ee7897abbdf4eab0f8b9"
 
 [[package]]
 name = "thiserror"
-version = "1.0.61"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c546c80d6be4bc6a00c0f01730c08df82eaa7a7a61f11d656526506112cc1709"
+checksum = "c0342370b38b6a11b6cc11d6a805569958d54cfa061a29969c3b5ce2ea405724"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.61"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46c3384250002a6d5af4d114f2845d37b57521033f30d5c3f46c4d70e1197533"
+checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5298,6 +5320,15 @@ name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
+
+[[package]]
+name = "types"
+version = "0.0.1"
+dependencies = [
+ "drillx",
+ "serde",
+ "solana-sdk",
+]
 
 [[package]]
 name = "unicode-bidi"
