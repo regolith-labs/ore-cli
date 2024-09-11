@@ -22,6 +22,7 @@ use solana_sdk::signer::Signer;
 use crate::{
     args::MineArgs,
     error::Error,
+    pool::Pool,
     send_and_confirm::ComputeBudget,
     utils::{
         amount_u64_to_string, get_clock, get_config, get_updated_proof_with_authority, proof_pubkey,
@@ -30,10 +31,14 @@ use crate::{
 };
 
 impl Miner {
-    pub async fn mine(&self, args: MineArgs, pool_url: Option<String>) -> Result<(), Error> {
-        match pool_url {
-            Some(_) => {
-                self.mine_pool(args).await?;
+    pub async fn mine(&self, args: MineArgs) -> Result<(), Error> {
+        match args.pool_url {
+            Some(ref pool_url) => {
+                let pool = &Pool {
+                    http_client: reqwest::Client::new(),
+                    pool_url: pool_url.clone(),
+                };
+                self.mine_pool(args, pool).await?;
             }
             None => {
                 self.mine_solo(args).await;
@@ -118,14 +123,15 @@ impl Miner {
         }
     }
 
-    async fn mine_pool(&self, args: MineArgs) -> Result<(), Error> {
-        let http_client = &reqwest::Client::new();
+    async fn mine_pool(&self, args: MineArgs, pool: &Pool) -> Result<(), Error> {
         // register, if needed
-        let mut pool_member = self.post_pool_register(http_client).await?;
+        let mut pool_member = pool.post_pool_register(self).await?;
         let nonce_index = pool_member.id as u64;
         // get on-chain pool accounts
-        let pool_address = self.get_pool_address(http_client).await?;
-        let mut pool_member_onchain = self.get_pool_member_onchain(pool_address.address).await?;
+        let pool_address = pool.get_pool_address().await?;
+        let mut pool_member_onchain = pool
+            .get_pool_member_onchain(self, pool_address.address)
+            .await?;
         // Check num threads
         self.check_num_cores(args.cores);
         // Start mining loop
@@ -133,9 +139,7 @@ impl Miner {
         let mut last_balance = 0;
         loop {
             // Fetch latest challenge
-            let member_challenge = self
-                .get_updated_pool_challenge(http_client, last_hash_at)
-                .await?;
+            let member_challenge = pool.get_updated_pool_challenge(last_hash_at).await?;
             // Print progress
             println!(
                 "Claimable ORE balance: {}",
@@ -143,7 +147,7 @@ impl Miner {
             );
             if last_hash_at.gt(&0) {
                 println!(
-                    "Change of ORE credits in pool from last hash: {}",
+                    "Change of ORE credits in pool: {}",
                     amount_u64_to_string(
                         pool_member.total_balance.saturating_sub(last_balance) as u64
                     )
@@ -173,11 +177,13 @@ impl Miner {
             )
             .await;
             // Post solution to operator
-            self.post_pool_solution(http_client, &solution).await?;
+            pool.post_pool_solution(self, &solution).await?;
             // Get updated pool member
-            pool_member = self.get_pool_member(http_client).await?;
+            pool_member = pool.get_pool_member(self).await?;
             // Get updated on-chain pool member
-            pool_member_onchain = self.get_pool_member_onchain(pool_address.address).await?;
+            pool_member_onchain = pool
+                .get_pool_member_onchain(self, pool_address.address)
+                .await?;
         }
     }
 

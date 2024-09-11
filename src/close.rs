@@ -31,6 +31,7 @@ impl Miner {
             self.claim_from_proof(ClaimArgs {
                 amount: None,
                 to: None,
+                pool_url: None,
             })
             .await;
         }

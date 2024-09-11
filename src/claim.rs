@@ -9,20 +9,21 @@ use spl_token::amount_to_ui_amount;
 use crate::{
     args::ClaimArgs,
     cu_limits::CU_LIMIT_CLAIM,
+    pool::Pool,
     send_and_confirm::ComputeBudget,
     utils::{amount_f64_to_u64, ask_confirm, get_proof_with_authority},
     Miner,
 };
 
 impl Miner {
-    pub async fn claim(
-        &self,
-        args: ClaimArgs,
-        pool_url: Option<String>,
-    ) -> Result<(), crate::error::Error> {
-        match pool_url {
-            Some(_pool_url) => {
-                let _ = self.claim_from_pool(args).await?;
+    pub async fn claim(&self, args: ClaimArgs) -> Result<(), crate::error::Error> {
+        match args.pool_url {
+            Some(ref pool_url) => {
+                let pool = &Pool {
+                    http_client: reqwest::Client::new(),
+                    pool_url: pool_url.clone(),
+                };
+                let _ = self.claim_from_pool(args, pool).await?;
                 Ok(())
             }
             None => {
@@ -94,10 +95,15 @@ impl Miner {
             .ok();
     }
 
-    async fn claim_from_pool(&self, args: ClaimArgs) -> Result<Signature, crate::error::Error> {
-        let http_client = &reqwest::Client::new();
-        let pool_address = self.get_pool_address(http_client).await?;
-        let member = self.get_pool_member_onchain(pool_address.address).await?;
+    async fn claim_from_pool(
+        &self,
+        args: ClaimArgs,
+        pool: &Pool,
+    ) -> Result<Signature, crate::error::Error> {
+        let pool_address = pool.get_pool_address().await?;
+        let member = pool
+            .get_pool_member_onchain(self, pool_address.address)
+            .await?;
         let mut ixs = vec![];
         let beneficiary = match args.to {
             None => self.initialize_ata(self.signer().pubkey()).await,

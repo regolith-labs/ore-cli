@@ -1,20 +1,25 @@
+use std::sync::Arc;
+
 use drillx::Solution;
 use ore_pool_types::{ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload};
 use ore_utils::AccountDeserialize;
+use solana_rpc_client::spinner;
 use solana_sdk::{pubkey::Pubkey, signature::Signature, signer::Signer};
 
 use crate::{error::Error, Miner};
 
-impl Miner {
+pub struct Pool {
+    pub http_client: reqwest::Client,
+    pub pool_url: String,
+}
+
+impl Pool {
     // TODO: build and sign tx here
-    pub async fn post_pool_register(&self, http_client: &reqwest::Client) -> Result<Member, Error> {
-        let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
-            "must specify the pool url flag".to_string(),
-        ))?;
-        let pubkey = self.signer().pubkey();
-        let post_url = format!("{}/register", pool_url);
+    pub async fn post_pool_register(&self, miner: &Miner) -> Result<Member, Error> {
+        let pubkey = miner.signer().pubkey();
+        let post_url = format!("{}/register", self.pool_url);
         let body = RegisterPayload { authority: pubkey };
-        http_client
+        self.http_client
             .post(post_url)
             .json(&body)
             .send()
@@ -24,15 +29,9 @@ impl Miner {
             .map_err(From::from)
     }
 
-    pub async fn get_pool_address(
-        &self,
-        http_client: &reqwest::Client,
-    ) -> Result<PoolAddress, Error> {
-        let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
-            "must specify the pool url flag".to_string(),
-        ))?;
-        let get_url = format!("{}/pool-address", pool_url);
-        http_client
+    pub async fn get_pool_address(&self) -> Result<PoolAddress, Error> {
+        let get_url = format!("{}/pool-address", self.pool_url);
+        self.http_client
             .get(get_url)
             .send()
             .await?
@@ -43,21 +42,20 @@ impl Miner {
 
     pub async fn get_pool_member_onchain(
         &self,
+        miner: &Miner,
         pool_address: Pubkey,
     ) -> Result<ore_pool_api::state::Member, Error> {
-        let (member_pda, _) = ore_pool_api::state::member_pda(self.signer().pubkey(), pool_address);
-        let data = self.rpc_client.get_account_data(&member_pda).await?;
+        let (member_pda, _) =
+            ore_pool_api::state::member_pda(miner.signer().pubkey(), pool_address);
+        let data = miner.rpc_client.get_account_data(&member_pda).await?;
         let pool = ore_pool_api::state::Member::try_from_bytes(data.as_slice())?;
         Ok(*pool)
     }
 
-    pub async fn get_pool_member(&self, http_client: &reqwest::Client) -> Result<Member, Error> {
-        let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
-            "must specify the pool url flag".to_string(),
-        ))?;
-        let pubkey = self.signer().pubkey();
-        let get_url = format!("{}/member/{}", pool_url, pubkey);
-        http_client
+    pub async fn get_pool_member(&self, miner: &Miner) -> Result<Member, Error> {
+        let pubkey = miner.signer().pubkey();
+        let get_url = format!("{}/member/{}", self.pool_url, pubkey);
+        self.http_client
             .get(get_url)
             .send()
             .await?
@@ -68,15 +66,14 @@ impl Miner {
 
     pub async fn get_updated_pool_challenge(
         &self,
-        http_client: &reqwest::Client,
         last_hash_at: i64,
     ) -> Result<MemberChallenge, Error> {
         let mut retries = 0;
         let max_retries = 24; // 120 seconds, should yield new challenge
+        let progress_bar = Arc::new(spinner::new_progress_bar());
         loop {
-            let challenge = self.get_pool_challenge(http_client).await?;
-            println!("fetched: {:?}", challenge.challenge.lash_hash_at);
-            println!("live: {:?}", last_hash_at);
+            progress_bar.set_message("Fetching new challenge...");
+            let challenge = self.get_pool_challenge().await?;
             if challenge.challenge.lash_hash_at == last_hash_at {
                 retries += 1;
                 if retries == max_retries {
@@ -84,45 +81,37 @@ impl Miner {
                 }
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
             } else {
+                progress_bar.finish_with_message("Found new challenge");
                 return Ok(challenge);
             }
         }
     }
 
-    async fn get_pool_challenge(
-        &self,
-        http_client: &reqwest::Client,
-    ) -> Result<MemberChallenge, Error> {
-        let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
-            "must specify the pool url flag".to_string(),
-        ))?;
-        let get_url = format!("{}/challenge", pool_url);
-        let resp = http_client.get(get_url).send().await?;
+    async fn get_pool_challenge(&self) -> Result<MemberChallenge, Error> {
+        let get_url = format!("{}/challenge", self.pool_url);
+        let resp = self.http_client.get(get_url).send().await?;
         resp.json::<MemberChallenge>().await.map_err(From::from)
     }
 
     pub async fn post_pool_solution(
         &self,
-        http_client: &reqwest::Client,
+        miner: &Miner,
         solution: &Solution,
     ) -> Result<(), Error> {
-        let pool_url = &self.pool_url.clone().ok_or(Error::Internal(
-            "must specify the pool url flag".to_string(),
-        ))?;
-        let pubkey = self.signer().pubkey();
-        let signature = self.sign_solution(solution);
+        let pubkey = miner.signer().pubkey();
+        let signature = Pool::sign_solution(miner, solution);
         let payload = ContributePayload {
             authority: pubkey,
             solution: *solution,
             signature,
         };
-        let post_url = format!("{}/contribute", pool_url);
-        let _ = http_client.post(post_url).json(&payload).send().await;
+        let post_url = format!("{}/contribute", self.pool_url);
+        let _ = self.http_client.post(post_url).json(&payload).send().await;
         Ok(())
     }
 
-    fn sign_solution(&self, solution: &Solution) -> Signature {
-        let keypair = &self.signer();
+    fn sign_solution(miner: &Miner, solution: &Solution) -> Signature {
+        let keypair = &miner.signer();
         keypair.sign_message(solution.to_bytes().as_slice())
     }
 }

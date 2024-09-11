@@ -44,7 +44,6 @@ struct Miner {
     pub fee_payer_filepath: Option<String>,
     pub jito_client: Arc<RpcClient>,
     pub tip: Arc<std::sync::RwLock<u64>>,
-    pub pool_url: Option<String>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -154,14 +153,6 @@ struct Args {
     )]
     jito: bool,
 
-    #[arg(
-        long,
-        value_name = "POOL_URL",
-        help = "Mining Pool URL to forward solutions to.",
-        global = true
-    )]
-    pool_url: Option<String>,
-
     #[command(subcommand)]
     command: Commands,
 }
@@ -221,7 +212,6 @@ async fn main() {
         Some(fee_payer_filepath),
         Arc::new(jito_client),
         tip,
-        args.pool_url.clone(),
     ));
 
     // Execute user command.
@@ -235,8 +225,8 @@ async fn main() {
         Commands::Busses(_) => {
             miner.busses().await;
         }
-        Commands::Claim(claim_args) => {
-            if let Err(err) = miner.claim(claim_args, args.pool_url).await {
+        Commands::Claim(args) => {
+            if let Err(err) = miner.claim(args).await {
                 println!("{:?}", err);
             }
         }
@@ -246,8 +236,8 @@ async fn main() {
         Commands::Config(_) => {
             miner.config().await;
         }
-        Commands::Mine(mine_args) => {
-            if let Err(err) = miner.mine(mine_args, args.pool_url).await {
+        Commands::Mine(args) => {
+            if let Err(err) = miner.mine(args).await {
                 println!("{:?}", err);
             }
         }
@@ -283,7 +273,6 @@ impl Miner {
         fee_payer_filepath: Option<String>,
         jito_client: Arc<RpcClient>,
         tip: Arc<std::sync::RwLock<u64>>,
-        pool_url: Option<String>,
     ) -> Self {
         Self {
             rpc_client,
@@ -294,7 +283,6 @@ impl Miner {
             fee_payer_filepath,
             jito_client,
             tip,
-            pool_url,
         }
     }
 
