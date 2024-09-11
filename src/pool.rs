@@ -6,7 +6,7 @@ use ore_utils::AccountDeserialize;
 use solana_rpc_client::spinner;
 use solana_sdk::{pubkey::Pubkey, signature::Signature, signer::Signer};
 
-use crate::{error::Error, Miner};
+use crate::{error::Error, send_and_confirm::ComputeBudget, Miner};
 
 pub struct Pool {
     pub http_client: reqwest::Client,
@@ -14,10 +14,21 @@ pub struct Pool {
 }
 
 impl Pool {
-    // TODO: build and sign tx here
     pub async fn post_pool_register(&self, miner: &Miner) -> Result<Member, Error> {
         let pubkey = miner.signer().pubkey();
         let post_url = format!("{}/register", self.pool_url);
+        // check if on-chain member account exists already
+        let pool_pda = self.get_pool_address().await?;
+        if let Err(_err) = self.get_pool_member_onchain(miner, pool_pda.address).await {
+            // on-chain member account not found
+            // create one before submitting register payload to pool
+            let ix = ore_pool_api::sdk::join(pubkey, pool_pda.address, pubkey);
+            let _ = miner
+                .send_and_confirm(&[ix], ComputeBudget::Fixed(200_000), false)
+                .await?;
+        };
+        // submit idempotent register payload
+        // will simply return off-chain account if already registered
         let body = RegisterPayload { authority: pubkey };
         self.http_client
             .post(post_url)
