@@ -38,6 +38,14 @@ pub struct ClaimArgs {
         help = "Wallet address to receive claimed tokens."
     )]
     pub to: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to claim rewards from."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -69,6 +77,14 @@ pub struct MineArgs {
         default_value = "5"
     )]
     pub buffer_time: u64,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to join and forward solutions to."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]

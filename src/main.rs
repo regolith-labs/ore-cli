@@ -7,10 +7,12 @@ mod close;
 mod config;
 mod cu_limits;
 mod dynamic_fee;
+mod error;
 #[cfg(feature = "admin")]
 mod initialize;
 mod mine;
 mod open;
+mod pool;
 mod proof;
 mod rewards;
 mod send_and_confirm;
@@ -224,7 +226,9 @@ async fn main() {
             miner.busses().await;
         }
         Commands::Claim(args) => {
-            miner.claim(args).await;
+            if let Err(err) = miner.claim(args).await {
+                println!("{:?}", err);
+            }
         }
         Commands::Close(_) => {
             miner.close().await;
@@ -233,7 +237,9 @@ async fn main() {
             miner.config().await;
         }
         Commands::Mine(args) => {
-            miner.mine(args).await;
+            if let Err(err) = miner.mine(args).await {
+                println!("{:?}", err);
+            }
         }
         Commands::Proof(args) => {
             miner.proof(args).await;
