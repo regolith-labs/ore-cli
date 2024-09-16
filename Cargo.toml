@@ -1,12 +1,11 @@
 [package]
 name = "coal-cli"
-version = "2.6.0"
+version = "2.6.1"
 edition = "2021"
 license = "Apache-2.0"
-description = "A command line interface for ORE cryptocurrency mining."
-documentation = "https://ore.supply"
-homepage = "https://ore.supply"
-repository = "https://github.com/regolith-labs/ore-cli"
+description = "A command line interface for COAL cryptocurrency mining."
+homepage = "https://coal.digital"
+repository = "https://github.com/coal-digital/coal-cli"
 readme = "./README.md"
 keywords = ["solana", "crypto", "mining"]
 
