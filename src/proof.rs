@@ -7,36 +7,38 @@ use spl_token::amount_to_ui_amount;
 
 use crate::{
     args::ProofArgs,
-    utils::{Resource, get_proof, proof_pubkey},
+    utils::{get_proof, proof_pubkey, get_resource_from_str, get_resource_name},
     Miner,
 };
 
 impl Miner {
     pub async fn proof(&self, args: ProofArgs) {
         let signer = self.signer();
+        let resource = get_resource_from_str(&args.resource);
         let address = if let Some(address) = args.address {
             Pubkey::from_str(&address).unwrap()
         } else {
-            proof_pubkey(signer.pubkey(), Resource::Coal)
+            proof_pubkey(signer.pubkey(), resource.clone())
         };
-        let proof = get_proof(&self.rpc_client, address).await;
+        let proof = get_proof(&self.rpc_client, &resource, address).await;
         println!("Address: {:?}", address);
-        println!("Authority: {:?}", proof.authority);
+        println!("Authority: {:?}", proof.authority());
         println!(
             "Balance: {:?} COAL",
-            amount_to_ui_amount(proof.balance, TOKEN_DECIMALS)
+            amount_to_ui_amount(proof.balance(), TOKEN_DECIMALS)
         );
         println!(
             "Last hash: {}",
-            solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string()
+            solana_sdk::hash::Hash::new_from_array(proof.last_hash()).to_string()
         );
-        println!("Last hash at: {:?}", proof.last_hash_at);
-        println!("Last stake at: {:?}", proof.last_stake_at);
-        println!("Miner: {:?}", proof.miner);
-        println!("Total hashes: {:?}", proof.total_hashes);
+        println!("Last hash at: {:?}", proof.last_hash_at());
+        println!("Last stake at: {:?}", proof.last_stake_at());
+        println!("Miner: {:?}", proof.miner());
+        println!("Total hashes: {:?}", proof.total_hashes());
         println!(
-            "Total rewards: {:?} COAL",
-            amount_to_ui_amount(proof.total_rewards, TOKEN_DECIMALS)
+            "Total rewards: {:?} {}",
+            amount_to_ui_amount(proof.total_rewards(), TOKEN_DECIMALS),
+            get_resource_name(&resource)
         );
     }
 }
