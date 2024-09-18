@@ -109,8 +109,8 @@ impl Miner {
                 .await;
 
 
-            let mut compute_budget = 500_000;
             // Build instruction set
+            let mut compute_budget = 500_000;
             let mut ixs: Vec<Instruction> = vec![];
 
             match resource {

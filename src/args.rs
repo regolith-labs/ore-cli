@@ -123,6 +123,9 @@ pub struct MineArgs {
 }
 
 #[derive(Parser, Debug)]
+pub struct ReplantArgs {}
+
+#[derive(Parser, Debug)]
 pub struct ChopArgs {
     #[arg(
         long,

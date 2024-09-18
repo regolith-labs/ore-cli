@@ -1,4 +1,4 @@
-use coal_api::consts::TREASURY_ADDRESS;
+use coal_api::consts::{TREASURY_ADDRESS, WOOD_CONFIG_ADDRESS};
 use smelter_api::consts::TREASURY_ADDRESS as SMELTER_TREASURY_ADDRESS;
 use solana_sdk::{signature::Signer, transaction::Transaction};
 
@@ -45,7 +45,7 @@ impl Miner {
 
     pub async fn initialize_wood(&self) {
         // Return early if program is already initialized
-        if self.rpc_client.get_account(&SMELTER_TREASURY_ADDRESS).await.is_ok() {
+        if self.rpc_client.get_account(&WOOD_CONFIG_ADDRESS).await.is_ok() {
             return;
         }
 

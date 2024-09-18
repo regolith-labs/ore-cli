@@ -19,6 +19,7 @@ mod stake;
 mod transfer;
 mod utils;
 mod smelt;
+mod replant;
 
 use std::{sync::Arc, sync::RwLock};
 use futures::StreamExt;
@@ -70,6 +71,9 @@ enum Commands {
 
     #[command(about = "Start mining")]
     Mine(MineArgs),
+
+    #[command(about = "Reset the mining config")]
+    Replant(ReplantArgs),
 
     #[command(about = "Fetch a proof account by address")]
     Proof(ProofArgs),
@@ -251,6 +255,9 @@ async fn main() {
         }
         Commands::Mine(args) => {
             miner.mine(args).await;
+        }
+        Commands::Replant(args) => {
+            miner.replant(args).await;
         }
         Commands::Proof(args) => {
             miner.proof(args).await;
