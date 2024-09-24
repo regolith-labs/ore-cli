@@ -18,6 +18,8 @@ use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
 use solana_sdk::signer::Signer;
+use reqwest::Client;
+use serde_json::json;
 
 use crate::{
     args::MineArgs,
@@ -58,12 +60,16 @@ impl Miner {
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance = 0;
+
         loop {
             // Fetch proof
             let config = get_config(&self.rpc_client).await;
             let proof =
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await;
+
+            let ore_gained = proof.balance.saturating_sub(last_balance);
+
             println!(
                 "\n\nStake: {} ORE\n{}  Multiplier: {:12}x",
                 amount_u64_to_string(proof.balance),
@@ -78,6 +84,7 @@ impl Miner {
                 calculate_multiplier(proof.balance, config.top_balance)
             );
             last_hash_at = proof.last_hash_at;
+
             last_balance = proof.balance;
 
             // Calculate cutoff time
@@ -120,6 +127,19 @@ impl Miner {
             self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
                 .await
                 .ok();
+
+            let http_client = Client::new();
+
+            let payload = json!({
+                "content": format!("Ore Gained: {}, Current Balance: {}", amount_u64_to_string(ore_gained), amount_u64_to_string(proof.balance)),
+            });
+
+            let discord_webhook_url = self.discord_webhook.as_deref().expect("Discord webhook URL must be set");
+
+            let _ = http_client.post(discord_webhook_url)
+                .json(&payload)
+                .send()
+                .await;
         }
     }
 
@@ -268,7 +288,6 @@ impl Miner {
                             // Increment nonce
                             nonce += 1;
                         }
-
                         // Return the best nonce
                         (best_nonce, best_difficulty, best_hash)
                     }

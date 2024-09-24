@@ -43,6 +43,7 @@ struct Miner {
     pub dynamic_fee: bool,
     pub rpc_client: Arc<RpcClient>,
     pub fee_payer_filepath: Option<String>,
+    pub discord_webhook: Option<String>
     pub jito_client: Arc<RpcClient>,
     pub tip: Arc<std::sync::RwLock<u64>>,
 }
@@ -149,6 +150,9 @@ struct Args {
     #[arg(long, help = "Enable dynamic priority fees", global = true)]
     dynamic_fee: bool,
 
+    #[arg(long, value_name = "DISCORD_WEBHOOK", global = true)]
+    discord_webhook: Option<String>,
+    
     #[arg(
         long,
         value_name = "JITO",
@@ -214,6 +218,7 @@ async fn main() {
         args.dynamic_fee_url,
         args.dynamic_fee,
         Some(fee_payer_filepath),
+        args.discord_webhook,
         Arc::new(jito_client),
         tip,
     ));
@@ -284,6 +289,7 @@ impl Miner {
         dynamic_fee_url: Option<String>,
         dynamic_fee: bool,
         fee_payer_filepath: Option<String>,
+        discord_webhook: Option<String>,
         jito_client: Arc<RpcClient>,
         tip: Arc<std::sync::RwLock<u64>>,
     ) -> Self {
@@ -294,6 +300,7 @@ impl Miner {
             dynamic_fee_url,
             dynamic_fee,
             fee_payer_filepath,
+            discord_webhook,
             jito_client,
             tip,
         }
