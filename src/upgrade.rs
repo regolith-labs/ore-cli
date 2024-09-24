@@ -38,7 +38,7 @@ impl Miner {
             return;
         }
 
-        let ix = ore_api::instruction::upgrade(signer.pubkey(), beneficiary, sender, amount);
+        let ix = ore_api::sdk::upgrade(signer.pubkey(), beneficiary, sender, amount);
         match self
             .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_UPGRADE), false)
             .await

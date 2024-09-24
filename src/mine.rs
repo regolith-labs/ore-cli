@@ -101,15 +101,15 @@ impl Miner {
             .await;
 
             // Build instruction set
-            let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
+            let mut ixs = vec![ore_api::sdk::auth(proof_pubkey(signer.pubkey()))];
             let mut compute_budget = 500_000;
             if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
                 compute_budget += 100_000;
-                ixs.push(ore_api::instruction::reset(signer.pubkey()));
+                ixs.push(ore_api::sdk::reset(signer.pubkey()));
             }
 
             // Build mine ix
-            ixs.push(ore_api::instruction::mine(
+            ixs.push(ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,

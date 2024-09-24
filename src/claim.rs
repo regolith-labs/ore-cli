@@ -89,7 +89,7 @@ impl Miner {
         }
 
         // Send and confirm
-        ixs.push(ore_api::instruction::claim(pubkey, beneficiary, amount));
+        ixs.push(ore_api::sdk::claim(pubkey, beneficiary, amount));
         self.send_and_confirm(&ixs, ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
             .await
             .ok();

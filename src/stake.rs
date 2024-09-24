@@ -37,7 +37,7 @@ impl Miner {
         };
 
         // Send tx
-        let ix = ore_api::instruction::stake(signer.pubkey(), sender, amount);
+        let ix = ore_api::sdk::stake(signer.pubkey(), sender, amount);
         self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
             .await
             .ok();
