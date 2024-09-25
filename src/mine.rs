@@ -24,7 +24,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_rpc_client::{nonblocking::rpc_client::RpcClient, spinner};
-use solana_sdk::{signer::Signer, transaction::Transaction};
+use solana_sdk::{compute_budget, signer::Signer, transaction::Transaction};
 use spl_token::state::Mint;
 
 use crate::{
@@ -149,6 +149,10 @@ impl Miner {
             // self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), true)
             //     .await
             //     .ok();
+            let cu_budget_ix = compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(
+                compute_budget as u32,
+            );
+            let ixs = [&[cu_budget_ix], ixs.as_slice()].concat();
             let mut tx = Transaction::new_with_payer(ixs.as_slice(), Some(&signer.pubkey()));
             let hash = self.rpc_client.get_latest_blockhash().await.unwrap();
             tx.sign(&[&signer], hash);
