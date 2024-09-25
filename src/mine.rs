@@ -24,7 +24,7 @@ use solana_program::{
     pubkey::Pubkey,
 };
 use solana_rpc_client::{nonblocking::rpc_client::RpcClient, spinner};
-use solana_sdk::signer::Signer;
+use solana_sdk::{signer::Signer, transaction::Transaction};
 use spl_token::state::Mint;
 
 use crate::{
@@ -146,9 +146,14 @@ impl Miner {
             ixs.push(ix);
 
             // Submit transaction
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
-                .await
-                .ok();
+            // self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), true)
+            //     .await
+            //     .ok();
+            let mut tx = Transaction::new_with_payer(ixs.as_slice(), Some(&signer.pubkey()));
+            let hash = self.rpc_client.get_latest_blockhash().await.unwrap();
+            tx.sign(&[&signer], hash);
+            let sig = self.rpc_client.send_transaction(&tx).await.unwrap();
+            println!("sig: {:?}", sig);
         }
     }
 

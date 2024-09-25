@@ -25,6 +25,8 @@ impl Miner {
             ),
         };
 
+        println!("sender: {:?}", sender);
+
         // Get token account
         let Ok(Some(token_account)) = self.rpc_client.get_token_account(&sender).await else {
             println!("Failed to fetch token account");
@@ -47,7 +49,7 @@ impl Miner {
 
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
-        let stake_address = stake_pda(boost_address, signer.pubkey()).0;
+        let stake_address = stake_pda(signer.pubkey(), boost_address).0;
 
         // Fetch boost
         let Ok(boost_account_data) = self.rpc_client.get_account_data(&boost_address).await else {
@@ -57,13 +59,9 @@ impl Miner {
         let _ = Boost::try_from_bytes(&boost_account_data).unwrap();
 
         // Open stake account, if needed
-        if self
-            .rpc_client
-            .get_account_data(&stake_address)
-            .await
-            .is_err()
-        {
+        if let Err(err) = self.rpc_client.get_account_data(&stake_address).await {
             println!("Failed to fetch stake account");
+            println!("{:?}", err);
             let ix = ore_boost_api::sdk::open(signer.pubkey(), mint_address);
             self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
                 .await

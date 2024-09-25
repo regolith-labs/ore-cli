@@ -80,7 +80,6 @@ pub struct MineArgs {
 
     #[arg(
         long,
-        short,
         value_name = "MINT_ADDRESS",
         help = "The token to apply as boost #1"
     )]
@@ -88,7 +87,6 @@ pub struct MineArgs {
 
     #[arg(
         long,
-        short,
         value_name = "MINT_ADDRESS",
         help = "The token to apply as boost #2"
     )]
@@ -96,7 +94,6 @@ pub struct MineArgs {
 
     #[arg(
         long,
-        short,
         value_name = "MINT_ADDRESS",
         help = "The token to apply as boost #3"
     )]

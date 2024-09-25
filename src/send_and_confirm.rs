@@ -31,8 +31,10 @@ const MIN_SOL_BALANCE: f64 = 0.005;
 
 const RPC_RETRIES: usize = 0;
 const _SIMULATION_RETRIES: usize = 4;
-const GATEWAY_RETRIES: usize = 150;
-const CONFIRM_RETRIES: usize = 8;
+// const GATEWAY_RETRIES: usize = 150;
+const GATEWAY_RETRIES: usize = 2;
+// const CONFIRM_RETRIES: usize = 8;
+const CONFIRM_RETRIES: usize = 1;
 
 const CONFIRM_DELAY: u64 = 500;
 const GATEWAY_DELAY: u64 = 0;
@@ -259,6 +261,7 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
+                    println!("{:?}", err);
                     log_error(&progress_bar, &err.kind().to_string(), false);
                 }
             }
@@ -352,6 +355,7 @@ impl Miner {
 }
 
 fn log_error(progress_bar: &ProgressBar, err: &str, finish: bool) {
+    println!("{}", err);
     if finish {
         progress_bar.finish_with_message(format!("{} {}", "ERROR".bold().red(), err));
     } else {
