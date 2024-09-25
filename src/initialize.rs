@@ -12,10 +12,9 @@ impl Miner {
 
         // Submit initialize tx
         let blockhash = self.rpc_client.get_latest_blockhash().await.unwrap();
-        let ix_1 = ore_api::instruction::initialize(self.signer().pubkey());
-        let ix_2 = ore_boost_api::instruction::initialize(self.signer().pubkey());
+        let ix = ore_api::sdk::initialize(self.signer().pubkey());
         let tx = Transaction::new_signed_with_payer(
-            &[ix_1, ix_2],
+            &[ix],
             Some(&self.signer().pubkey()),
             &[&self.signer()],
             blockhash,

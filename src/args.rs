@@ -58,19 +58,6 @@ pub struct ConfigArgs {}
 #[derive(Parser, Debug)]
 pub struct InitializeArgs {}
 
-#[cfg(feature = "admin")]
-#[derive(Parser, Debug)]
-pub struct BoostArgs {
-    #[arg(value_name = "MINT_ADDRESS", help = "The mint to create a boost for.")]
-    pub mint: String,
-
-    #[arg(
-        value_name = "MULTIPLIER",
-        help = "The multiplier to give to this token"
-    )]
-    pub multiplier: u64,
-}
-
 #[derive(Parser, Debug)]
 pub struct MineArgs {
     #[arg(
