@@ -38,6 +38,14 @@ pub struct ClaimArgs {
         help = "Wallet address to receive claimed tokens."
     )]
     pub to: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to claim rewards from."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -106,6 +114,14 @@ pub struct MineArgs {
         help = "The token to apply as boost #3"
     )]
     pub boost_3: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to join and forward solutions to."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -174,4 +190,13 @@ pub struct UpgradeArgs {
         help = "The amount of ORE to upgrade from v1 to v2. Defaults to max."
     )]
     pub amount: Option<f64>,
+}
+
+#[derive(Parser, Debug)]
+pub struct UpdatePoolBalanceArgs {
+    #[arg(
+        value_name = "POOL_URL",
+        help = "The pool url from where to update on-chain balance."
+    )]
+    pub pool_url: String,
 }

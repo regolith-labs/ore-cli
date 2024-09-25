@@ -9,10 +9,12 @@ mod close;
 mod config;
 mod cu_limits;
 mod dynamic_fee;
+mod error;
 #[cfg(feature = "admin")]
 mod initialize;
 mod mine;
 mod open;
+mod pool;
 mod proof;
 mod rewards;
 mod send_and_confirm;
@@ -23,6 +25,7 @@ mod upgrade;
 mod utils;
 
 use futures::StreamExt;
+use pool::Pool;
 use std::{sync::Arc, sync::RwLock};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
@@ -79,7 +82,7 @@ enum Commands {
     #[command(about = "Stake tokens to earn a mining multiplier")]
     Stake(StakeArgs),
 
-    #[command(about = "Send ORE to anyone, anywhere in the world.")]
+    #[command(about = "Send ORE to anyone, anywhere in the world")]
     Transfer(TransferArgs),
 
     #[command(about = "Unstake tokens")]
@@ -87,6 +90,9 @@ enum Commands {
 
     #[command(about = "Upgrade your ORE tokens from v1 to v2")]
     Upgrade(UpgradeArgs),
+
+    #[command(about = "Update your on-chain pool balance on-demand")]
+    UpdatePoolBalance(UpdatePoolBalanceArgs),
 
     #[cfg(feature = "admin")]
     #[command(about = "Initialize the program")]
@@ -234,7 +240,9 @@ async fn main() {
             miner.busses().await;
         }
         Commands::Claim(args) => {
-            miner.claim(args).await;
+            if let Err(err) = miner.claim(args).await {
+                println!("{:?}", err);
+            }
         }
         Commands::Close(_) => {
             miner.close().await;
@@ -243,7 +251,9 @@ async fn main() {
             miner.config().await;
         }
         Commands::Mine(args) => {
-            miner.mine(args).await;
+            if let Err(err) = miner.mine(args).await {
+                println!("{:?}", err);
+            }
         }
         Commands::Proof(args) => {
             miner.proof(args).await;
@@ -262,6 +272,15 @@ async fn main() {
         }
         Commands::Upgrade(args) => {
             miner.upgrade(args).await;
+        }
+        Commands::UpdatePoolBalance(args) => {
+            let pool = Pool {
+                http_client: reqwest::Client::new(),
+                pool_url: args.pool_url,
+            };
+            if let Err(err) = pool.post_update_balance(miner.as_ref()).await {
+                println!("{:?}", err);
+            }
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {

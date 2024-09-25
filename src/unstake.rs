@@ -63,7 +63,7 @@ impl Miner {
         };
 
         // Send tx
-        let ix = ore_boost_api::instruction::withdraw(signer.pubkey(), mint_address, amount);
+        let ix = ore_boost_api::sdk::withdraw(signer.pubkey(), mint_address, amount);
         self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
             .await
             .ok();

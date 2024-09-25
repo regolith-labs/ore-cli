@@ -26,7 +26,7 @@ cached = "0.46.1"
 chrono = "0.4.38"
 clap = { version = "4.4.12", features = ["derive"] }
 colored = "2.0"
-core_affinity = "0.8.1" 
+core_affinity = "0.8.1"
 drillx = "2.1.0"
 futures = "0.3.30"
 indicatif = "0.17.8"
@@ -35,6 +35,8 @@ num_cpus = "1.16.0"
 ore-api = "2.1.8"
 ore-boost-api = "0.1.0"
 ore-utils = "2.1.8"
+ore-pool-api = { path = "../ore-pool/api" }
+ore-pool-types = { path = "../ore-pool/types", package = "types" }
 rand = "0.8.4"
 reqwest = { version = "0.12", features = ["json"] }
 solana-cli-config = "^1.18"
@@ -45,11 +47,14 @@ solana-sdk = "^1.18"
 solana-transaction-status = "^1.18"
 serde_json = "1.0"
 spl-token = { version = "^4", features = ["no-entrypoint"] }
-spl-associated-token-account = { version = "^2.3", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "^2.3", features = [
+  "no-entrypoint",
+] }
 tokio = "1.35.1"
 url = "2.5"
 tokio-tungstenite = "0.16"
 serde = { version = "1.0", features = ["derive"] }
+thiserror = "1.0.63"
 
 [patch.crates-io]
 ore-api = { path = "../ore/api" }
@@ -57,11 +62,11 @@ ore-boost-api = { path = "../ore-boost/api" }
 ore-utils = { path = "../ore/utils" }
 
 [profile.release]
-opt-level = 3     # Optimize for binary size. You can use "3" for full optimizations if binary size isn't an issue.
-codegen-units = 1 # Better optimization with fewer codegen units
-lto = true        # Enable Link Time Optimization (LTO)
-debug = false     # Disable debug info to reduce binary size
-panic = 'abort'   # Reduces the binary size further by not including unwinding information
+opt-level = 3           # Optimize for binary size. You can use "3" for full optimizations if binary size isn't an issue.
+codegen-units = 1       # Better optimization with fewer codegen units
+lto = true              # Enable Link Time Optimization (LTO)
+debug = false           # Disable debug info to reduce binary size
+panic = 'abort'         # Reduces the binary size further by not including unwinding information
 rpath = false
 incremental = false
 overflow-checks = false

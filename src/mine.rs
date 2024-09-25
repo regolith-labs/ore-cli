@@ -1,4 +1,9 @@
-use std::{str::FromStr, sync::Arc, sync::RwLock, time::Instant};
+use std::{
+    str::FromStr,
+    sync::{Arc, RwLock},
+    time::Instant,
+    usize,
+};
 
 use colored::*;
 use drillx::{
@@ -8,7 +13,7 @@ use drillx::{
 use mpl_token_metadata::accounts::Metadata;
 use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
-    state::{Bus, Config, Proof},
+    state::{Bus, Config},
 };
 use ore_boost_api::state::{boost_pda, stake_pda};
 use ore_utils::AccountDeserialize;
@@ -24,6 +29,8 @@ use spl_token::state::Mint;
 
 use crate::{
     args::MineArgs,
+    error::Error,
+    pool::Pool,
     send_and_confirm::ComputeBudget,
     utils::{
         amount_u64_to_string, get_boost, get_clock, get_config, get_stake,
@@ -33,7 +40,23 @@ use crate::{
 };
 
 impl Miner {
-    pub async fn mine(&self, args: MineArgs) {
+    pub async fn mine(&self, args: MineArgs) -> Result<(), Error> {
+        match args.pool_url {
+            Some(ref pool_url) => {
+                let pool = &Pool {
+                    http_client: reqwest::Client::new(),
+                    pool_url: pool_url.clone(),
+                };
+                self.mine_pool(args, pool).await?;
+            }
+            None => {
+                self.mine_solo(args).await;
+            }
+        }
+        Ok(())
+    }
+
+    async fn mine_solo(&self, args: MineArgs) {
         // Open account, if needed.
         let signer = self.signer();
         self.open().await;
@@ -81,24 +104,36 @@ impl Miner {
             last_balance = proof.balance;
 
             // Calculate cutoff time
-            let cutoff_time = self.get_cutoff(proof, args.buffer_time).await;
+            let cutoff_time = self.get_cutoff(proof.last_hash_at, args.buffer_time).await;
+
+            // Build nonce indices
+            let mut nonce_indices = Vec::with_capacity(args.cores as usize);
+            for n in 0..(args.cores) {
+                let nonce = u64::MAX.saturating_div(args.cores).saturating_mul(n);
+                nonce_indices.push(nonce);
+            }
 
             // Run drillx
-            let solution =
-                Self::find_hash_par(proof, cutoff_time, args.cores, config.min_difficulty as u32)
-                    .await;
+            let solution = Self::find_hash_par(
+                proof.challenge,
+                cutoff_time,
+                args.cores,
+                config.min_difficulty as u32,
+                nonce_indices.as_slice(),
+            )
+            .await;
 
             // Build instruction set
-            let mut ixs = vec![ore_api::instruction::auth(proof_pubkey(signer.pubkey()))];
+            let mut ixs = vec![ore_api::sdk::auth(proof_pubkey(signer.pubkey()))];
             let mut compute_budget = 600_000;
             // if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
             if self.should_reset(config).await {
                 compute_budget += 100_000;
-                ixs.push(ore_api::instruction::reset(signer.pubkey()));
+                ixs.push(ore_api::sdk::reset(signer.pubkey()));
             }
 
             // Build mine ix
-            let mut ix = ore_api::instruction::mine(
+            let mut ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,
@@ -116,37 +151,96 @@ impl Miner {
         }
     }
 
+    async fn mine_pool(&self, args: MineArgs, pool: &Pool) -> Result<(), Error> {
+        // register, if needed
+        let mut pool_member = pool.post_pool_register(self).await?;
+        let nonce_index = pool_member.id as u64;
+        // get on-chain pool accounts
+        let pool_address = pool.get_pool_address().await?;
+        let mut pool_member_onchain: ore_pool_api::state::Member;
+        // Check num threads
+        self.check_num_cores(args.cores);
+        // Start mining loop
+        let mut last_hash_at = 0;
+        let mut last_balance: i64;
+        loop {
+            // Fetch latest challenge
+            let member_challenge = pool.get_updated_pool_challenge(last_hash_at).await?;
+            // Increment last balance and hash
+            last_balance = pool_member.total_balance;
+            last_hash_at = member_challenge.challenge.lash_hash_at;
+            // Compute cutoff time
+            let cutoff_time = self.get_cutoff(last_hash_at, member_challenge.buffer).await;
+            // Build nonce indices
+            let num_total_members = member_challenge.num_total_members.max(1);
+            let u64_unit = u64::MAX.saturating_div(num_total_members);
+            let left_bound = u64_unit.saturating_mul(nonce_index);
+            let range_per_core = u64_unit.saturating_div(args.cores);
+            let mut nonce_indices = Vec::with_capacity(args.cores as usize);
+            for n in 0..(args.cores) {
+                let index = left_bound + n * range_per_core;
+                nonce_indices.push(index);
+            }
+            // Run drillx
+            let solution = Self::find_hash_par(
+                member_challenge.challenge.challenge,
+                cutoff_time,
+                args.cores,
+                member_challenge.challenge.min_difficulty as u32,
+                nonce_indices.as_slice(),
+            )
+            .await;
+            // Post solution to operator
+            pool.post_pool_solution(self, &solution).await?;
+            // Get updated pool member
+            pool_member = pool.get_pool_member(self).await?;
+            // Get updated on-chain pool member
+            pool_member_onchain = pool
+                .get_pool_member_onchain(self, pool_address.address)
+                .await?;
+            // Print progress
+            println!(
+                "Claimable ORE balance: {}",
+                amount_u64_to_string(pool_member_onchain.balance)
+            );
+            if last_hash_at.gt(&0) {
+                println!(
+                    "Change of ORE credits in pool: {}",
+                    amount_u64_to_string(
+                        pool_member.total_balance.saturating_sub(last_balance) as u64
+                    )
+                )
+            }
+        }
+    }
+
     async fn find_hash_par(
-        proof: Proof,
+        challenge: [u8; 32],
         cutoff_time: u64,
         cores: u64,
         min_difficulty: u32,
+        nonce_indices: &[u64],
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
         progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().unwrap();
+        let core_ids = core_ids.into_iter().filter(|id| id.id < (cores as usize));
         let handles: Vec<_> = core_ids
-            .into_iter()
             .map(|i| {
                 let global_best_difficulty = Arc::clone(&global_best_difficulty);
                 std::thread::spawn({
-                    let proof = proof.clone();
                     let progress_bar = progress_bar.clone();
+                    let nonce = nonce_indices[i.id];
                     let mut memory = equix::SolverMemory::new();
                     move || {
-                        // Return if core should not be used
-                        if (i.id as u64).ge(&cores) {
-                            return (0, 0, Hash::default());
-                        }
-
                         // Pin to core
                         let _ = core_affinity::set_for_current(i);
 
                         // Start hashing
                         let timer = Instant::now();
-                        let mut nonce = u64::MAX.saturating_div(cores).saturating_mul(i.id as u64);
+                        let mut nonce = nonce;
                         let mut best_nonce = nonce;
                         let mut best_difficulty = 0;
                         let mut best_hash = Hash::default();
@@ -154,7 +248,7 @@ impl Miner {
                             // Get hashes
                             let hxs = drillx::hashes_with_memory(
                                 &mut memory,
-                                &proof.challenge,
+                                &challenge,
                                 &nonce.to_le_bytes(),
                             );
 
@@ -254,10 +348,9 @@ impl Miner {
             .le(&clock.unix_timestamp)
     }
 
-    async fn get_cutoff(&self, proof: Proof, buffer_time: u64) -> u64 {
+    async fn get_cutoff(&self, last_hash_at: i64, buffer_time: u64) -> u64 {
         let clock = get_clock(&self.rpc_client).await;
-        proof
-            .last_hash_at
+        last_hash_at
             .saturating_add(60)
             .saturating_sub(buffer_time as i64)
             .saturating_sub(clock.unix_timestamp)
