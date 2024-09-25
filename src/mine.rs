@@ -129,30 +129,15 @@ impl Miner {
         let nonce_index = pool_member.id as u64;
         // get on-chain pool accounts
         let pool_address = pool.get_pool_address().await?;
-        let mut pool_member_onchain = pool
-            .get_pool_member_onchain(self, pool_address.address)
-            .await?;
+        let mut pool_member_onchain: ore_pool_api::state::Member;
         // Check num threads
         self.check_num_cores(args.cores);
         // Start mining loop
         let mut last_hash_at = 0;
-        let mut last_balance = 0;
+        let mut last_balance: i64;
         loop {
             // Fetch latest challenge
             let member_challenge = pool.get_updated_pool_challenge(last_hash_at).await?;
-            // Print progress
-            println!(
-                "Claimable ORE balance: {}",
-                amount_u64_to_string(pool_member_onchain.balance)
-            );
-            if last_hash_at.gt(&0) {
-                println!(
-                    "Change of ORE credits in pool: {}",
-                    amount_u64_to_string(
-                        pool_member.total_balance.saturating_sub(last_balance) as u64
-                    )
-                )
-            }
             // Increment last balance and hash
             last_balance = pool_member.total_balance;
             last_hash_at = member_challenge.challenge.lash_hash_at;
@@ -185,6 +170,19 @@ impl Miner {
             pool_member_onchain = pool
                 .get_pool_member_onchain(self, pool_address.address)
                 .await?;
+            // Print progress
+            println!(
+                "Claimable ORE balance: {}",
+                amount_u64_to_string(pool_member_onchain.balance)
+            );
+            if last_hash_at.gt(&0) {
+                println!(
+                    "Change of ORE credits in pool: {}",
+                    amount_u64_to_string(
+                        pool_member.total_balance.saturating_sub(last_balance) as u64
+                    )
+                )
+            }
         }
     }
 

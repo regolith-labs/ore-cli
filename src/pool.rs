@@ -1,10 +1,14 @@
 use std::sync::Arc;
 
 use drillx::Solution;
-use ore_pool_types::{ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload};
+use ore_pool_types::{
+    ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload, UpdateBalancePayload,
+};
 use ore_utils::AccountDeserialize;
 use solana_rpc_client::spinner;
-use solana_sdk::{pubkey::Pubkey, signature::Signature, signer::Signer};
+use solana_sdk::{
+    compute_budget, pubkey::Pubkey, signature::Signature, signer::Signer, transaction::Transaction,
+};
 
 use crate::{error::Error, send_and_confirm::ComputeBudget, Miner};
 
@@ -96,6 +100,49 @@ impl Pool {
                 return Ok(challenge);
             }
         }
+    }
+
+    pub async fn post_update_balance(&self, miner: &Miner) -> Result<(), Error> {
+        let signer = &miner.signer();
+        let signer_pubkey = &signer.pubkey();
+        let post_url = format!("{}/update-balance", self.pool_url);
+        // fetch member balance
+        let member = self.get_pool_member(miner).await?;
+        // fetch pool for authority
+        let pool = self.get_pool_address().await?;
+        let data = miner.rpc_client.get_account_data(&pool.address).await?;
+        let pool = ore_pool_api::state::Pool::try_from_bytes(data.as_slice())?;
+        let pool_authority = pool.authority;
+        // build attribute instruction
+        let ix = ore_pool_api::sdk::attribute(
+            pool_authority,
+            *signer_pubkey,
+            member.total_balance as u64,
+        );
+        let compute_budget_limit_ix =
+            compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(100_000);
+        let compute_budget_price_ix =
+            compute_budget::ComputeBudgetInstruction::set_compute_unit_price(20_000);
+        let mut tx = Transaction::new_with_payer(
+            &[compute_budget_limit_ix, compute_budget_price_ix, ix],
+            Some(signer_pubkey),
+        );
+        let hash = miner.rpc_client.get_latest_blockhash().await?;
+        tx.partial_sign(&[signer], hash);
+        // build payload
+        let paylaod = UpdateBalancePayload {
+            authority: *signer_pubkey,
+            transaction: tx,
+            hash,
+        };
+        // post
+        let _ = self
+            .http_client
+            .post(post_url)
+            .json(&paylaod)
+            .send()
+            .await?;
+        Ok(())
     }
 
     async fn get_pool_challenge(&self) -> Result<MemberChallenge, Error> {

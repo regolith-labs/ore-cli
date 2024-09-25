@@ -132,3 +132,12 @@ pub struct UpgradeArgs {
     )]
     pub amount: Option<f64>,
 }
+
+#[derive(Parser, Debug)]
+pub struct UpdatePoolBalanceArgs {
+    #[arg(
+        value_name = "POOL_URL",
+        help = "The pool url from where to update on-chain balance."
+    )]
+    pub pool_url: String,
+}
