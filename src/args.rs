@@ -134,6 +134,14 @@ pub struct StakeArgs {
         help = "Token account to send from. Defaults to the associated token account."
     )]
     pub token_account: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to stake with."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]
