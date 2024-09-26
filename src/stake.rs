@@ -62,7 +62,7 @@ impl Miner {
         if let Err(err) = self.rpc_client.get_account_data(&stake_address).await {
             println!("Failed to fetch stake account");
             println!("{:?}", err);
-            let ix = ore_boost_api::sdk::open(signer.pubkey(), mint_address);
+            let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
             self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
                 .await
                 .ok();
