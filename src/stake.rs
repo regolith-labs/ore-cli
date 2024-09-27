@@ -3,7 +3,7 @@ use std::str::FromStr;
 use ore_boost_api::state::{boost_pda, stake_pda, Boost, Stake};
 use ore_utils::AccountDeserialize;
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
-use solana_sdk::signature::Signer;
+use solana_sdk::{signature::Signer, transaction::Transaction};
 use spl_token::state::Mint;
 
 use crate::{
@@ -70,17 +70,23 @@ impl Miner {
         let stake_data = self.rpc_client.get_account_data(&stake_address).await?;
         let _ = Stake::try_from_bytes(stake_data.as_slice())?;
         // open share account, if needed
-        if let Err(err) = self.rpc_client.get_account_data(&share_address).await {
+        if let Err(_err) = self.rpc_client.get_account_data(&share_address).await {
             println!("Failed to fetch share account");
             let ix = ore_pool_api::sdk::open_share(signer.pubkey(), mint, pool_address.address);
-            let _ = self
-                .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
-                .await?;
+            // let _ = self
+            //     .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+            //     .await?;
+            let mut tx = Transaction::new_with_payer(&[ix], Some(&signer.pubkey()));
+            let hash = self.rpc_client.get_latest_blockhash().await?;
+            tx.sign(&[&signer], hash);
+            let sig = self.rpc_client.send_transaction(&tx).await?;
+            println!("{:?}", sig);
         }
         // send tx
-        // TODO: stake ix
+        let ix =
+            ore_pool_api::sdk::stake(signer.pubkey(), mint, pool_address.address, sender, amount);
         let _ = self
-            .send_and_confirm(&[], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+            .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
             .await?;
         Ok(())
     }
@@ -132,7 +138,7 @@ impl Miner {
         let _ = Boost::try_from_bytes(&boost_account_data).unwrap();
 
         // Open stake account, if needed
-        if let Err(err) = self.rpc_client.get_account_data(&stake_address).await {
+        if let Err(_err) = self.rpc_client.get_account_data(&stake_address).await {
             println!("Failed to fetch stake account");
             let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
             self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
