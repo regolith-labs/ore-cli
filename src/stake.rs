@@ -31,6 +31,8 @@ impl Miner {
             http_client: reqwest::Client::new(),
             pool_url: pool_url.clone(),
         };
+        // register member, if needed
+        let _ = pool.post_pool_register(self).await?;
         // fetch pool address
         let pool_address = pool.get_pool_address().await?;
         // parse mint
