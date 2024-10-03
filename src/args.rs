@@ -85,6 +85,36 @@ pub struct ConfigArgs {
 #[derive(Parser, Debug)]
 pub struct InitializeArgs {}
 
+#[cfg(feature = "admin")]
+#[derive(Parser, Debug)]
+pub struct NewToolArgs {}
+
+#[derive(Parser, Debug)]
+pub struct CraftArgs {}
+
+#[derive(Parser, Debug)]
+pub struct EquipArgs {
+    #[arg(
+        long,
+        value_name = "TOOL",
+        help = "The tool to inspect."
+    )]
+    pub tool: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct UnequipArgs {}
+
+#[derive(Parser, Debug)]
+pub struct InspectArgs {
+    #[arg(
+        long,
+        value_name = "TOOL",
+        help = "The tool to inspect."
+    )]
+    pub tool: Option<String>,
+}
+
 #[derive(Parser, Debug)]
 pub struct MineArgs {
     #[arg(
