@@ -63,27 +63,14 @@ impl Miner {
         // derive pdas
         let boost_address = boost_pda(mint).0;
         let stake_address = stake_pda(pool_address.address, boost_address).0;
-        let share_address =
-            ore_pool_api::state::share_pda(signer.pubkey(), pool_address.address, mint).0;
         // assert that boost exists
         let boost_data = self.rpc_client.get_account_data(&boost_address).await?;
         let _ = Boost::try_from_bytes(boost_data.as_slice())?;
-        // assert that stake exists
+        // assert that stake exists (belongs to pool account)
         let stake_data = self.rpc_client.get_account_data(&stake_address).await?;
         let _ = Stake::try_from_bytes(stake_data.as_slice())?;
         // open share account, if needed
-        if let Err(_err) = self.rpc_client.get_account_data(&share_address).await {
-            println!("Failed to fetch share account");
-            let ix = ore_pool_api::sdk::open_share(signer.pubkey(), mint, pool_address.address);
-            // let _ = self
-            //     .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
-            //     .await?;
-            let mut tx = Transaction::new_with_payer(&[ix], Some(&signer.pubkey()));
-            let hash = self.rpc_client.get_latest_blockhash().await?;
-            tx.sign(&[&signer], hash);
-            let sig = self.rpc_client.send_transaction(&tx).await?;
-            println!("{:?}", sig);
-        }
+        let _ = pool.post_pool_register_staker(self, &mint).await?;
         // send tx
         let ix =
             ore_pool_api::sdk::stake(signer.pubkey(), mint, pool_address.address, sender, amount);
