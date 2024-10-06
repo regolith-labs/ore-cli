@@ -173,6 +173,14 @@ pub struct UnstakeArgs {
         help = "Token account to receive unstaked funds. Defaults to the associated token account."
     )]
     pub token_account: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to unstake from."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]

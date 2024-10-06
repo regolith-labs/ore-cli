@@ -105,7 +105,7 @@ impl Pool {
         Ok(*pool)
     }
 
-    async fn get_staker_onchain(
+    pub async fn get_staker_onchain(
         &self,
         miner: &Miner,
         pool_address: Pubkey,
