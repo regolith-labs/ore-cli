@@ -146,18 +146,9 @@ impl Miner {
             ixs.push(ix);
 
             // Submit transaction
-            // self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), true)
-            //     .await
-            //     .ok();
-            let cu_budget_ix = compute_budget::ComputeBudgetInstruction::set_compute_unit_limit(
-                compute_budget as u32,
-            );
-            let ixs = [&[cu_budget_ix], ixs.as_slice()].concat();
-            let mut tx = Transaction::new_with_payer(ixs.as_slice(), Some(&signer.pubkey()));
-            let hash = self.rpc_client.get_latest_blockhash().await.unwrap();
-            tx.sign(&[&signer], hash);
-            let sig = self.rpc_client.send_transaction(&tx).await.unwrap();
-            println!("sig: {:?}", sig);
+            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), true)
+                .await
+                .ok();
         }
     }
 
