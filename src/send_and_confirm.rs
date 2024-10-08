@@ -259,7 +259,6 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    println!("{:?}", err);
                     log_error(&progress_bar, &err.kind().to_string(), false);
                 }
             }
@@ -353,7 +352,6 @@ impl Miner {
 }
 
 fn log_error(progress_bar: &ProgressBar, err: &str, finish: bool) {
-    println!("{}", err);
     if finish {
         progress_bar.finish_with_message(format!("{} {}", "ERROR".bold().red(), err));
     } else {
