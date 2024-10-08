@@ -30,9 +30,11 @@ core_affinity = "0.8.1"
 drillx = "2.1.0"
 futures = "0.3.30"
 indicatif = "0.17.8"
+mpl-token-metadata = "4.1.2"
 num_cpus = "1.16.0"
-ore-api = "2.1.8"
-ore-utils = "2.1.8"
+ore-api = "2.1.9"
+ore-boost-api = "0.1.0"
+ore-utils = "2.1.9"
 ore-pool-api = { path = "../ore-pool/api" }
 ore-pool-types = { path = "../ore-pool/types", package = "types" }
 rand = "0.8.4"
@@ -54,10 +56,10 @@ tokio-tungstenite = "0.16"
 serde = { version = "1.0", features = ["derive"] }
 thiserror = "1.0.63"
 
-# [patch.crates-io]
-# drillx = { path = "../drillx/drillx" }
-# ore-api = { path = "../ore/api" }
-# ore-utils = { path = "../ore/utils" }
+[patch.crates-io]
+ore-api = { path = "../ore/api" }
+ore-boost-api = { path = "../ore-boost/api" }
+ore-utils = { path = "../ore/utils" }
 
 [profile.release]
 opt-level = 3           # Optimize for binary size. You can use "3" for full optimizations if binary size isn't an issue.
