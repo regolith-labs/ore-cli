@@ -65,6 +65,8 @@ impl Pool {
             let _ = miner
                 .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
                 .await?;
+            // sleep to allow the rpc connection on the pool server to catch up
+            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
         }
         // submit idempotent regiter payload
         // will simply return off-chain account if already registered
