@@ -16,16 +16,12 @@ use ore_api::{
     state::{Bus, Config},
 };
 use ore_boost_api::state::{boost_pda, stake_pda};
-use ore_utils::AccountDeserialize;
 use rand::Rng;
-use solana_program::{
-    instruction::{AccountMeta, Instruction},
-    program_pack::Pack,
-    pubkey::Pubkey,
-};
+use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_rpc_client::{nonblocking::rpc_client::RpcClient, spinner};
-use solana_sdk::{compute_budget, signer::Signer, transaction::Transaction};
+use solana_sdk::signer::Signer;
 use spl_token::state::Mint;
+use steel::AccountDeserialize;
 
 use crate::{
     args::MineArgs,
@@ -127,22 +123,25 @@ impl Miner {
             let mut ixs = vec![ore_api::sdk::auth(proof_pubkey(signer.pubkey()))];
             let mut compute_budget = 600_000;
 
-            // Check for reset 
+            // Check for reset
             if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
                 compute_budget += 100_000;
                 ixs.push(ore_api::sdk::reset(signer.pubkey()));
             }
 
+            // Build option (boost) accounts
+            let mut optional_accounts: Vec<Pubkey> = vec![];
+            optional_accounts = [optional_accounts, BoostData::to_vec(&boost_data_1)].concat();
+            optional_accounts = [optional_accounts, BoostData::to_vec(&boost_data_2)].concat();
+            optional_accounts = [optional_accounts, BoostData::to_vec(&boost_data_3)].concat();
             // Build mine ix
-            let mut ix = ore_api::sdk::mine(
+            let ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
+                optional_accounts,
             );
-            apply_boost(&mut ix, &boost_data_1);
-            apply_boost(&mut ix, &boost_data_2);
-            apply_boost(&mut ix, &boost_data_3);
             ixs.push(ix);
 
             // Submit transaction
@@ -390,6 +389,17 @@ struct BoostData {
     metadata: Option<Metadata>,
 }
 
+impl BoostData {
+    fn to_vec(boost_data: &Option<BoostData>) -> Vec<Pubkey> {
+        match boost_data {
+            Some(boost_data) => {
+                vec![boost_data.boost_address, boost_data.stake_address]
+            }
+            None => vec![],
+        }
+    }
+}
+
 async fn fetch_boost_data(
     rpc: Arc<RpcClient>,
     authority: Pubkey,
@@ -439,15 +449,6 @@ async fn log_boost_data(rpc: Arc<RpcClient>, boost_data: &Option<BoostData>, id:
                     .map_or("".to_string(), |m| format!(" {}", m.symbol))
             )
         );
-    }
-}
-
-fn apply_boost(ix: &mut Instruction, boost_data: &Option<BoostData>) {
-    if let Some(boost_data) = boost_data {
-        ix.accounts
-            .push(AccountMeta::new_readonly(boost_data.boost_address, false));
-        ix.accounts
-            .push(AccountMeta::new_readonly(boost_data.stake_address, false));
     }
 }
 

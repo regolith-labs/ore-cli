@@ -5,11 +5,11 @@ use ore_pool_types::{
     ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload,
     RegisterStakerPayload, Staker, UpdateBalancePayload,
 };
-use ore_utils::AccountDeserialize;
 use solana_rpc_client::spinner;
 use solana_sdk::{
     compute_budget, pubkey::Pubkey, signature::Signature, signer::Signer, transaction::Transaction,
 };
+use steel::AccountDeserialize;
 
 use crate::{cu_limits::CU_LIMIT_CLAIM, error::Error, send_and_confirm::ComputeBudget, Miner};
 

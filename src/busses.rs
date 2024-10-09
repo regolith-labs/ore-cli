@@ -2,7 +2,7 @@ use ore_api::{
     consts::{BUS_ADDRESSES, TOKEN_DECIMALS},
     state::Bus,
 };
-use ore_utils::AccountDeserialize;
+use steel::AccountDeserialize;
 
 use crate::Miner;
 
