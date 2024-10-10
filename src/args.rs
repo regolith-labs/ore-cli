@@ -80,6 +80,27 @@ pub struct MineArgs {
 
     #[arg(
         long,
+        value_name = "MINT_ADDRESS",
+        help = "The token to apply as boost #1"
+    )]
+    pub boost_1: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "MINT_ADDRESS",
+        help = "The token to apply as boost #2"
+    )]
+    pub boost_2: Option<String>,
+
+    #[arg(
+        long,
+        value_name = "MINT_ADDRESS",
+        help = "The token to apply as boost #3"
+    )]
+    pub boost_3: Option<String>,
+
+    #[arg(
+        long,
         short,
         value_name = "POOL_URL",
         help = "The optional pool url to join and forward solutions to."
@@ -100,16 +121,27 @@ pub struct RewardsArgs {}
 pub struct StakeArgs {
     #[arg(
         value_name = "AMOUNT",
-        help = "The amount of ORE to stake. Defaults to max."
+        help = "The amount of the token to stake. Defaults to max."
     )]
     pub amount: Option<f64>,
+
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake.")]
+    pub mint: String,
 
     #[arg(
         long,
         value_name = "TOKEN_ACCOUNT_ADDRESS",
-        help = "Token account to send ORE from. Defaults to the associated token account."
+        help = "Token account to send from. Defaults to the associated token account."
     )]
     pub token_account: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to stake with."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -122,6 +154,33 @@ pub struct TransferArgs {
         help = "The account address of the receipient."
     )]
     pub to: String,
+}
+
+#[derive(Parser, Debug)]
+pub struct UnstakeArgs {
+    #[arg(
+        value_name = "AMOUNT",
+        help = "The amount of the token to unstake. Defaults to max."
+    )]
+    pub amount: Option<f64>,
+
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint to unstake.")]
+    pub mint: String,
+
+    #[arg(
+        long,
+        value_name = "TOKEN_ACCOUNT_ADDRESS",
+        help = "Token account to receive unstaked funds. Defaults to the associated token account."
+    )]
+    pub token_account: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to unstake from."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]

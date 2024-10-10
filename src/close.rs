@@ -37,7 +37,7 @@ impl Miner {
         }
 
         // Submit close transaction
-        let ix = ore_api::instruction::close(signer.pubkey());
+        let ix = ore_api::sdk::close(signer.pubkey());
         self.send_and_confirm(&[ix], ComputeBudget::Fixed(500_000), false)
             .await
             .ok();

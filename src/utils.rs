@@ -7,13 +7,14 @@ use ore_api::{
     },
     state::{Config, Proof, Treasury},
 };
-use ore_utils::AccountDeserialize;
+use ore_boost_api::state::{Boost, Stake};
 use serde::Deserialize;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar};
 use solana_sdk::{clock::Clock, hash::Hash};
 use spl_associated_token_account::get_associated_token_address;
+use steel::AccountDeserialize;
 use tokio::time::sleep;
 
 pub const BLOCKHASH_QUERY_RETRIES: usize = 5;
@@ -33,6 +34,22 @@ pub async fn get_config(client: &RpcClient) -> Config {
         .await
         .expect("Failed to get config account");
     *Config::try_from_bytes(&data).expect("Failed to parse config account")
+}
+
+pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Boost {
+    let data = client
+        .get_account_data(&address)
+        .await
+        .expect("Failed to get boost account");
+    *Boost::try_from_bytes(&data).expect("Failed to parse boost account")
+}
+
+pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Stake {
+    let data = client
+        .get_account_data(&address)
+        .await
+        .expect("Failed to get stake account");
+    *Stake::try_from_bytes(&data).expect("Failed to parse stake account")
 }
 
 pub async fn get_proof_with_authority(client: &RpcClient, authority: Pubkey) -> Proof {
