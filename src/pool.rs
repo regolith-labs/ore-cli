@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use drillx::Solution;
 use ore_pool_types::{
-    ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload,
+    BalanceUpdate, ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload,
     RegisterStakerPayload, Staker, UpdateBalancePayload,
 };
 use solana_rpc_client::spinner;
@@ -189,12 +189,15 @@ impl Pool {
             hash,
         };
         // post
-        let _ = self
+        let balance_update = self
             .http_client
             .post(post_url)
             .json(&paylaod)
             .send()
-            .await?;
+            .await?
+            .json::<BalanceUpdate>()
+            .await;
+        println!("{:?}", balance_update);
         Ok(())
     }
 
