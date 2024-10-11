@@ -33,7 +33,7 @@ indicatif = "0.17.8"
 mpl-token-metadata = "4.1.2"
 num_cpus = "1.16.0"
 ore-api = "2.1.9"
-ore-boost-api = "0.1.0"
+ore-boost-api = "0.2.0"
 ore-pool-api = { path = "../ore-pool/api" }
 ore-pool-types = { path = "../ore-pool/types", package = "types" }
 url = "2.5"
