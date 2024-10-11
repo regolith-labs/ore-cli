@@ -2753,6 +2753,8 @@ dependencies = [
 [[package]]
 name = "ore-api"
 version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95419f2a52567607388137876912dc97f7eef964b3c556131987bf01ef925d9c"
 dependencies = [
  "array-const-fn-init",
  "bytemuck",
@@ -2771,6 +2773,8 @@ dependencies = [
 [[package]]
 name = "ore-boost-api"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c97f55b9d1a40a6b3044444c457acd70b983d31b7edd5c8459b8c616b080fecd"
 dependencies = [
  "array-const-fn-init",
  "bytemuck",
@@ -2804,6 +2808,7 @@ dependencies = [
  "ore-api",
  "ore-boost-api",
  "ore-pool-api",
+ "ore-pool-types",
  "rand 0.8.5",
  "reqwest 0.12.4",
  "serde",
@@ -2820,13 +2825,14 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-tungstenite 0.16.1",
- "types",
  "url",
 ]
 
 [[package]]
 name = "ore-pool-api"
 version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea50286b875552bb90a9167718c2739e9d134780b582e48150ebbd4efbbe5162"
 dependencies = [
  "array-const-fn-init",
  "bytemuck",
@@ -2842,6 +2848,17 @@ dependencies = [
  "static_assertions",
  "steel",
  "thiserror",
+]
+
+[[package]]
+name = "ore-pool-types"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1df6b6ec69e85f02b55d366c078883b35ceecacda262a8d8be74ad43d364162"
+dependencies = [
+ "drillx",
+ "serde",
+ "solana-sdk",
 ]
 
 [[package]]
@@ -5308,15 +5325,6 @@ name = "typenum"
 version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42ff0bf0c66b8238c6f3b578df37d0b7848e55df8577b3f74f92a69acceeb825"
-
-[[package]]
-name = "types"
-version = "0.1.0"
-dependencies = [
- "drillx",
- "serde",
- "solana-sdk",
-]
 
 [[package]]
 name = "unicode-bidi"
