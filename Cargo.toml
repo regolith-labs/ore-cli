@@ -56,9 +56,11 @@ thiserror = "1.0.63"
 tokio = "1.35.1"
 tokio-tungstenite = "0.16"
 
-# [patch.crates-io]
-# ore-api = { path = "../ore/api" }
-# ore-boost-api = { path = "../ore-boost/api" }
+[patch.crates-io]
+ore-api = { path = "../ore/api" }
+ore-boost-api = { path = "../ore-boost/api" }
+ore-pool-api = { path = "../ore-pool/api" }
+ore-pool-types = { path = "../ore-pool/types" }
 
 [profile.release]
 opt-level = 3           # Optimize for binary size. You can use "3" for full optimizations if binary size isn't an issue.
