@@ -7,6 +7,14 @@ pub struct BalanceArgs {
         help = "The account address to fetch the balance of."
     )]
     pub address: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to fetch the balance from."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]
