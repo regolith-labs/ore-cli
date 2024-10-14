@@ -108,7 +108,7 @@ impl Miner {
 
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
-        let stake_address = stake_pda(boost_address, signer.pubkey()).0;
+        let stake_address = stake_pda(signer.pubkey(), boost_address).0;
 
         // Fetch boost
         let Ok(boost_account_data) = self.rpc_client.get_account_data(&boost_address).await else {
