@@ -1,4 +1,4 @@
-use clap::{arg, Parser};
+use clap::{arg, command, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 pub struct BalanceArgs {
@@ -127,29 +127,66 @@ pub struct RewardsArgs {}
 
 #[derive(Parser, Debug)]
 pub struct StakeArgs {
-    #[arg(
-        value_name = "AMOUNT",
-        help = "The amount of the token to stake. Defaults to max."
-    )]
-    pub amount: Option<f64>,
+    #[command(subcommand)]
+    pub command: StakeCommand,
 
-    #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake.")]
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake with.")]
     pub mint: String,
-
-    #[arg(
-        long,
-        value_name = "TOKEN_ACCOUNT_ADDRESS",
-        help = "Token account to send from. Defaults to the associated token account."
-    )]
-    pub token_account: Option<String>,
 
     #[arg(
         long,
         short,
         value_name = "POOL_URL",
-        help = "The optional pool url to stake with."
+        help = "The pool url to stake with."
     )]
     pub pool_url: Option<String>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum StakeCommand {
+    #[command(about = "Fetch a stake account balance.")]
+    Get(StakeGetArgs),
+
+    #[command(about = "Deposit tokens into a stake account.")]
+    Deposit(StakeDepositArgs),
+
+    #[command(about = "Withdraw tokens from a stake account.")]
+    Withdraw(StakeWithdrawArgs),
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeGetArgs {}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeDepositArgs {
+    #[arg(
+        value_name = "AMOUNT",
+        help = "The amount of stake to deposit. Defaults to max."
+    )]
+    pub amount: Option<f64>,
+
+    #[arg(
+        long,
+        value_name = "TOKEN_ACCOUNT_ADDRESS",
+        help = "Token account to deposit from. Defaults to the associated token account."
+    )]
+    pub token_account: Option<String>,
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeWithdrawArgs {
+    #[arg(
+        value_name = "AMOUNT",
+        help = "The amount of stake to withdraw. Defaults to max."
+    )]
+    pub amount: Option<f64>,
+
+    #[arg(
+        long,
+        value_name = "TOKEN_ACCOUNT_ADDRESS",
+        help = "Token account to withdraw to. Defaults to the associated token account."
+    )]
+    pub token_account: Option<String>,
 }
 
 #[derive(Parser, Debug)]
