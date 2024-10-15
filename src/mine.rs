@@ -165,7 +165,13 @@ impl Miner {
         let mut last_balance: i64;
         loop {
             // Fetch latest challenge
-            let member_challenge = pool.get_updated_pool_challenge(last_hash_at).await?;
+            let member_challenge = match pool.get_updated_pool_challenge(last_hash_at).await {
+                Err(_err) => {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+                Ok(member_challenge) => member_challenge,
+            };
             // Increment last balance and hash
             last_balance = pool_member.total_balance;
             last_hash_at = member_challenge.challenge.lash_hash_at;
@@ -191,13 +197,29 @@ impl Miner {
             )
             .await;
             // Post solution to operator
-            pool.post_pool_solution(self, &solution).await?;
+            if let Err(_err) = pool.post_pool_solution(self, &solution).await {
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                continue;
+            }
             // Get updated pool member
-            pool_member = pool.get_pool_member(self).await?;
+            pool_member = match pool.get_pool_member(self).await {
+                Err(_err) => {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+                Ok(pool_member) => pool_member,
+            };
             // Get updated on-chain pool member
-            pool_member_onchain = pool
+            pool_member_onchain = match pool
                 .get_pool_member_onchain(self, pool_address.address)
-                .await?;
+                .await
+            {
+                Err(_err) => {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+                Ok(pool_member_onchain) => pool_member_onchain,
+            };
             // Print progress
             println!(
                 "Claimable ORE balance: {}",
