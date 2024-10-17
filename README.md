@@ -2,7 +2,7 @@
 
 A command line interface for ORE cryptocurrency mining.
 
-## Install
+## 📦 Install
 
 To install the CLI, use [cargo](https://doc.rust-lang.org/cargo/getting-started/installation.html):
 
@@ -19,7 +19,7 @@ If you run into issues during installation, please install the following depende
 sudo apt-get install openssl pkg-config libssl-dev
 ```
 
-#### MacOS (using [Homebrew](https://brew.sh/))
+#### MacOS
 ```
 brew install openssl pkg-config
 
@@ -29,23 +29,25 @@ export LDFLAGS="-L/usr/local/opt/openssl/lib"
 export CPPFLAGS="-I/usr/local/opt/openssl/include"
 ```
 
-#### Windows (using [Chocolatey](https://chocolatey.org/))
+#### Windows
 ```
 choco install openssl pkgconfiglite
 ```
 
-## Build
+## ⛏️ Mine
 
-To build the codebase from scratch, checkout the repo and use cargo to build:
+To start mining, load your keypair with some SOL, and then use the `mine` command:
 
 ```sh
-cargo build --release
+ore mine
 ```
 
-## Help
+## ❓ Help
 
-You can use the `-h` flag on any command to pull up a help menu with documentation:
+Add the `-h` flag on any command to pull up a help menu with documentation:
 
 ```sh
 ore -h
 ```
+
+For support, please [join the Discord](https://discord.gg/7xymAXZP8Y) and ask your question in the Help channel.
