@@ -4,7 +4,7 @@ use colored::*;
 use ore_boost_api::state::{boost_pda, stake_pda, Boost, Stake};
 use ore_pool_api::state::{share_pda, Share};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
-use solana_sdk::{signature::Signer, transaction::Transaction};
+use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
 use steel::AccountDeserialize;
 
@@ -19,10 +19,15 @@ use crate::{
 
 impl Miner {
     pub async fn stake(&self, args: StakeArgs) {
-        match args.command.clone() {
-            StakeCommand::Get(_) => self.stake_get(args).await.unwrap(),
-            StakeCommand::Deposit(subargs) => self.stake_deposit(subargs, args).await.unwrap(),
-            StakeCommand::Withdraw(subargs) => self.stake_withdraw(subargs, args).await.unwrap(),
+        if let Some(subcommand) = args.command.clone() {
+            match subcommand {
+                StakeCommand::Deposit(subargs) => self.stake_deposit(subargs, args).await.unwrap(),
+                StakeCommand::Withdraw(subargs) => {
+                    self.stake_withdraw(subargs, args).await.unwrap()
+                }
+            }
+        } else {
+            self.stake_get(args).await.unwrap();
         }
     }
 
@@ -436,11 +441,9 @@ impl Miner {
             beneficiary,
             amount,
         );
-        let mut tx = Transaction::new_with_payer(&[ix], Some(&signer.pubkey()));
-        let hash = self.rpc_client.get_latest_blockhash().await?;
-        tx.sign(&[&signer], hash);
-        let sig = self.rpc_client.send_transaction(&tx).await?;
-        println!("{:?}", sig);
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(100_000), false)
+            .await
+            .ok();
         Ok(())
     }
 }

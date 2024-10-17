@@ -8,6 +8,9 @@ pub struct BalanceArgs {
     )]
     pub address: Option<String>,
 
+    #[command(subcommand)]
+    pub command: Option<BalanceCommand>,
+
     #[arg(
         long,
         short,
@@ -16,6 +19,15 @@ pub struct BalanceArgs {
     )]
     pub pool_url: Option<String>,
 }
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum BalanceCommand {
+    #[command(about = "Commit a pending pool balance to the chain.")]
+    Commit(BalanceCommitArgs),
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct BalanceCommitArgs {}
 
 #[derive(Parser, Debug)]
 pub struct BenchmarkArgs {
@@ -128,7 +140,7 @@ pub struct RewardsArgs {}
 #[derive(Parser, Debug)]
 pub struct StakeArgs {
     #[command(subcommand)]
-    pub command: StakeCommand,
+    pub command: Option<StakeCommand>,
 
     #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake with.")]
     pub mint: String,
@@ -144,18 +156,12 @@ pub struct StakeArgs {
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum StakeCommand {
-    #[command(about = "Fetch a stake account balance.")]
-    Get(StakeGetArgs),
-
     #[command(about = "Deposit tokens into a stake account.")]
     Deposit(StakeDepositArgs),
 
     #[command(about = "Withdraw tokens from a stake account.")]
     Withdraw(StakeWithdrawArgs),
 }
-
-#[derive(Parser, Clone, Debug)]
-pub struct StakeGetArgs {}
 
 #[derive(Parser, Clone, Debug)]
 pub struct StakeDepositArgs {
@@ -235,13 +241,4 @@ pub struct UpgradeArgs {
         help = "The amount of ORE to upgrade from v1 to v2. Defaults to max."
     )]
     pub amount: Option<f64>,
-}
-
-#[derive(Parser, Debug)]
-pub struct UpdatePoolBalanceArgs {
-    #[arg(
-        value_name = "POOL_URL",
-        help = "The pool url from where to update on-chain balance."
-    )]
-    pub pool_url: String,
 }
