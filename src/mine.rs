@@ -124,7 +124,9 @@ impl Miner {
             let mut compute_budget = 600_000;
 
             // Check for reset
-            if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
+            if self.should_reset(config).await
+            // && rand::thread_rng().gen_range(0..100).eq(&0)
+            {
                 compute_budget += 100_000;
                 ixs.push(ore_api::sdk::reset(signer.pubkey()));
             }

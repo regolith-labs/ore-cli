@@ -5,7 +5,7 @@ use ore_boost_api::state::{boost_pda, stake_pda, Boost, Stake};
 use ore_pool_api::state::{share_pda, Share};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::{signature::Signer, transaction::Transaction};
-use spl_token::state::Mint;
+use spl_token::{amount_to_ui_amount, state::Mint};
 use steel::AccountDeserialize;
 
 use crate::{
@@ -38,9 +38,16 @@ impl Miner {
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
         let Ok(boost_data) = self.rpc_client.get_account_data(&boost_address).await else {
+            println!("No boost found for mint: {}", mint_address);
             return Ok(());
         };
         let Ok(boost) = Boost::try_from_bytes(&boost_data) else {
+            return Ok(());
+        };
+        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
+            return Ok(());
+        };
+        let Ok(mint) = Mint::unpack(&mint_data) else {
             return Ok(());
         };
         let Ok(stake_data) = self.rpc_client.get_account_data(&stake_address).await else {
@@ -49,18 +56,30 @@ impl Miner {
         let Ok(stake) = Stake::try_from_bytes(&stake_data) else {
             return Ok(());
         };
+        let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
+        let Ok(metadata_data) = self.rpc_client.get_account_data(&metadata_address).await else {
+            return Ok(());
+        };
+        let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data)
+        else {
+            return Ok(());
+        };
         println!("{}", "Stake".bold());
         println!("Address: {}", stake_address);
         println!(
-            "Balance: {} ({:.8}% of total)",
-            stake.balance,
+            "Balance: {} {} ({:.8}% of total)",
+            amount_to_ui_amount(stake.balance, mint.decimals),
+            metadata.symbol,
             (stake.balance as f64 / boost.total_stake as f64) * 100f64
         );
-        println!("Last stake at: {}", stake.last_stake_at);
+        println!("Last update at: {}", stake.last_stake_at);
         println!("\n{}", "Boost".bold());
-        println!("Balance: {}", boost.total_stake);
         println!("Mint: {}", mint_address);
-        println!("Balance: {}", boost.total_stake);
+        println!(
+            "Balance: {} {}",
+            amount_to_ui_amount(boost.total_stake, mint.decimals),
+            metadata.symbol
+        );
         println!("Multiplier: {}x", boost.multiplier);
         println!("Expires at: {}", boost.expires_at);
         Ok(())
@@ -71,15 +90,24 @@ impl Miner {
             http_client: reqwest::Client::new(),
             pool_url: pool_url.clone(),
         };
-        let pool_address = pool.get_pool_address().await?.address;
+        let Ok(pool_address) = pool.get_pool_address().await else {
+            println!("Pool not found");
+            return Ok(());
+        };
         let mint_address = Pubkey::from_str(&args.mint).unwrap();
         let boost_address = boost_pda(mint_address).0;
-        let stake_address = stake_pda(pool_address, boost_address).0;
-        let share_address = share_pda(self.signer().pubkey(), pool_address, mint_address).0;
+        let stake_address = stake_pda(pool_address.address, boost_address).0;
+        let share_address = share_pda(self.signer().pubkey(), pool_address.address, mint_address).0;
         let Ok(boost_data) = self.rpc_client.get_account_data(&boost_address).await else {
             return Ok(());
         };
         let Ok(boost) = Boost::try_from_bytes(&boost_data) else {
+            return Ok(());
+        };
+        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
+            return Ok(());
+        };
+        let Ok(mint) = Mint::unpack(&mint_data) else {
             return Ok(());
         };
         let Ok(stake_data) = self.rpc_client.get_account_data(&stake_address).await else {
@@ -94,24 +122,38 @@ impl Miner {
         let Ok(share) = Share::try_from_bytes(&share_data) else {
             return Ok(());
         };
+        let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
+        let Ok(metadata_data) = self.rpc_client.get_account_data(&metadata_address).await else {
+            return Ok(());
+        };
+        let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data)
+        else {
+            return Ok(());
+        };
         println!("{}", "Share".bold());
         println!("Address: {}", share_address);
         println!(
-            "Balance: {} ({:.8}% of pool)",
-            share.balance,
+            "Balance: {} {} ({:.8}% of pool)",
+            amount_to_ui_amount(share.balance, mint.decimals),
+            metadata.symbol,
             (share.balance as f64 / stake.balance as f64) * 100f64
         );
         println!("\n{}", "Pool".bold());
-        println!("Address: {}", pool_address);
+        println!("Address: {}", pool_address.address);
         println!(
-            "Balance: {} ({:.8}% of total)",
-            stake.balance,
+            "Balance: {} {} ({:.8}% of total)",
+            amount_to_ui_amount(stake.balance, mint.decimals),
+            metadata.symbol,
             (stake.balance as f64 / boost.total_stake as f64) * 100f64
         );
         println!("URL: {}", pool_url);
-        println!("Last stake at: {}", stake.last_stake_at);
+        println!("Last update at: {}", stake.last_stake_at);
         println!("\n{}", "Boost".bold());
-        println!("Balance: {}", boost.total_stake);
+        println!(
+            "Balance: {} {}",
+            amount_to_ui_amount(boost.total_stake, mint.decimals),
+            metadata.symbol,
+        );
         println!("Mint: {}", mint_address);
         println!("Multiplier: {}x", boost.multiplier);
         println!("Expires at: {}", boost.expires_at);
@@ -212,7 +254,10 @@ impl Miner {
         // register member, if needed
         let _ = pool.post_pool_register(self).await?;
         // fetch pool address
-        let pool_address = pool.get_pool_address().await?;
+        let Ok(pool_address) = pool.get_pool_address().await else {
+            println!("Pool not found");
+            return Ok(());
+        };
         // parse mint
         let mint = Pubkey::from_str(stake_args.mint.as_str())?;
         // get sender token account
@@ -370,7 +415,10 @@ impl Miner {
         let boost_account_data = self.rpc_client.get_account_data(&boost_address).await?;
         let _boost = Boost::try_from_bytes(boost_account_data.as_slice())?;
         // fetch share account
-        let pool_address = pool.get_pool_address().await?;
+        let Ok(pool_address) = pool.get_pool_address().await else {
+            println!("Pool not found");
+            return Ok(());
+        };
         let share = pool
             .get_staker_onchain(self, pool_address.address, mint_address)
             .await?;
