@@ -142,7 +142,7 @@ impl Pool {
         let max_retries = 24; // 120 seconds, should yield new challenge
         let progress_bar = Arc::new(spinner::new_progress_bar());
         loop {
-            progress_bar.set_message("Fetching new challenge...");
+            progress_bar.set_message(format!("Fetching new challenge... (retry {})", retries));
             let challenge = self.get_pool_challenge().await?;
             if challenge.challenge.lash_hash_at == last_hash_at {
                 retries += 1;
