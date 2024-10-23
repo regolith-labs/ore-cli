@@ -87,8 +87,7 @@ impl Miner {
             "Pool yield (pending): {} ORE\n",
             utils::amount_u64_to_string(diff)
         );
-        println!("Pool operators automatically commit pending balances to the blockchain at regular intervals.");
-        println!("To manually commit your pending balance now, run the following command:\n\n`ore balance --pool-url {} commit`\n", pool_url);
+        println!("Pool operators automatically commit pending balances to the blockchain at regular intervals. To manually commit your pending balance now, run the following command:\n\n`ore balance --pool-url {} commit`\n", pool_url);
         Ok(())
     }
 

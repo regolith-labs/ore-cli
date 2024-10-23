@@ -76,7 +76,7 @@ enum Commands {
     #[command(about = "Fetch the current reward rate for each difficulty level")]
     Rewards(RewardsArgs),
 
-    #[command(about = "Stake tokens to earn a mining multiplier")]
+    #[command(about = "Manage your stake position")]
     Stake(StakeArgs),
 
     #[command(about = "Send ORE to anyone, anywhere in the world")]

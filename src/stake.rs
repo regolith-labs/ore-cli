@@ -55,12 +55,6 @@ impl Miner {
         let Ok(mint) = Mint::unpack(&mint_data) else {
             return Ok(());
         };
-        let Ok(stake_data) = self.rpc_client.get_account_data(&stake_address).await else {
-            return Ok(());
-        };
-        let Ok(stake) = Stake::try_from_bytes(&stake_data) else {
-            return Ok(());
-        };
         let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
         let Ok(metadata_data) = self.rpc_client.get_account_data(&metadata_address).await else {
             return Ok(());
@@ -69,15 +63,19 @@ impl Miner {
         else {
             return Ok(());
         };
-        println!("{}", "Stake".bold());
-        println!("Address: {}", stake_address);
-        println!(
-            "Balance: {} {} ({:.8}% of total)",
-            amount_to_ui_amount(stake.balance, mint.decimals),
-            metadata.symbol,
-            (stake.balance as f64 / boost.total_stake as f64) * 100f64
-        );
-        println!("Last update at: {}", stake.last_stake_at);
+        if let Ok(stake_data) = self.rpc_client.get_account_data(&stake_address).await {
+            if let Ok(stake) = Stake::try_from_bytes(&stake_data) {
+                println!("{}", "Stake".bold());
+                println!("Address: {}", stake_address);
+                println!(
+                    "Balance: {} {} ({:.8}% of total)",
+                    amount_to_ui_amount(stake.balance, mint.decimals),
+                    metadata.symbol,
+                    (stake.balance as f64 / boost.total_stake as f64) * 100f64
+                );
+                println!("Last update at: {}", stake.last_stake_at);
+            }
+        };
         println!("\n{}", "Boost".bold());
         println!("Mint: {}", mint_address);
         println!(
@@ -121,12 +119,6 @@ impl Miner {
         let Ok(stake) = Stake::try_from_bytes(&stake_data) else {
             return Ok(());
         };
-        let Ok(share_data) = self.rpc_client.get_account_data(&share_address).await else {
-            return Ok(());
-        };
-        let Ok(share) = Share::try_from_bytes(&share_data) else {
-            return Ok(());
-        };
         let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
         let Ok(metadata_data) = self.rpc_client.get_account_data(&metadata_address).await else {
             return Ok(());
@@ -135,14 +127,18 @@ impl Miner {
         else {
             return Ok(());
         };
-        println!("{}", "Share".bold());
-        println!("Address: {}", share_address);
-        println!(
-            "Balance: {} {} ({:.8}% of pool)",
-            amount_to_ui_amount(share.balance, mint.decimals),
-            metadata.symbol,
-            (share.balance as f64 / stake.balance as f64) * 100f64
-        );
+        if let Ok(share_data) = self.rpc_client.get_account_data(&share_address).await {
+            if let Ok(share) = Share::try_from_bytes(&share_data) {
+                println!("{}", "Share".bold());
+                println!("Address: {}", share_address);
+                println!(
+                    "Balance: {} {} ({:.8}% of pool)",
+                    amount_to_ui_amount(share.balance, mint.decimals),
+                    metadata.symbol,
+                    (share.balance as f64 / stake.balance as f64) * 100f64
+                );
+            };
+        };
         println!("\n{}", "Pool".bold());
         println!("Address: {}", pool_address.address);
         println!(
