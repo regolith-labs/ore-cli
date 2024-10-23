@@ -139,17 +139,17 @@ impl Pool {
         last_hash_at: i64,
     ) -> Result<MemberChallenge, Error> {
         let mut retries = 0;
-        let max_retries = 24; // 120 seconds, should yield new challenge
+        let max_retries = 120; // 120 seconds, should yield new challenge
         let progress_bar = Arc::new(spinner::new_progress_bar());
         loop {
-            progress_bar.set_message("Fetching new challenge...");
+            progress_bar.set_message(format!("Fetching new challenge... (retry {})", retries));
             let challenge = self.get_pool_challenge().await?;
             if challenge.challenge.lash_hash_at == last_hash_at {
                 retries += 1;
                 if retries == max_retries {
                     return Err(Error::Internal("could not fetch new challenge".to_string()));
                 }
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             } else {
                 progress_bar.finish_with_message("Found new challenge");
                 return Ok(challenge);
