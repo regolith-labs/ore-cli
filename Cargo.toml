@@ -32,10 +32,10 @@ futures = "0.3.30"
 indicatif = "0.17.8"
 mpl-token-metadata = "4.1.2"
 num_cpus = "1.16.0"
-ore-api = "2.1.9"
-ore-boost-api = "0.2.0"
-ore-pool-api = "0.1.0"
-ore-pool-types = "0.1.0"
+ore-api = "2.5"
+ore-boost-api = "0.3"
+ore-pool-api = "0.2"
+ore-pool-types = "0.2"
 url = "2.5"
 rand = "0.8.4"
 reqwest = { version = "0.12", features = ["json"] }
@@ -51,7 +51,7 @@ spl-associated-token-account = { version = "^2.3", features = [
   "no-entrypoint",
 ] }
 serde = { version = "1.0", features = ["derive"] }
-steel = { version = "1.2.0" }
+steel = "2.0"
 thiserror = "1.0.63"
 tokio = "1.35.1"
 tokio-tungstenite = "0.16"
