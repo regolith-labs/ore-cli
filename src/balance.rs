@@ -70,6 +70,7 @@ impl Miner {
         };
         // fetch pool address
         let pool_address = pool.get_pool_address().await?;
+        println!("Pool: {}", pool_address.address);
         // fetch on-chain balance
         let (member_pda, _) =
             ore_pool_api::state::member_pda(signer.pubkey(), pool_address.address);
