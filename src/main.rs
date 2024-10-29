@@ -8,6 +8,7 @@ mod config;
 mod cu_limits;
 mod dynamic_fee;
 mod error;
+mod event;
 #[cfg(feature = "admin")]
 mod initialize;
 mod mine;
@@ -66,6 +67,9 @@ enum Commands {
 
     #[command(about = "Fetch the program config")]
     Config(ConfigArgs),
+
+    #[command(about = "Parse an mining event")]
+    Event(EventArgs),
 
     #[command(about = "Start mining")]
     Mine(MineArgs),
@@ -230,6 +234,9 @@ async fn main() {
             if let Err(err) = miner.claim(args).await {
                 println!("{:?}", err);
             }
+        }
+        Commands::Event(args) => {
+            miner.event(args).await;
         }
         Commands::Close(_) => {
             miner.close().await;

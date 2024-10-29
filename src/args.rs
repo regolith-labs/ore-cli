@@ -74,6 +74,12 @@ pub struct CloseArgs {}
 #[derive(Parser, Debug)]
 pub struct ConfigArgs {}
 
+#[derive(Parser, Debug)]
+pub struct EventArgs {
+    #[arg(value_name = "B64", help = "The base64 encoded event data.")]
+    pub data: String,
+}
+
 #[cfg(feature = "admin")]
 #[derive(Parser, Debug)]
 pub struct InitializeArgs {}
