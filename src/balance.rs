@@ -24,13 +24,19 @@ impl Miner {
                     self.balance_solo(&args).await;
                 }
                 Some(ref pool_url) => {
-                    let user = if let Some(address) = &args.address {
-                        Pubkey::from_str(&address).unwrap()
+                    let signer = self.signer();
+                    let address = if let Some(address) = &args.address {
+                        if let Ok(address) = Pubkey::from_str(&address) {
+                            address
+                        } else {
+                            println!("Invalid address: {:?}", address);
+                            return;
+                        }
                     } else {
-                        self.signer().pubkey()
+                        signer.pubkey()
                     };
 
-                    if let Err(err) = self.balance_pool(&user, pool_url).await {
+                    if let Err(err) = self.balance_pool(&address, pool_url).await {
                         println!("{:?}", err);
                     }
                 }
@@ -53,7 +59,7 @@ impl Miner {
         Ok(())
     }
 
-    async fn balance_pool(&self, user: &Pubkey, pool_url: &String) -> Result<(), Error> {
+    async fn balance_pool(&self, address: &Pubkey, pool_url: &String) -> Result<(), Error> {
         // build pool client
         let pool = Pool {
             http_client: reqwest::Client::new(),
@@ -61,7 +67,7 @@ impl Miner {
         };
         // Fetch token balance
         let token_account_address = spl_associated_token_account::get_associated_token_address(
-            user,
+            address,
             &ore_api::consts::MINT_ADDRESS
         );
         let token_balance = if
@@ -77,7 +83,10 @@ impl Miner {
         let pool_address = pool.get_pool_address().await?;
         println!("Pool: {}", pool_address.address);
         // fetch on-chain balance
-        let (member_pda, _) = ore_pool_api::state::member_pda(user.clone(), pool_address.address);
+        let (member_pda, _) = ore_pool_api::state::member_pda(
+            address.clone(),
+            pool_address.address
+        );
         let member_data = self.rpc_client.get_account_data(&member_pda).await?;
         let member = ore_pool_api::state::Member::try_from_bytes(member_data.as_slice())?;
         println!(
