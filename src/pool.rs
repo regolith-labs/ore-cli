@@ -13,6 +13,7 @@ use steel::AccountDeserialize;
 
 use crate::{cu_limits::CU_LIMIT_CLAIM, error::Error, send_and_confirm::ComputeBudget, Miner};
 
+#[derive(Clone)]
 pub struct Pool {
     pub http_client: reqwest::Client,
     pub pool_url: String,
