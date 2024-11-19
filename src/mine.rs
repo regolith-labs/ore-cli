@@ -305,15 +305,17 @@ impl Miner {
                                         // update best global difficulty
                                         *global_best_difficulty.write().unwrap() = best_difficulty;
                                         // continuous upload for pool
-                                        if let Some(ref tx) = submission_tx {
-                                            let digest = best_hash.d;
-                                            let nonce = nonce.to_le_bytes();
-                                            let solution = Solution {
-                                                d: digest,
-                                                n: nonce,
-                                            };
-                                            if let Err(err) = tx.send(solution) {
-                                                println!("{:?}", err);
+                                        if difficulty.ge(&min_difficulty) {
+                                            if let Some(ref tx) = submission_tx {
+                                                let digest = best_hash.d;
+                                                let nonce = nonce.to_le_bytes();
+                                                let solution = Solution {
+                                                    d: digest,
+                                                    n: nonce,
+                                                };
+                                                if let Err(err) = tx.send(solution) {
+                                                    println!("{:?}", err);
+                                                }
                                             }
                                         }
                                     }
