@@ -173,7 +173,6 @@ impl Miner {
             let pool = pool.clone();
             async move {
                 while let Some(solution) = rx.recv().await {
-                    println!("{:?}", solution);
                     if let Err(err) = pool.post_pool_solution(&miner, &solution).await {
                         println!("error submitting continuous solution: {:?}", err);
                     }
