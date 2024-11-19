@@ -36,6 +36,7 @@ use solana_sdk::{
 };
 use utils::Tip;
 
+#[derive(Clone)]
 struct Miner {
     pub keypair_filepath: Option<String>,
     pub priority_fee: Option<u64>,

@@ -116,6 +116,7 @@ impl Miner {
                 args.cores,
                 config.min_difficulty as u32,
                 nonce_indices.as_slice(),
+                None,
             )
             .await;
 
@@ -160,8 +161,22 @@ impl Miner {
         // get on-chain pool accounts
         let pool_address = pool.get_pool_address().await?;
         let mut pool_member_onchain: ore_pool_api::state::Member;
-        // Check num threads
+        // check num threads
         self.check_num_cores(args.cores);
+        // init continuous submission channel
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Solution>();
+        tokio::spawn({
+            let miner = self.clone();
+            let pool = pool.clone();
+            async move {
+                while let Some(solution) = rx.recv().await {
+                    println!("{:?}", solution);
+                    if let Err(err) = pool.post_pool_solution(&miner, &solution).await {
+                        println!("error submitting continuous solution: {:?}", err);
+                    }
+                }
+            }
+        });
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance: i64;
@@ -196,6 +211,7 @@ impl Miner {
                 args.cores,
                 member_challenge.challenge.min_difficulty as u32,
                 nonce_indices.as_slice(),
+                Some(tx.clone()),
             )
             .await;
             // Post solution to operator
@@ -244,6 +260,7 @@ impl Miner {
         cores: u64,
         min_difficulty: u32,
         nonce_indices: &[u64],
+        submission_tx: Option<tokio::sync::mpsc::UnboundedSender<Solution>>,
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
@@ -258,10 +275,10 @@ impl Miner {
                     let progress_bar = progress_bar.clone();
                     let nonce = nonce_indices[i.id];
                     let mut memory = equix::SolverMemory::new();
+                    let submission_tx = submission_tx.clone();
                     move || {
                         // Pin to core
                         let _ = core_affinity::set_for_current(i);
-
                         // Start hashing
                         let timer = Instant::now();
                         let mut nonce = nonce;
@@ -285,7 +302,22 @@ impl Miner {
                                     best_hash = hx;
                                     if best_difficulty.gt(&*global_best_difficulty.read().unwrap())
                                     {
+                                        // update best global difficulty
                                         *global_best_difficulty.write().unwrap() = best_difficulty;
+                                        // continuous upload for pool
+                                        if difficulty.ge(&min_difficulty) {
+                                            if let Some(ref tx) = submission_tx {
+                                                let digest = best_hash.d;
+                                                let nonce = nonce.to_le_bytes();
+                                                let solution = Solution {
+                                                    d: digest,
+                                                    n: nonce,
+                                                };
+                                                if let Err(err) = tx.send(solution) {
+                                                    println!("{:?}", err);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -329,7 +361,7 @@ impl Miner {
             .collect();
 
         // Join handles and return best nonce
-        let mut best_nonce = 0;
+        let mut best_nonce: u64 = 0;
         let mut best_difficulty = 0;
         let mut best_hash = Hash::default();
         for h in handles {
