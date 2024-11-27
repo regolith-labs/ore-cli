@@ -116,6 +116,7 @@ impl Miner {
                 args.cores,
                 config.min_difficulty as u32,
                 nonce_indices.as_slice(),
+                None,
             )
             .await;
 
@@ -124,7 +125,9 @@ impl Miner {
             let mut compute_budget = 600_000;
 
             // Check for reset
-            if self.should_reset(config).await && rand::thread_rng().gen_range(0..100).eq(&0) {
+            if self.should_reset(config).await
+            // && rand::thread_rng().gen_range(0..100).eq(&0)
+            {
                 compute_budget += 100_000;
                 ixs.push(ore_api::sdk::reset(signer.pubkey()));
             }
@@ -152,25 +155,51 @@ impl Miner {
     }
 
     async fn mine_pool(&self, args: MineArgs, pool: &Pool) -> Result<(), Error> {
-        // register, if needed
+        // Register, if needed
         let mut pool_member = pool.post_pool_register(self).await?;
         let nonce_index = pool_member.id as u64;
-        // get on-chain pool accounts
+
+        // Get onchain pool accounts
         let pool_address = pool.get_pool_address().await?;
         let mut pool_member_onchain: ore_pool_api::state::Member;
+
         // Check num threads
         self.check_num_cores(args.cores);
+
+        // Init channel for continuous submission
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Solution>();
+        tokio::spawn({
+            let miner = self.clone();
+            let pool = pool.clone();
+            async move {
+                while let Some(solution) = rx.recv().await {
+                    if let Err(err) = pool.post_pool_solution(&miner, &solution).await {
+                        println!("error submitting continuous solution: {:?}", err);
+                    }
+                }
+            }
+        });
+
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance: i64;
         loop {
             // Fetch latest challenge
-            let member_challenge = pool.get_updated_pool_challenge(last_hash_at).await?;
+            let member_challenge = match pool.get_updated_pool_challenge(last_hash_at).await {
+                Err(_err) => {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+                Ok(member_challenge) => member_challenge,
+            };
+
             // Increment last balance and hash
             last_balance = pool_member.total_balance;
             last_hash_at = member_challenge.challenge.lash_hash_at;
+
             // Compute cutoff time
             let cutoff_time = self.get_cutoff(last_hash_at, member_challenge.buffer).await;
+
             // Build nonce indices
             let num_total_members = member_challenge.num_total_members.max(1);
             let u64_unit = u64::MAX.saturating_div(num_total_members);
@@ -181,6 +210,7 @@ impl Miner {
                 let index = left_bound + n * range_per_core;
                 nonce_indices.push(index);
             }
+
             // Run drillx
             let solution = Self::find_hash_par(
                 member_challenge.challenge.challenge,
@@ -188,16 +218,37 @@ impl Miner {
                 args.cores,
                 member_challenge.challenge.min_difficulty as u32,
                 nonce_indices.as_slice(),
+                Some(tx.clone()),
             )
             .await;
+
             // Post solution to operator
-            pool.post_pool_solution(self, &solution).await?;
+            if let Err(_err) = pool.post_pool_solution(self, &solution).await {
+                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                continue;
+            }
+
             // Get updated pool member
-            pool_member = pool.get_pool_member(self).await?;
-            // Get updated on-chain pool member
-            pool_member_onchain = pool
+            pool_member = match pool.get_pool_member(self).await {
+                Err(_err) => {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+                Ok(pool_member) => pool_member,
+            };
+
+            // Get updated onchain pool member
+            pool_member_onchain = match pool
                 .get_pool_member_onchain(self, pool_address.address)
-                .await?;
+                .await
+            {
+                Err(_err) => {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
+                }
+                Ok(pool_member_onchain) => pool_member_onchain,
+            };
+
             // Print progress
             println!(
                 "Claimable ORE balance: {}",
@@ -220,6 +271,7 @@ impl Miner {
         cores: u64,
         min_difficulty: u32,
         nonce_indices: &[u64],
+        pool_channel: Option<tokio::sync::mpsc::UnboundedSender<Solution>>,
     ) -> Solution {
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
@@ -234,6 +286,7 @@ impl Miner {
                     let progress_bar = progress_bar.clone();
                     let nonce = nonce_indices[i.id];
                     let mut memory = equix::SolverMemory::new();
+                    let pool_channel = pool_channel.clone();
                     move || {
                         // Pin to core
                         let _ = core_affinity::set_for_current(i);
@@ -261,7 +314,23 @@ impl Miner {
                                     best_hash = hx;
                                     if best_difficulty.gt(&*global_best_difficulty.read().unwrap())
                                     {
+                                        // Update best global difficulty
                                         *global_best_difficulty.write().unwrap() = best_difficulty;
+
+                                        // Continuously upload best solution to pool
+                                        if difficulty.ge(&min_difficulty) {
+                                            if let Some(ref ch) = pool_channel {
+                                                let digest = best_hash.d;
+                                                let nonce = nonce.to_le_bytes();
+                                                let solution = Solution {
+                                                    d: digest,
+                                                    n: nonce,
+                                                };
+                                                if let Err(err) = ch.send(solution) {
+                                                    println!("{:?}", err);
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -305,7 +374,7 @@ impl Miner {
             .collect();
 
         // Join handles and return best nonce
-        let mut best_nonce = 0;
+        let mut best_nonce: u64 = 0;
         let mut best_difficulty = 0;
         let mut best_hash = Hash::default();
         for h in handles {

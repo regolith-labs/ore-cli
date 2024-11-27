@@ -23,7 +23,6 @@ mod upgrade;
 mod utils;
 
 use futures::StreamExt;
-use pool::Pool;
 use std::{sync::Arc, sync::RwLock};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
@@ -37,6 +36,7 @@ use solana_sdk::{
 };
 use utils::Tip;
 
+#[derive(Clone)]
 struct Miner {
     pub keypair_filepath: Option<String>,
     pub priority_fee: Option<u64>,
@@ -77,20 +77,14 @@ enum Commands {
     #[command(about = "Fetch the current reward rate for each difficulty level")]
     Rewards(RewardsArgs),
 
-    #[command(about = "Stake tokens to earn a mining multiplier")]
+    #[command(about = "Manage your stake position")]
     Stake(StakeArgs),
 
     #[command(about = "Send ORE to anyone, anywhere in the world")]
     Transfer(TransferArgs),
 
-    #[command(about = "Unstake tokens")]
-    Unstake(UnstakeArgs),
-
     #[command(about = "Upgrade your ORE tokens from v1 to v2")]
     Upgrade(UpgradeArgs),
-
-    #[command(about = "Update your on-chain pool balance on-demand")]
-    UpdatePoolBalance(UpdatePoolBalanceArgs),
 
     #[cfg(feature = "admin")]
     #[command(about = "Initialize the program")]
@@ -261,20 +255,8 @@ async fn main() {
         Commands::Transfer(args) => {
             miner.transfer(args).await;
         }
-        Commands::Unstake(args) => {
-            miner.unstake(args).await;
-        }
         Commands::Upgrade(args) => {
             miner.upgrade(args).await;
-        }
-        Commands::UpdatePoolBalance(args) => {
-            let pool = Pool {
-                http_client: reqwest::Client::new(),
-                pool_url: args.pool_url,
-            };
-            if let Err(err) = pool.post_update_balance(miner.as_ref()).await {
-                println!("{:?}", err);
-            }
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {

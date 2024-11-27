@@ -1,4 +1,4 @@
-use clap::{arg, Parser};
+use clap::{arg, command, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 pub struct BalanceArgs {
@@ -7,7 +7,27 @@ pub struct BalanceArgs {
         help = "The account address to fetch the balance of."
     )]
     pub address: Option<String>,
+
+    #[command(subcommand)]
+    pub command: Option<BalanceCommand>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The optional pool url to fetch the balance from."
+    )]
+    pub pool_url: Option<String>,
 }
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum BalanceCommand {
+    #[command(about = "Commit a pending pool balance to the chain.")]
+    Commit(BalanceCommitArgs),
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct BalanceCommitArgs {}
 
 #[derive(Parser, Debug)]
 pub struct BenchmarkArgs {
@@ -119,29 +139,60 @@ pub struct RewardsArgs {}
 
 #[derive(Parser, Debug)]
 pub struct StakeArgs {
-    #[arg(
-        value_name = "AMOUNT",
-        help = "The amount of the token to stake. Defaults to max."
-    )]
-    pub amount: Option<f64>,
+    #[command(subcommand)]
+    pub command: Option<StakeCommand>,
 
-    #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake.")]
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake with.")]
     pub mint: String,
-
-    #[arg(
-        long,
-        value_name = "TOKEN_ACCOUNT_ADDRESS",
-        help = "Token account to send from. Defaults to the associated token account."
-    )]
-    pub token_account: Option<String>,
 
     #[arg(
         long,
         short,
         value_name = "POOL_URL",
-        help = "The optional pool url to stake with."
+        help = "The pool url to stake with."
     )]
     pub pool_url: Option<String>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum StakeCommand {
+    #[command(about = "Deposit tokens into a stake account.")]
+    Deposit(StakeDepositArgs),
+
+    #[command(about = "Withdraw tokens from a stake account.")]
+    Withdraw(StakeWithdrawArgs),
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeDepositArgs {
+    #[arg(
+        value_name = "AMOUNT",
+        help = "The amount of stake to deposit. Defaults to max."
+    )]
+    pub amount: Option<f64>,
+
+    #[arg(
+        long,
+        value_name = "TOKEN_ACCOUNT_ADDRESS",
+        help = "Token account to deposit from. Defaults to the associated token account."
+    )]
+    pub token_account: Option<String>,
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeWithdrawArgs {
+    #[arg(
+        value_name = "AMOUNT",
+        help = "The amount of stake to withdraw. Defaults to max."
+    )]
+    pub amount: Option<f64>,
+
+    #[arg(
+        long,
+        value_name = "TOKEN_ACCOUNT_ADDRESS",
+        help = "Token account to withdraw to. Defaults to the associated token account."
+    )]
+    pub token_account: Option<String>,
 }
 
 #[derive(Parser, Debug)]
@@ -190,13 +241,4 @@ pub struct UpgradeArgs {
         help = "The amount of ORE to upgrade from v1 to v2. Defaults to max."
     )]
     pub amount: Option<f64>,
-}
-
-#[derive(Parser, Debug)]
-pub struct UpdatePoolBalanceArgs {
-    #[arg(
-        value_name = "POOL_URL",
-        help = "The pool url from where to update on-chain balance."
-    )]
-    pub pool_url: String,
 }

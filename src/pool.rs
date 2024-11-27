@@ -13,6 +13,7 @@ use steel::AccountDeserialize;
 
 use crate::{cu_limits::CU_LIMIT_CLAIM, error::Error, send_and_confirm::ComputeBudget, Miner};
 
+#[derive(Clone)]
 pub struct Pool {
     pub http_client: reqwest::Client,
     pub pool_url: String,
@@ -35,14 +36,14 @@ impl Pool {
         // submit idempotent register payload
         // will simply return off-chain account if already registered
         let body = RegisterPayload { authority: pubkey };
-        self.http_client
-            .post(post_url)
-            .json(&body)
-            .send()
-            .await?
-            .json::<Member>()
-            .await
-            .map_err(From::from)
+        let resp = self.http_client.post(post_url).json(&body).send().await?;
+        match resp.error_for_status() {
+            Err(err) => {
+                println!("{:?}", err);
+                Err(err).map_err(From::from)
+            }
+            Ok(resp) => resp.json::<Member>().await.map_err(From::from),
+        }
     }
 
     pub async fn post_pool_register_staker(
@@ -74,25 +75,26 @@ impl Pool {
             authority: pubkey,
             mint: *mint,
         };
-        self.http_client
-            .post(post_url)
-            .json(&body)
-            .send()
-            .await?
-            .json::<Staker>()
-            .await
-            .map_err(From::from)
+        let resp = self.http_client.post(post_url).json(&body).send().await?;
+        match resp.error_for_status() {
+            Err(err) => {
+                println!("{:?}", err);
+                Err(err).map_err(From::from)
+            }
+            Ok(resp) => resp.json::<Staker>().await.map_err(From::from),
+        }
     }
 
     pub async fn get_pool_address(&self) -> Result<PoolAddress, Error> {
         let get_url = format!("{}/pool-address", self.pool_url);
-        self.http_client
-            .get(get_url)
-            .send()
-            .await?
-            .json::<PoolAddress>()
-            .await
-            .map_err(From::from)
+        let resp = self.http_client.get(get_url).send().await?;
+        match resp.error_for_status() {
+            Err(err) => {
+                println!("{:?}", err);
+                Err(err).map_err(From::from)
+            }
+            Ok(resp) => resp.json::<PoolAddress>().await.map_err(From::from),
+        }
     }
 
     pub async fn get_pool_member_onchain(
@@ -123,13 +125,14 @@ impl Pool {
     pub async fn get_pool_member(&self, miner: &Miner) -> Result<Member, Error> {
         let pubkey = miner.signer().pubkey();
         let get_url = format!("{}/member/{}", self.pool_url, pubkey);
-        self.http_client
-            .get(get_url)
-            .send()
-            .await?
-            .json::<Member>()
-            .await
-            .map_err(From::from)
+        let resp = self.http_client.get(get_url).send().await?;
+        match resp.error_for_status() {
+            Err(err) => {
+                println!("{:?}", err);
+                Err(err).map_err(From::from)
+            }
+            Ok(resp) => resp.json::<Member>().await.map_err(From::from),
+        }
     }
 
     pub async fn get_updated_pool_challenge(
@@ -137,17 +140,17 @@ impl Pool {
         last_hash_at: i64,
     ) -> Result<MemberChallenge, Error> {
         let mut retries = 0;
-        let max_retries = 24; // 120 seconds, should yield new challenge
+        let max_retries = 120; // 120 seconds, should yield new challenge
         let progress_bar = Arc::new(spinner::new_progress_bar());
         loop {
-            progress_bar.set_message("Fetching new challenge...");
+            progress_bar.set_message(format!("Fetching new challenge... (retry {})", retries));
             let challenge = self.get_pool_challenge().await?;
             if challenge.challenge.lash_hash_at == last_hash_at {
                 retries += 1;
                 if retries == max_retries {
                     return Err(Error::Internal("could not fetch new challenge".to_string()));
                 }
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             } else {
                 progress_bar.finish_with_message("Found new challenge");
                 return Ok(challenge);
@@ -189,22 +192,35 @@ impl Pool {
             hash,
         };
         // post
-        let balance_update = self
+        let resp = self
             .http_client
             .post(post_url)
             .json(&paylaod)
             .send()
-            .await?
-            .json::<BalanceUpdate>()
-            .await;
-        println!("{:?}", balance_update);
-        Ok(())
+            .await?;
+        match resp.error_for_status() {
+            Err(err) => {
+                println!("{:?}", err);
+                Err(err).map_err(From::from)
+            }
+            Ok(resp) => {
+                let balance_update = resp.json::<BalanceUpdate>().await;
+                println!("{:?}", balance_update);
+                Ok(())
+            }
+        }
     }
 
     async fn get_pool_challenge(&self) -> Result<MemberChallenge, Error> {
         let get_url = format!("{}/challenge", self.pool_url);
         let resp = self.http_client.get(get_url).send().await?;
-        resp.json::<MemberChallenge>().await.map_err(From::from)
+        match resp.error_for_status() {
+            Err(err) => {
+                println!("{:?}", err);
+                Err(err).map_err(From::from)
+            }
+            Ok(resp) => resp.json::<MemberChallenge>().await.map_err(From::from),
+        }
     }
 
     pub async fn post_pool_solution(
@@ -220,8 +236,19 @@ impl Pool {
             signature,
         };
         let post_url = format!("{}/contribute", self.pool_url);
-        let _ = self.http_client.post(post_url).json(&payload).send().await;
-        Ok(())
+        let resp = self
+            .http_client
+            .post(post_url)
+            .json(&payload)
+            .send()
+            .await?;
+        match resp.error_for_status() {
+            Err(err) => {
+                println!("{:?}", err);
+                Err(err).map_err(From::from)
+            }
+            Ok(_) => Ok(()),
+        }
     }
 
     fn sign_solution(miner: &Miner, solution: &Solution) -> Signature {
