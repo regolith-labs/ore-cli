@@ -294,7 +294,8 @@ impl Miner {
         let stake_data = self.rpc_client.get_account_data(&stake_address).await?;
         let _ = Stake::try_from_bytes(stake_data.as_slice())?;
         // open share account, if needed
-        let _ = pool.post_pool_register_staker(self, &mint).await?;
+        let staker = pool.post_pool_register_staker(self, &mint).await?;
+        println!("{:?}", staker);
         // send tx
         let ix =
             ore_pool_api::sdk::stake(signer.pubkey(), mint, pool_address.address, sender, amount);

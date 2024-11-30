@@ -203,8 +203,12 @@ impl Miner {
             // Build nonce indices
             let num_total_members = member_challenge.num_total_members.max(1);
             let u64_unit = u64::MAX.saturating_div(num_total_members);
-            let left_bound = u64_unit.saturating_mul(nonce_index);
-            let range_per_core = u64_unit.saturating_div(args.cores);
+            // Split member nonce space for multiple devices
+            let nonce_unit = u64_unit.saturating_div(5);
+            let left_bound = u64_unit.saturating_mul(nonce_index)
+                + member_challenge.device_id.saturating_mul(nonce_unit);
+            // Split nonce-device space for muliple cores
+            let range_per_core = nonce_unit.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
             for n in 0..(args.cores) {
                 let index = left_bound + n * range_per_core;
