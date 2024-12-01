@@ -185,7 +185,7 @@ impl Miner {
         let mut last_balance: i64;
         loop {
             // Fetch latest challenge
-            let member_challenge = match pool.get_updated_pool_challenge(last_hash_at).await {
+            let member_challenge = match pool.get_updated_pool_challenge(self, last_hash_at).await {
                 Err(_err) => {
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                     continue;
@@ -198,15 +198,22 @@ impl Miner {
             last_hash_at = member_challenge.challenge.lash_hash_at;
 
             // Compute cutoff time
-            let cutoff_time = self.get_cutoff(last_hash_at, member_challenge.buffer).await;
+            let cutoff_time = self.get_cutoff(last_hash_at, args.buffer_time).await;
 
             // Build nonce indices
             let num_total_members = member_challenge.num_total_members.max(1);
             let u64_unit = u64::MAX.saturating_div(num_total_members);
             // Split member nonce space for multiple devices
-            let nonce_unit = u64_unit.saturating_div(5);
-            let left_bound = u64_unit.saturating_mul(nonce_index)
-                + member_challenge.device_id.saturating_mul(nonce_unit);
+            let nonce_unit = u64_unit.saturating_div(member_challenge.num_devices as u64);
+            println!("nonce unit: {}", nonce_unit);
+            let device_id = member_challenge
+                .device_id
+                .saturating_sub(1)
+                .min(member_challenge.num_devices) as u64;
+            println!("device id: {}", device_id);
+            let left_bound =
+                u64_unit.saturating_mul(nonce_index) + device_id.saturating_mul(nonce_unit);
+            println!("left bound: {}", left_bound);
             // Split nonce-device space for muliple cores
             let range_per_core = nonce_unit.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
@@ -214,6 +221,7 @@ impl Miner {
                 let index = left_bound + n * range_per_core;
                 nonce_indices.push(index);
             }
+            println!("nonce indices: {:?}", nonce_indices);
 
             // Run drillx
             let solution = Self::find_hash_par(
