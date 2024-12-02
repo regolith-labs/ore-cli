@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use drillx::Solution;
 use ore_pool_types::{
-    BalanceUpdate, ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload,
+    BalanceUpdate, ContributePayload, Member, MemberChallengeV2, PoolAddress, RegisterPayload,
     RegisterStakerPayload, Staker, UpdateBalancePayload,
 };
 use solana_rpc_client::spinner;
@@ -137,19 +137,16 @@ impl Pool {
 
     pub async fn get_updated_pool_challenge(
         &self,
+        miner: &Miner,
         last_hash_at: i64,
-    ) -> Result<MemberChallenge, Error> {
+    ) -> Result<MemberChallengeV2, Error> {
         let mut retries = 0;
-        let max_retries = 120; // 120 seconds, should yield new challenge
         let progress_bar = Arc::new(spinner::new_progress_bar());
         loop {
             progress_bar.set_message(format!("Fetching new challenge... (retry {})", retries));
-            let challenge = self.get_pool_challenge().await?;
+            let challenge = self.get_pool_challenge(miner).await?;
             if challenge.challenge.lash_hash_at == last_hash_at {
                 retries += 1;
-                if retries == max_retries {
-                    return Err(Error::Internal("could not fetch new challenge".to_string()));
-                }
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             } else {
                 progress_bar.finish_with_message("Found new challenge");
@@ -211,15 +208,16 @@ impl Pool {
         }
     }
 
-    async fn get_pool_challenge(&self) -> Result<MemberChallenge, Error> {
-        let get_url = format!("{}/challenge", self.pool_url);
+    async fn get_pool_challenge(&self, miner: &Miner) -> Result<MemberChallengeV2, Error> {
+        let pubkey = miner.signer().pubkey();
+        let get_url = format!("{}/challenge/{}", self.pool_url, pubkey);
         let resp = self.http_client.get(get_url).send().await?;
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
                 Err(err).map_err(From::from)
             }
-            Ok(resp) => resp.json::<MemberChallenge>().await.map_err(From::from),
+            Ok(resp) => resp.json::<MemberChallengeV2>().await.map_err(From::from),
         }
     }
 
