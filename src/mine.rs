@@ -205,15 +205,12 @@ impl Miner {
             let u64_unit = u64::MAX.saturating_div(num_total_members);
             // Split member nonce space for multiple devices
             let nonce_unit = u64_unit.saturating_div(member_challenge.num_devices as u64);
-            println!("nonce unit: {}", nonce_unit);
             if member_challenge.device_id.gt(&member_challenge.num_devices) {
                 return Err(Error::TooManyDevices);
             }
             let device_id = member_challenge.device_id.saturating_sub(1) as u64;
-            println!("device id: {}", device_id);
             let left_bound =
                 u64_unit.saturating_mul(nonce_index) + device_id.saturating_mul(nonce_unit);
-            println!("left bound: {}", left_bound);
             // Split nonce-device space for muliple cores
             let range_per_core = nonce_unit.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
@@ -221,7 +218,6 @@ impl Miner {
                 let index = left_bound + n * range_per_core;
                 nonce_indices.push(index);
             }
-            println!("nonce indices: {:?}", nonce_indices);
 
             // Run drillx
             let solution = Self::find_hash_par(
