@@ -206,10 +206,10 @@ impl Miner {
             // Split member nonce space for multiple devices
             let nonce_unit = u64_unit.saturating_div(member_challenge.num_devices as u64);
             println!("nonce unit: {}", nonce_unit);
-            let device_id = member_challenge
-                .device_id
-                .saturating_sub(1)
-                .min(member_challenge.num_devices) as u64;
+            if member_challenge.device_id.gt(&member_challenge.num_devices) {
+                return Err(Error::TooManyDevices);
+            }
+            let device_id = member_challenge.device_id.saturating_sub(1) as u64;
             println!("device id: {}", device_id);
             let left_bound =
                 u64_unit.saturating_mul(nonce_index) + device_id.saturating_mul(nonce_unit);

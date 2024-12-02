@@ -12,4 +12,6 @@ pub enum Error {
     SolanaProgram(#[from] solana_program::program_error::ProgramError),
     #[error("parse int")]
     ParseInt(#[from] std::num::ParseIntError),
+    #[error("number of devices per keypair exceeded")]
+    TooManyDevices,
 }
