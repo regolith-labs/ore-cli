@@ -5899,3 +5899,11 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
+
+[[patch.unused]]
+name = "ore-api"
+version = "3.0.0"
+
+[[patch.unused]]
+name = "ore-boost-api"
+version = "1.0.0"

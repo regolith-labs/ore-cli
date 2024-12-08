@@ -19,7 +19,6 @@ mod send_and_confirm;
 mod stake;
 mod transfer;
 mod unstake;
-mod upgrade;
 mod utils;
 
 use futures::StreamExt;
@@ -82,9 +81,6 @@ enum Commands {
 
     #[command(about = "Send ORE to anyone, anywhere in the world")]
     Transfer(TransferArgs),
-
-    #[command(about = "Upgrade your ORE tokens from v1 to v2")]
-    Upgrade(UpgradeArgs),
 
     #[cfg(feature = "admin")]
     #[command(about = "Initialize the program")]
@@ -254,9 +250,6 @@ async fn main() {
         }
         Commands::Transfer(args) => {
             miner.transfer(args).await;
-        }
-        Commands::Upgrade(args) => {
-            miner.upgrade(args).await;
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {
