@@ -2,6 +2,7 @@ mod args;
 mod balance;
 mod benchmark;
 mod busses;
+mod checkpoint;
 mod claim;
 mod close;
 mod config;
@@ -58,6 +59,9 @@ enum Commands {
 
     #[command(about = "Fetch the bus account balances")]
     Busses(BussesArgs),
+
+    #[command(about = "Execute checkpoint operation for a boost")]
+    Checkpoint(CheckpointArgs),
 
     #[command(about = "Claim your mining rewards")]
     Claim(ClaimArgs),
@@ -226,6 +230,9 @@ async fn main() {
         }
         Commands::Busses(_) => {
             miner.busses().await;
+        }
+        Commands::Checkpoint(args) => {
+            miner.checkpoint(args).await.unwrap();
         }
         Commands::Claim(args) => {
             if let Err(err) = miner.claim(args).await {

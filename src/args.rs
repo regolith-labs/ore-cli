@@ -45,6 +45,12 @@ pub struct BenchmarkArgs {
 pub struct BussesArgs {}
 
 #[derive(Parser, Debug)]
+pub struct CheckpointArgs {
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint address of the boost to checkpoint")]
+    pub mint: String,
+}
+
+#[derive(Parser, Debug)]
 pub struct ClaimArgs {
     #[arg(
         value_name = "AMOUNT",

@@ -2,8 +2,7 @@ use std::sync::Arc;
 
 use drillx::Solution;
 use ore_pool_types::{
-    BalanceUpdate, ContributePayload, Member, MemberChallengeV2, PoolAddress, RegisterPayload,
-    RegisterStakerPayload, Staker, UpdateBalancePayload,
+    BalanceUpdate, ContributePayload, Member, MemberChallengeV2, PoolAddress, RegisterPayload, UpdateBalancePayload,
 };
 use solana_rpc_client::spinner;
 use solana_sdk::{
@@ -11,7 +10,7 @@ use solana_sdk::{
 };
 use steel::AccountDeserialize;
 
-use crate::{cu_limits::CU_LIMIT_CLAIM, error::Error, send_and_confirm::ComputeBudget, Miner};
+use crate::{error::Error, send_and_confirm::ComputeBudget, Miner};
 
 #[derive(Clone)]
 pub struct Pool {
@@ -46,45 +45,6 @@ impl Pool {
         }
     }
 
-    pub async fn post_pool_register_staker(
-        &self,
-        miner: &Miner,
-        mint: &Pubkey,
-    ) -> Result<Staker, Error> {
-        let pubkey = miner.signer().pubkey();
-        let post_url = format!("{}/register-staker", self.pool_url);
-        // check if on-chain share account exists already
-        let pool_address = self.get_pool_address().await?;
-        if let Err(_err) = self
-            .get_staker_onchain(miner, pool_address.address, *mint)
-            .await
-        {
-            println!("creating new share account");
-            // on-chain staker account not found
-            // create one before submitting register payload to pool
-            let ix = ore_pool_api::sdk::open_share(pubkey, *mint, pool_address.address);
-            let _ = miner
-                .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
-                .await?;
-            // sleep to allow the rpc connection on the pool server to catch up
-            tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-        }
-        // submit idempotent regiter payload
-        // will simply return off-chain account if already registered
-        let body = RegisterStakerPayload {
-            authority: pubkey,
-            mint: *mint,
-        };
-        let resp = self.http_client.post(post_url).json(&body).send().await?;
-        match resp.error_for_status() {
-            Err(err) => {
-                println!("{:?}", err);
-                Err(err).map_err(From::from)
-            }
-            Ok(resp) => resp.json::<Staker>().await.map_err(From::from),
-        }
-    }
-
     pub async fn get_pool_address(&self) -> Result<PoolAddress, Error> {
         let get_url = format!("{}/pool-address", self.pool_url);
         let resp = self.http_client.get(get_url).send().await?;
@@ -107,19 +67,6 @@ impl Pool {
         let data = miner.rpc_client.get_account_data(&member_pda).await?;
         let pool = ore_pool_api::state::Member::try_from_bytes(data.as_slice())?;
         Ok(*pool)
-    }
-
-    pub async fn get_staker_onchain(
-        &self,
-        miner: &Miner,
-        pool_address: Pubkey,
-        mint: Pubkey,
-    ) -> Result<ore_pool_api::state::Share, Error> {
-        let (share_pda, _) =
-            ore_pool_api::state::share_pda(miner.signer().pubkey(), pool_address, mint);
-        let data = miner.rpc_client.get_account_data(&share_pda).await?;
-        let share = ore_pool_api::state::Share::try_from_bytes(data.as_slice())?;
-        Ok(*share)
     }
 
     pub async fn get_pool_member(&self, miner: &Miner) -> Result<Member, Error> {

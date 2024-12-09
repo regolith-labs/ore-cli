@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use colored::*;
-use ore_boost_api::state::{boost_pda, stake_pda, Boost, Stake};
+use ore_boost_api::state::{boost_pda, stake_pda, Boost, Stake, Checkpoint, checkpoint_pda};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
@@ -84,12 +84,19 @@ impl Miner {
     async fn stake_get(&self, args: StakeArgs) -> Result<(), Error> {
         let mint_address = Pubkey::from_str(&args.mint).unwrap();
         let boost_address = boost_pda(mint_address).0;
+        let checkpoint_address = checkpoint_pda(boost_address).0;
         let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
         let Ok(boost_data) = self.rpc_client.get_account_data(&boost_address).await else {
             println!("No boost found for mint: {}", mint_address);
             return Ok(());
         };
         let Ok(boost) = Boost::try_from_bytes(&boost_data) else {
+            return Ok(());
+        };
+        let Ok(checkpoint_data) = self.rpc_client.get_account_data(&checkpoint_address).await else {
+            return Ok(());
+        };
+        let Ok(checkpoint) = Checkpoint::try_from_bytes(&checkpoint_data) else {
             return Ok(());
         };
         let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
@@ -134,6 +141,12 @@ impl Miner {
         );
         println!("Multiplier: {}x", boost.multiplier);
         println!("Expires at: {}", boost.expires_at);
+
+        println!("\n{}", "Checkpoint".bold());
+        println!("Current: {}", checkpoint.current_id);
+        println!("Total stakers: {}", checkpoint.total_stakers);
+        println!("Total rewards: {}", amount_to_ui_amount(checkpoint.total_rewards, mint.decimals));
+        println!("Timestamp: {}", checkpoint.ts);
         Ok(())
     }
 
