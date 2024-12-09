@@ -148,7 +148,9 @@ impl Miner {
             symbol
         );
         println!("Multiplier: {}x", boost.multiplier);
+        println!("Miner: {}", boost.proof);
         println!("Expires at: {}", boost.expires_at);
+        println!("Reserved at: {}", boost.reserved_at);
         println!("\n{}", "Checkpoint".bold());
         println!("Current: {}", checkpoint.current_id);
         println!("Total stakers: {}", checkpoint.total_stakers);
