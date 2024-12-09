@@ -1,11 +1,11 @@
 use std::str::FromStr;
-use solana_client::{rpc_filter, rpc_config::RpcProgramAccountsConfig};
+use solana_client::{rpc_filter::{self, Memcmp, RpcFilterType}, rpc_config::RpcProgramAccountsConfig};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 use ore_boost_api::state::{boost_pda, Boost, Stake, checkpoint_pda, Checkpoint};
 use solana_rpc_client::spinner;
 use colored::*;
-use steel::AccountDeserialize;
+use steel::{AccountDeserialize, Discriminator};
 
 use crate::{
     args::CheckpointArgs,
@@ -38,7 +38,6 @@ impl Miner {
         // Check if enough time has passed since last checkpoint
         let clock = get_clock(&self.rpc_client).await;
         let time_since_last = clock.unix_timestamp - checkpoint.ts;
-        
         if time_since_last < CHECKPOINT_INTERVAL {
             progress_bar.finish_with_message(format!(
                 "{} Not enough time has passed since last checkpoint. Wait {} more seconds.",
@@ -50,14 +49,18 @@ impl Miner {
 
         // Get all stake accounts for this boost
         progress_bar.set_message("Fetching stake accounts...");
-        
         let filters = vec![
-            rpc_filter::RpcFilterType::Memcmp(rpc_filter::Memcmp::new_raw_bytes(
+            RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
                 0,
+                Stake::discriminator().to_le_bytes().to_vec(),
+            )),
+            RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+                48,
                 boost_address.to_bytes().to_vec(),
             )),
         ];
-        // Get all stake accounts and parse into (Pubkey, Account, Stake) tuples
+
+        // Parse stake accounts
         let mut accounts: Vec<_> = self.rpc_client
             .get_program_accounts_with_config(
                 &ore_boost_api::ID,
