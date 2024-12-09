@@ -116,7 +116,7 @@ impl Miner {
 
             // Build instruction set
             let mut ixs = vec![ore_api::sdk::auth(proof_pubkey(signer.pubkey()))];
-            let mut compute_budget = 600_000;
+            let mut compute_budget = 750_000;
 
             // Check for reset
             if self.should_reset(config).await
