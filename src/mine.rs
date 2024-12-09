@@ -60,13 +60,9 @@ impl Miner {
         // Check num threads
         self.check_num_cores(args.cores);
 
-        // Fetch boost data
-        let boost_data_1 =
-            fetch_boost_data(self.rpc_client.clone(), signer.pubkey(), &args.boost_1).await;
-        let boost_data_2 =
-            fetch_boost_data(self.rpc_client.clone(), signer.pubkey(), &args.boost_2).await;
-        let boost_data_3 =
-            fetch_boost_data(self.rpc_client.clone(), signer.pubkey(), &args.boost_3).await;
+        // TODO Fetch boost data
+        // let boost_data_1 =
+        //     fetch_boost_data(self.rpc_client.clone(), signer.pubkey(), &args.boost_1).await;
 
         // Start mining loop
         let mut last_hash_at = 0;
@@ -93,9 +89,7 @@ impl Miner {
             );
 
             // Print boosts
-            log_boost_data(self.rpc_client.clone(), &boost_data_1, 1).await;
-            log_boost_data(self.rpc_client.clone(), &boost_data_2, 2).await;
-            log_boost_data(self.rpc_client.clone(), &boost_data_3, 3).await;
+            // log_boost_data(self.rpc_client.clone(), &boost_data_1, 1).await;
             last_hash_at = proof.last_hash_at;
             last_balance = proof.balance;
 
@@ -134,9 +128,7 @@ impl Miner {
 
             // Build option (boost) accounts
             let mut optional_accounts: Vec<Pubkey> = vec![];
-            optional_accounts = [optional_accounts, BoostData::to_vec(&boost_data_1)].concat();
-            optional_accounts = [optional_accounts, BoostData::to_vec(&boost_data_2)].concat();
-            optional_accounts = [optional_accounts, BoostData::to_vec(&boost_data_3)].concat();
+            // optional_accounts = [optional_accounts, BoostData::to_vec(&boost_data_1)].concat();
             // Build mine ix
             let ix = ore_api::sdk::mine(
                 signer.pubkey(),

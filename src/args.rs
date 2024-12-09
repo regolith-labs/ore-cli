@@ -106,27 +106,6 @@ pub struct MineArgs {
 
     #[arg(
         long,
-        value_name = "MINT_ADDRESS",
-        help = "The token to apply as boost #1"
-    )]
-    pub boost_1: Option<String>,
-
-    #[arg(
-        long,
-        value_name = "MINT_ADDRESS",
-        help = "The token to apply as boost #2"
-    )]
-    pub boost_2: Option<String>,
-
-    #[arg(
-        long,
-        value_name = "MINT_ADDRESS",
-        help = "The token to apply as boost #3"
-    )]
-    pub boost_3: Option<String>,
-
-    #[arg(
-        long,
         short,
         value_name = "POOL_URL",
         help = "The optional pool url to join and forward solutions to."
