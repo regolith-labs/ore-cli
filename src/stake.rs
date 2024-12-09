@@ -73,7 +73,7 @@ impl Miner {
                     metadata.symbol,
                     (stake.balance as f64 / boost.total_stake as f64) * 100f64
                 );
-                println!("Last deposit at: {}", stake.last_stake_at);
+                println!("Last deposit at: {}", stake.last_deposit_at);
             }
         };
         println!("\n{}", "Boost".bold());
@@ -148,7 +148,7 @@ impl Miner {
             (stake.balance as f64 / boost.total_stake as f64) * 100f64
         );
         println!("URL: {}", pool_url);
-        println!("Last deposit at: {}", stake.last_stake_at);
+        println!("Last deposit at: {}", stake.last_deposit_at);
         println!("\n{}", "Boost".bold());
         println!(
             "Balance: {} {}",

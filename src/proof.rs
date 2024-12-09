@@ -31,7 +31,6 @@ impl Miner {
             solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string()
         );
         println!("Last hash at: {:?}", proof.last_hash_at);
-        println!("Last stake at: {:?}", proof.last_stake_at);
         println!("Miner: {:?}", proof.miner);
         println!("Total hashes: {:?}", proof.total_hashes);
         println!(

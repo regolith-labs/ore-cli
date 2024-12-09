@@ -14,6 +14,7 @@ mod mine;
 mod open;
 mod pool;
 mod proof;
+mod rank;
 mod rewards;
 mod send_and_confirm;
 mod stake;
@@ -72,6 +73,9 @@ enum Commands {
 
     #[command(about = "Fetch a proof account by address")]
     Proof(ProofArgs),
+
+    #[command(about = "Submit a rank transaction for a proof")]
+    Rank(RankArgs),
 
     #[command(about = "Fetch the current reward rate for each difficulty level")]
     Rewards(RewardsArgs),
@@ -241,6 +245,9 @@ async fn main() {
         }
         Commands::Proof(args) => {
             miner.proof(args).await;
+        }
+        Commands::Rank(args) => {
+            miner.rank(args).await;
         }
         Commands::Rewards(_) => {
             miner.rewards().await;
