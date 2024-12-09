@@ -204,7 +204,7 @@ impl Miner {
 
                                                         // Non custom instruction error, return
                                                         _ => {
-                                                            println!("E: {:?}", err);
+                                                            println!("E1: {:?}", err);
                                                             log_error(&progress_bar, &err.to_string(), true);
                                                             return Err(ClientError {
                                                                 request: None,
@@ -216,7 +216,7 @@ impl Miner {
 
                                                 // Non instruction error, return
                                                 _ => {
-                                                    println!("E: {:?}", err);
+                                                    println!("E2: {:?}", err);
                                                     log_error(&progress_bar, &err.to_string(), true);
                                                     return Err(ClientError {
                                                         request: None,
@@ -253,7 +253,7 @@ impl Miner {
 
                             // Handle confirmation errors
                             Err(err) => {
-                                println!("E: {:?}", err);
+                                println!("E3: {:?}", err);
                                 log_error(&progress_bar, &err.kind().to_string(), false);
                             }
                         }
@@ -262,7 +262,7 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    println!("E: {:?}", err);
+                    println!("E4: {:?}", err);
                     log_error(&progress_bar, &err.kind().to_string(), false);
                 }
             }

@@ -91,27 +91,35 @@ impl Miner {
             return Ok(());
         };
         let Ok(boost) = Boost::try_from_bytes(&boost_data) else {
+            println!("Failed to parse boost data");
             return Ok(());
         };
         let Ok(checkpoint_data) = self.rpc_client.get_account_data(&checkpoint_address).await else {
+            println!("Failed to fetch checkpoint data");
             return Ok(());
         };
         let Ok(checkpoint) = Checkpoint::try_from_bytes(&checkpoint_data) else {
+            println!("Failed to parse checkpoint data");
             return Ok(());
         };
         let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
+            println!("Failed to fetch mint data");
             return Ok(());
         };
         let Ok(mint) = Mint::unpack(&mint_data) else {
+            println!("Failed to parse mint data");
             return Ok(());
         };
         let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
-        let Ok(metadata_data) = self.rpc_client.get_account_data(&metadata_address).await else {
-            return Ok(());
-        };
-        let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data)
-        else {
-            return Ok(());
+        let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
+            Ok(metadata_data) => {
+                if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
+                    metadata.symbol
+                } else {
+                    "".to_string()
+                }
+            }
+            Err(_) => "".to_string()
         };
         if let Ok(stake_data) = self.rpc_client.get_account_data(&stake_address).await {
             if let Ok(stake) = Stake::try_from_bytes(&stake_data) {
@@ -120,13 +128,13 @@ impl Miner {
                 println!(
                     "Balance: {} {} ({:.8}% of total)",
                     amount_to_ui_amount(stake.balance, mint.decimals),
-                    metadata.symbol,
+                    symbol,
                     (stake.balance as f64 / boost.total_stake as f64) * 100f64
                 );
                 println!(
                     "Balance (pending): {} {}",
                     amount_to_ui_amount(stake.pending_balance, mint.decimals),
-                    metadata.symbol,
+                    symbol,
                 );
                 println!("Last deposit at: {}", stake.last_deposit_at);
                 println!("Yield: {}", stake.rewards);
@@ -137,11 +145,10 @@ impl Miner {
         println!(
             "Balance: {} {}",
             amount_to_ui_amount(boost.total_stake, mint.decimals),
-            metadata.symbol
+            symbol
         );
         println!("Multiplier: {}x", boost.multiplier);
         println!("Expires at: {}", boost.expires_at);
-
         println!("\n{}", "Checkpoint".bold());
         println!("Current: {}", checkpoint.current_id);
         println!("Total stakers: {}", checkpoint.total_stakers);
