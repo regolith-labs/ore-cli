@@ -77,6 +77,8 @@ impl Miner {
             })
             .collect();
 
+        println!("Stake accounts: {:?}", accounts);
+
         if accounts.is_empty() {
             progress_bar.finish_with_message("No stake accounts found for this boost");
             return Ok(());
@@ -100,21 +102,20 @@ impl Miner {
         for chunk in remaining_accounts.chunks(MAX_ACCOUNTS_PER_TX) {
             let mut ixs = Vec::new();
             
-            for (stake_pubkey, stake) in chunk {
+            for (stake_pubkey, _stake) in chunk {
                 // Only include active stakes
-                if stake.balance > 0 {
-                    ixs.push(ore_boost_api::sdk::rebase(
-                        self.signer().pubkey(),
-                        mint_address,
-                        *stake_pubkey,
-                    ));
-                }
+                ixs.push(ore_boost_api::sdk::rebase(
+                    self.signer().pubkey(),
+                    mint_address,
+                    *stake_pubkey,
+                ));
             }
 
             if !ixs.is_empty() {
                 // Send transaction with batch of rebase instructions
-                self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
+                let sig = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
                     .await?;
+                println!("Rebase transaction: {}", sig);
             }
         }
 
