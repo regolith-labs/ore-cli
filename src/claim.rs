@@ -168,7 +168,7 @@ impl Miner {
             .map_err(From::from)
     }
 
-    async fn initialize_ata(&self, wallet: Pubkey) -> Pubkey {
+    pub async fn initialize_ata(&self, wallet: Pubkey) -> Pubkey {
         // Initialize client.
         let signer = self.signer();
         let client = self.rpc_client.clone();

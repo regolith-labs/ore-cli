@@ -1,10 +1,7 @@
 use colored::Colorize;
 use ore_api::consts::EPOCH_DURATION;
 
-use crate::{
-    utils::{amount_u64_to_string, get_config},
-    Miner,
-};
+use crate::{utils::get_config, Miner};
 
 impl Miner {
     pub async fn config(&self) {

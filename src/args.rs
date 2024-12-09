@@ -150,23 +150,34 @@ pub struct StakeArgs {
 
     #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake with.")]
     pub mint: String,
-
-    #[arg(
-        long,
-        short,
-        value_name = "POOL_URL",
-        help = "The pool url to stake with."
-    )]
-    pub pool_url: Option<String>,
 }
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum StakeCommand {
+    #[command(about = "Claim rewards from a stake account.")]
+    Claim(StakeClaimArgs),
+
     #[command(about = "Deposit tokens into a stake account.")]
     Deposit(StakeDepositArgs),
 
     #[command(about = "Withdraw tokens from a stake account.")]
     Withdraw(StakeWithdrawArgs),
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeClaimArgs {
+    #[arg(
+        value_name = "AMOUNT",
+        help = "The amount of rewards to claim. Defaults to max."
+    )]
+    pub amount: Option<f64>,
+
+    #[arg(
+        long,
+        value_name = "WALLET_ADDRESS",
+        help = "Wallet address to receive claimed tokens."
+    )]
+    pub to: Option<String>,
 }
 
 #[derive(Parser, Clone, Debug)]
