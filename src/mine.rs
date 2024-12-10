@@ -130,7 +130,6 @@ impl Miner {
             let boost_mint = Pubkey::from_str("BgAim9SSvZzuUE4hxRx8pDY2ztDtZaHgXgz8FBMdjuYr").unwrap(); // TODO: Make this dynamic
             let boost_pda = boost_pda(boost_mint);
             let boost_proof_pda = proof_pda(boost_pda.0);
-            let optional_accounts: Vec<Pubkey> = vec![boost_pda.0, boost_proof_pda.0];
 
             // Build mine ix
             let ix = ore_api::sdk::mine(
@@ -138,7 +137,7 @@ impl Miner {
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
-                optional_accounts,
+                Some((boost_pda.0, boost_proof_pda.0)),
             );
             ixs.push(ix);
 
