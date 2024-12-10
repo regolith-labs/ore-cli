@@ -31,17 +31,17 @@ impl Miner {
         let _boost = get_boost(&self.rpc_client, boost_address).await;
         let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
 
-        // Check if enough time has passed since last checkpoint
-        let clock = get_clock(&self.rpc_client).await;
-        let time_since_last = clock.unix_timestamp - checkpoint.ts;
-        if time_since_last < CHECKPOINT_INTERVAL {
-            progress_bar.finish_with_message(format!(
-                "{} Not enough time has passed since last checkpoint. Wait {} more seconds.",
-                "NOTICE".yellow(),
-                CHECKPOINT_INTERVAL - time_since_last
-            ));
-            return Ok(());
-        }
+        // TODO Check if enough time has passed since last checkpoint
+        // let clock = get_clock(&self.rpc_client).await;
+        // let time_since_last = clock.unix_timestamp - checkpoint.ts;
+        // if time_since_last < CHECKPOINT_INTERVAL {
+        //     progress_bar.finish_with_message(format!(
+        //         "{} Not enough time has passed since last checkpoint. Wait {} more seconds.",
+        //         "WARNING".yellow(),
+        //         CHECKPOINT_INTERVAL - time_since_last
+        //     ));
+        //     return Ok(());
+        // }
 
         // Get all stake accounts for this boost
         progress_bar.set_message("Fetching stake accounts...");
