@@ -13,7 +13,7 @@ use drillx::{
 use mpl_token_metadata::accounts::Metadata;
 use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
-    state::{Bus, Config},
+    state::{Bus, Config, proof_pda},
 };
 use ore_boost_api::state::{boost_pda, stake_pda};
 use rand::Rng;
@@ -127,8 +127,11 @@ impl Miner {
             }
 
             // Build option (boost) accounts
-            let mut optional_accounts: Vec<Pubkey> = vec![];
-            // optional_accounts = [optional_accounts, BoostData::to_vec(&boost_data_1)].concat();
+            let boost_mint = Pubkey::from_str("BgAim9SSvZzuUE4hxRx8pDY2ztDtZaHgXgz8FBMdjuYr").unwrap(); // TODO: Make this dynamic
+            let boost_pda = boost_pda(boost_mint);
+            let boost_proof_pda = proof_pda(boost_pda.0);
+            let optional_accounts: Vec<Pubkey> = vec![boost_pda.0, boost_proof_pda.0];
+
             // Build mine ix
             let ix = ore_api::sdk::mine(
                 signer.pubkey(),
