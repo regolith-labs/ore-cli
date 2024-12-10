@@ -92,36 +92,41 @@ impl Miner {
         progress_bar.set_message(format!("Processing stake accounts starting from ID {}...", checkpoint.current_id));
 
         // Filter accounts starting from checkpoint.current_id
-        let remaining_accounts: Vec<_> = accounts
+        let mut remaining_accounts: Vec<_> = accounts
             .into_iter()
             .filter(|(_, stake)| {
                 stake.id >= checkpoint.current_id && stake.id < checkpoint.total_stakers
             })
             .collect();
 
-
-        let chunks = remaining_accounts.chunks(MAX_ACCOUNTS_PER_TX);
-        println!("Chunks: {:?}", chunks);
-
-        for chunk in chunks {
-            let mut ixs = Vec::new();            
-            println!("Chunk: {:?}", chunk);
-
-            for (stake_pubkey, _stake) in chunk {
-                // Only include active stakes
-                println!("Stake pubkey: {:?}", stake_pubkey);
-                ixs.push(ore_boost_api::sdk::rebase(
-                    self.signer().pubkey(),
-                    mint_address,
-                    *stake_pubkey,
-                ));
-            }
-
-            if !ixs.is_empty() {
-                // Send transaction with batch of rebase instructions
-                let sig = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
-                    .await?;
-                println!("Rebase transaction: {}", sig);
+        // Pack instructions for rebase
+        let mut ixs = Vec::new();            
+        if checkpoint.total_stakers == 0 || remaining_accounts.is_empty() {
+            ixs.push(ore_boost_api::sdk::rebase(
+                self.signer().pubkey(),
+                mint_address,
+                Pubkey::default(),
+            ));
+            let sig = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
+                .await?;
+            println!("Rebase transaction: {}", sig);
+        } else {
+            let chunks = remaining_accounts.chunks(MAX_ACCOUNTS_PER_TX);
+            for chunk in chunks {
+                ixs.clear();
+                for (stake_pubkey, _stake) in chunk {
+                    // Only include active stakes
+                    ixs.push(ore_boost_api::sdk::rebase(
+                        self.signer().pubkey(),
+                        mint_address,
+                        *stake_pubkey,
+                    ));
+                }
+                if !ixs.is_empty() {
+                    let sig = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
+                        .await?;
+                    println!("Rebase transaction: {}", sig);
+                }
             }
         }
 
