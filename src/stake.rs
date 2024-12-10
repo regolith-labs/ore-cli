@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use colored::*;
-use ore_boost_api::state::{boost_pda, stake_pda, Boost, Stake, Checkpoint, checkpoint_pda};
+use ore_boost_api::state::{boost_pda, stake_pda, Stake, checkpoint_pda};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
@@ -12,7 +12,7 @@ use crate::{
     cu_limits::CU_LIMIT_CLAIM,
     error::Error,
     send_and_confirm::ComputeBudget,
-    Miner,
+    Miner, utils::{get_boost, get_checkpoint, get_stake},
 };
 
 impl Miner {
@@ -61,8 +61,7 @@ impl Miner {
         };
 
         // Get stake account data to check rewards balance
-        let stake_data = self.rpc_client.get_account_data(&stake_address).await?;
-        let stake = Stake::try_from_bytes(&stake_data)?;
+        let stake = get_stake(&self.rpc_client, stake_address).await;
 
         // Build claim instruction with amount or max rewards
         ixs.push(ore_boost_api::sdk::claim(
@@ -86,22 +85,8 @@ impl Miner {
         let boost_address = boost_pda(mint_address).0;
         let checkpoint_address = checkpoint_pda(boost_address).0;
         let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
-        let Ok(boost_data) = self.rpc_client.get_account_data(&boost_address).await else {
-            println!("No boost found for mint: {}", mint_address);
-            return Ok(());
-        };
-        let Ok(boost) = Boost::try_from_bytes(&boost_data) else {
-            println!("Failed to parse boost data");
-            return Ok(());
-        };
-        let Ok(checkpoint_data) = self.rpc_client.get_account_data(&checkpoint_address).await else {
-            println!("Failed to fetch checkpoint data");
-            return Ok(());
-        };
-        let Ok(checkpoint) = Checkpoint::try_from_bytes(&checkpoint_data) else {
-            println!("Failed to parse checkpoint data");
-            return Ok(());
-        };
+        let boost = get_boost(&self.rpc_client, boost_address).await;
+        let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
         let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
             println!("Failed to fetch mint data");
             return Ok(());
@@ -202,13 +187,7 @@ impl Miner {
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(signer.pubkey(), boost_address).0;
-
-        // Fetch boost
-        let Ok(boost_account_data) = self.rpc_client.get_account_data(&boost_address).await else {
-            println!("Failed to fetch boost account");
-            return Ok(());
-        };
-        let _ = Boost::try_from_bytes(&boost_account_data).unwrap();
+        let _boost = get_boost(&self.rpc_client, boost_address).await;
 
         // Open stake account, if needed
         if let Err(_err) = self.rpc_client.get_account_data(&stake_address).await {
@@ -263,21 +242,9 @@ impl Miner {
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(signer.pubkey(), boost_address).0;
-
-        // Fetch boost
-        let Ok(boost_account_data) = self.rpc_client.get_account_data(&boost_address).await else {
-            println!("Failed to fetch boost account");
-            return Ok(());
-        };
-        let _ = Boost::try_from_bytes(&boost_account_data).unwrap();
-
-        // Fetch stake account, if needed
-        let Ok(stake_account_data) = self.rpc_client.get_account_data(&stake_address).await else {
-            println!("Failed to fetch stake account");
-            return Ok(());
-        };
-        let stake = Stake::try_from_bytes(&stake_account_data).unwrap();
-
+        let _boost = get_boost(&self.rpc_client, boost_address).await;
+        let stake = get_stake(&self.rpc_client, stake_address).await;
+        
         // Parse amount
         let amount: u64 = if let Some(amount) = args.amount {
             (amount * 10f64.powf(mint.decimals as f64)) as u64

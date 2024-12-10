@@ -7,7 +7,7 @@ use ore_api::{
     },
     state::{Config, Proof, Treasury},
 };
-use ore_boost_api::state::{Boost, Stake};
+use ore_boost_api::state::{Boost, Stake, Checkpoint};
 use serde::Deserialize;
 use solana_client::client_error::{ClientError, ClientErrorKind};
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -42,6 +42,14 @@ pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Boost {
         .await
         .expect("Failed to get boost account");
     *Boost::try_from_bytes(&data).expect("Failed to parse boost account")
+}
+
+pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {
+    let data = client
+        .get_account_data(&address)
+        .await
+        .expect("Failed to get checkpoint account");
+    *Checkpoint::try_from_bytes(&data).expect("Failed to parse checkpoint account")
 }
 
 pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Stake {

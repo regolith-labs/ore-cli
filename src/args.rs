@@ -129,6 +129,12 @@ pub struct RankArgs {
 pub struct RewardsArgs {}
 
 #[derive(Parser, Debug)]
+pub struct ReserveArgs {
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint to reserve.")]
+    pub mint: String,
+}
+
+#[derive(Parser, Debug)]
 pub struct StakeArgs {
     #[command(subcommand)]
     pub command: Option<StakeCommand>,
@@ -137,6 +143,7 @@ pub struct StakeArgs {
     pub mint: String,
 }
 
+// TODO Rename to boost?
 #[derive(Subcommand, Clone, Debug)]
 pub enum StakeCommand {
     #[command(about = "Claim rewards from a stake account.")]

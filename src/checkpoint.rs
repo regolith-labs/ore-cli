@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use solana_client::{rpc_filter::{self, Memcmp, RpcFilterType}, rpc_config::RpcProgramAccountsConfig};
+use solana_client::{rpc_filter::{Memcmp, RpcFilterType}, rpc_config::RpcProgramAccountsConfig};
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 use ore_boost_api::state::{boost_pda, Boost, Stake, checkpoint_pda, Checkpoint};
@@ -11,7 +11,7 @@ use crate::{
     args::CheckpointArgs,
     error::Error,
     send_and_confirm::ComputeBudget,
-    Miner, utils::get_clock,
+    Miner, utils::{get_clock, get_boost, get_checkpoint},
 };
 
 const MAX_ACCOUNTS_PER_TX: usize = 10;
@@ -28,12 +28,8 @@ impl Miner {
         let checkpoint_address = checkpoint_pda(boost_address).0;
 
         // Get boost account data
-        let boost_data = self.rpc_client.get_account_data(&boost_address).await?;
-        let _boost = Boost::try_from_bytes(&boost_data)?;
-
-        // Get checkpoint account data
-        let checkpoint_data = self.rpc_client.get_account_data(&checkpoint_address).await?;
-        let checkpoint = Checkpoint::try_from_bytes(&checkpoint_data)?;
+        let _boost = get_boost(&self.rpc_client, boost_address).await;
+        let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
 
         // Check if enough time has passed since last checkpoint
         let clock = get_clock(&self.rpc_client).await;
@@ -92,7 +88,7 @@ impl Miner {
         progress_bar.set_message(format!("Processing stake accounts starting from ID {}...", checkpoint.current_id));
 
         // Filter accounts starting from checkpoint.current_id
-        let mut remaining_accounts: Vec<_> = accounts
+        let remaining_accounts: Vec<_> = accounts
             .into_iter()
             .filter(|(_, stake)| {
                 stake.id >= checkpoint.current_id && stake.id < checkpoint.total_stakers
