@@ -125,7 +125,7 @@ impl Miner {
                     symbol,
                 );
                 println!("Last deposit at: {}", stake.last_deposit_at);
-                println!("Yield: {}", stake.rewards);
+                println!("Yield: {} ORE", amount_to_ui_amount(stake.rewards, mint.decimals));
             }
         };
         println!("\n{}", "Boost".bold());
@@ -135,7 +135,7 @@ impl Miner {
             amount_to_ui_amount(boost.total_stake, mint.decimals),
             symbol
         );
-        println!("Yield: {}", amount_to_ui_amount(boost_proof.balance, mint.decimals));
+        println!("Yield: {} ORE", amount_to_ui_amount(boost_proof.balance, mint.decimals));
         println!("Multiplier: {}x", boost.multiplier);
         println!("Miner: {}", boost.proof);
         println!("Expires at: {}", boost.expires_at);
