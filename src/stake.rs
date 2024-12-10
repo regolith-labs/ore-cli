@@ -140,6 +140,7 @@ impl Miner {
         println!("Miner: {}", boost.proof);
         println!("Expires at: {}", boost.expires_at);
         println!("Reserved at: {}", boost.reserved_at);
+        println!("Locked: {}", boost.locked);
         println!("\n{}", "Checkpoint".bold());
         println!("Current: {}", checkpoint.current_id);
         println!("Total stakers: {}", checkpoint.total_stakers);
