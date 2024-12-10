@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use colored::*;
+use ore_api::state::proof_pda;
 use ore_boost_api::state::{boost_pda, stake_pda, Stake, checkpoint_pda};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
@@ -12,7 +13,7 @@ use crate::{
     cu_limits::CU_LIMIT_CLAIM,
     error::Error,
     send_and_confirm::ComputeBudget,
-    Miner, utils::{get_boost, get_checkpoint, get_stake},
+    Miner, utils::{get_boost, get_checkpoint, get_stake, get_proof},
 };
 
 impl Miner {
@@ -85,7 +86,9 @@ impl Miner {
         let boost_address = boost_pda(mint_address).0;
         let checkpoint_address = checkpoint_pda(boost_address).0;
         let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
+        let boost_proof_address = proof_pda(boost_address).0;
         let boost = get_boost(&self.rpc_client, boost_address).await;
+        let boost_proof = get_proof(&self.rpc_client, boost_proof_address).await;
         let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
         let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
             println!("Failed to fetch mint data");
@@ -132,6 +135,7 @@ impl Miner {
             amount_to_ui_amount(boost.total_stake, mint.decimals),
             symbol
         );
+        println!("Yield: {}", amount_to_ui_amount(boost_proof.balance, mint.decimals));
         println!("Multiplier: {}x", boost.multiplier);
         println!("Miner: {}", boost.proof);
         println!("Expires at: {}", boost.expires_at);
