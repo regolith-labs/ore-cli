@@ -99,11 +99,17 @@ impl Miner {
             })
             .collect();
 
-        for chunk in remaining_accounts.chunks(MAX_ACCOUNTS_PER_TX) {
-            let mut ixs = Vec::new();
-            
+
+        let chunks = remaining_accounts.chunks(MAX_ACCOUNTS_PER_TX);
+        println!("Chunks: {:?}", chunks);
+
+        for chunk in chunks {
+            let mut ixs = Vec::new();            
+            println!("Chunk: {:?}", chunk);
+
             for (stake_pubkey, _stake) in chunk {
                 // Only include active stakes
+                println!("Stake pubkey: {:?}", stake_pubkey);
                 ixs.push(ore_boost_api::sdk::rebase(
                     self.signer().pubkey(),
                     mint_address,
