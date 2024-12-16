@@ -128,9 +128,7 @@ impl Miner {
             // Build mine ix
             let boost = *self.boost.read().unwrap();
             let boost_address = if let Some(boost) = boost {
-                println!("  Boost: {:?}", boost.mint);
-                println!("  Boost multiplier: {:?}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
-                println!("  Boost expires at: {:?}", boost.reserved_at + RESERVATION_INTERVAL);
+                println!("  Boost: {:?} ({:?}x)", boost.mint, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
                 Some(boost_pda(boost.mint).0)
             } else {
                 None
