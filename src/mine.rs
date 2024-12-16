@@ -13,7 +13,7 @@ use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
     state::{Bus, Config},
 };
-use ore_boost_api::consts::RESERVATION_INTERVAL;
+use ore_boost_api::{consts::{RESERVATION_INTERVAL, BOOST_DENOMINATOR}, state::boost_pda};
 use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
@@ -126,10 +126,15 @@ impl Miner {
             }
 
             // Build mine ix
-            let boost_address = *self.boost_address.read().unwrap();
-            if let Some(boost_address) = boost_address {
-                println!("  Boost: {:?}", boost_address);
-            }
+            let boost = *self.boost.read().unwrap();
+            let boost_address = if let Some(boost) = boost {
+                println!("  Boost: {:?}", boost.mint);
+                println!("  Boost multiplier: {:?}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
+                println!("  Boost expires at: {:?}", boost.reserved_at + RESERVATION_INTERVAL);
+                Some(boost_pda(boost.mint).0)
+            } else {
+                None
+            };
             let ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
@@ -463,11 +468,11 @@ impl Miner {
                 sorted_boosts.sort_by(|a, b| b.1.multiplier.cmp(&a.1.multiplier));
 
                 // Iterate over all boost accounts
-                for (address, boost) in sorted_boosts {
+                for (_address, boost) in sorted_boosts {
                     // If boost is reserved for us, set track the boost address
                     if boost.reserved_for == proof_address {
-                        let mut boost_address = self.boost_address.write().unwrap();
-                        *boost_address = Some(address);
+                        let mut w_boost = self.boost.write().unwrap();
+                        *w_boost = Some(boost);
                         break;
                     }
 
