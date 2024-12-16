@@ -1,21 +1,20 @@
 use std::str::FromStr;
-use solana_client::{rpc_filter::{Memcmp, RpcFilterType}, rpc_config::RpcProgramAccountsConfig};
+
+use anyhow::Error;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
-use ore_boost_api::state::{boost_pda, Boost, Stake, checkpoint_pda, Checkpoint};
+use ore_boost_api::consts::CHECKPOINT_INTERVAL;  
+use ore_boost_api::state::{boost_pda, checkpoint_pda};
 use solana_rpc_client::spinner;
 use colored::*;
-use steel::{AccountDeserialize, Discriminator};
 
 use crate::{
     args::CheckpointArgs,
-    error::Error,
     send_and_confirm::ComputeBudget,
-    Miner, utils::{get_clock, get_boost, get_checkpoint},
+    Miner, utils::{get_clock, get_boost, get_checkpoint, get_stake_accounts},
 };
 
 const MAX_ACCOUNTS_PER_TX: usize = 10;
-const CHECKPOINT_INTERVAL: i64 = 24 * 60 * 60; // 24 hours in seconds
 
 impl Miner {
     pub async fn checkpoint(&self, args: CheckpointArgs) -> Result<(), Error> {
@@ -32,47 +31,20 @@ impl Miner {
         let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
 
         // TODO Check if enough time has passed since last checkpoint
-        // let clock = get_clock(&self.rpc_client).await;
-        // let time_since_last = clock.unix_timestamp - checkpoint.ts;
-        // if time_since_last < CHECKPOINT_INTERVAL {
-        //     progress_bar.finish_with_message(format!(
-        //         "{} Not enough time has passed since last checkpoint. Wait {} more seconds.",
-        //         "WARNING".yellow(),
-        //         CHECKPOINT_INTERVAL - time_since_last
-        //     ));
-        //     return Ok(());
-        // }
+        let clock = get_clock(&self.rpc_client).await;
+        let time_since_last = clock.unix_timestamp - checkpoint.ts;
+        if time_since_last < CHECKPOINT_INTERVAL {
+            progress_bar.finish_with_message(format!(
+                "{} Not enough time has passed since last checkpoint. Wait {} more seconds.",
+                "WARNING".yellow(),
+                CHECKPOINT_INTERVAL - time_since_last
+            ));
+            return Ok(());
+        }
 
         // Get all stake accounts for this boost
         progress_bar.set_message("Fetching stake accounts...");
-        let filters = vec![
-            RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-                0,
-                Stake::discriminator().to_le_bytes().to_vec(),
-            )),
-            RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-                48,
-                boost_address.to_bytes().to_vec(),
-            )),
-        ];
-
-        // Parse stake accounts
-        let mut accounts: Vec<_> = self.rpc_client
-            .get_program_accounts_with_config(
-                &ore_boost_api::ID,
-                RpcProgramAccountsConfig {
-                    filters: Some(filters),
-                    ..Default::default()
-                },
-            )
-            .await?
-            .into_iter()
-            .map(|(pubkey, account)| {
-                let stake = Stake::try_from_bytes(&account.data).unwrap().clone();
-                (pubkey, stake)
-            })
-            .collect();
-
+        let mut accounts = get_stake_accounts(&self.rpc_client, boost_address).await?;
         println!("Stake accounts: {:?}", accounts);
 
         if accounts.is_empty() {
@@ -98,6 +70,7 @@ impl Miner {
         // Pack instructions for rebase
         let mut ixs = Vec::new();            
         if checkpoint.total_stakers == 0 || remaining_accounts.is_empty() {
+            // If total stakers is zero, use default stake account
             ixs.push(ore_boost_api::sdk::rebase(
                 self.signer().pubkey(),
                 mint_address,
@@ -107,11 +80,11 @@ impl Miner {
                 .await?;
             println!("Rebase transaction: {}", sig);
         } else {
+            // Chunk stake accounts into batches
             let chunks = remaining_accounts.chunks(MAX_ACCOUNTS_PER_TX);
             for chunk in chunks {
                 ixs.clear();
                 for (stake_pubkey, _stake) in chunk {
-                    // Only include active stakes
                     ixs.push(ore_boost_api::sdk::rebase(
                         self.signer().pubkey(),
                         mint_address,
@@ -134,3 +107,4 @@ impl Miner {
         Ok(())
     }
 } 
+

@@ -9,16 +9,44 @@ use ore_api::{
 };
 use ore_boost_api::state::{Boost, Stake, Checkpoint};
 use serde::Deserialize;
-use solana_client::client_error::{ClientError, ClientErrorKind};
+use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::RpcProgramAccountsConfig};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar};
 use solana_sdk::{clock::Clock, hash::Hash};
 use spl_associated_token_account::get_associated_token_address;
-use steel::AccountDeserialize;
+use steel::{AccountDeserialize, Discriminator};
 use tokio::time::sleep;
 
 pub const BLOCKHASH_QUERY_RETRIES: usize = 5;
 pub const BLOCKHASH_QUERY_DELAY: u64 = 500;
+
+pub async fn get_program_accounts<T>(client: &RpcClient, program_id: Pubkey, filters: Vec<RpcFilterType>) -> Result<Vec<(Pubkey, T)>, anyhow::Error> 
+    where T: AccountDeserialize + Discriminator + Clone {
+    let mut all_filters = vec![
+        RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            0,
+            T::discriminator().to_le_bytes().to_vec(),
+        )),
+    ];
+    all_filters.extend(filters);
+    let accounts = client
+        .get_program_accounts_with_config(
+            &program_id,
+            RpcProgramAccountsConfig {
+                filters: Some(all_filters),
+                ..Default::default()
+            },
+        )
+        .await?
+        .into_iter()
+        .map(|(pubkey, account)| {
+            let account = T::try_from_bytes(&account.data).unwrap().clone();
+            (pubkey, account)
+        })
+        .collect();
+
+    Ok(accounts)
+}
 
 pub async fn _get_treasury(client: &RpcClient) -> Treasury {
     let data = client
@@ -44,6 +72,14 @@ pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Boost {
     *Boost::try_from_bytes(&data).expect("Failed to parse boost account")
 }
 
+pub async fn get_boosts(client: &RpcClient, proof_address: Pubkey) -> Result<Vec<(Pubkey, Boost)>, anyhow::Error> {
+    let filter =  RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+        72,
+        proof_address.to_bytes().to_vec(),
+    ));
+    get_program_accounts::<Boost>(client, ore_boost_api::ID, vec![filter]).await
+}
+
 pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {
     let data = client
         .get_account_data(&address)
@@ -58,6 +94,17 @@ pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Stake {
         .await
         .expect("Failed to get stake account");
     *Stake::try_from_bytes(&data).expect("Failed to parse stake account")
+}
+
+pub async fn get_stake_accounts(
+    rpc_client: &RpcClient,
+    boost_address: Pubkey,
+) -> Result<Vec<(Pubkey, Stake)>, anyhow::Error> {
+    let filter =  RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+        48,
+        boost_address.to_bytes().to_vec(),
+    ));
+    get_program_accounts::<Stake>(rpc_client, ore_boost_api::ID, vec![filter]).await
 }
 
 pub async fn get_proof_with_authority(client: &RpcClient, authority: Pubkey) -> Proof {

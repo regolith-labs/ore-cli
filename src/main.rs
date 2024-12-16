@@ -16,7 +16,7 @@ mod open;
 mod pool;
 mod proof;
 mod rank;
-mod reserve;
+mod rotate;
 mod rewards;
 mod send_and_confirm;
 mod stake;
@@ -25,6 +25,7 @@ mod unstake;
 mod utils;
 
 use futures::StreamExt;
+use steel::Pubkey;
 use std::{sync::Arc, sync::RwLock};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
@@ -48,6 +49,7 @@ struct Miner {
     pub fee_payer_filepath: Option<String>,
     pub jito_client: Arc<RpcClient>,
     pub tip: Arc<std::sync::RwLock<u64>>,
+    pub boost_address: Arc<std::sync::RwLock<Option<Pubkey>>>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -82,8 +84,8 @@ enum Commands {
     #[command(about = "Submit a rank transaction for a proof")]
     Rank(RankArgs),
 
-    #[command(about = "Reserve a boost")]
-    Reserve(ReserveArgs),
+    #[command(about = "Rotate a boost")]
+    Rotate(RotateArgs),
 
     #[command(about = "Fetch the current reward rate for each difficulty level")]
     Rewards(RewardsArgs),
@@ -193,6 +195,7 @@ async fn main() {
 
     let tip = Arc::new(RwLock::new(0_u64));
     let tip_clone = Arc::clone(&tip);
+    let boost_address = Arc::new(RwLock::new(None));
 
     if args.jito {
         let url = "ws://bundles-api-rest.jito.wtf/api/v1/bundles/tip_stream";
@@ -222,6 +225,7 @@ async fn main() {
         Some(fee_payer_filepath),
         Arc::new(jito_client),
         tip,
+        boost_address,
     ));
 
     // Execute user command.
@@ -260,8 +264,8 @@ async fn main() {
         Commands::Rank(args) => {
             miner.rank(args).await;
         }
-        Commands::Reserve(args) => {
-            miner.reserve(args).await;
+        Commands::Rotate(args) => {
+            miner.rotate(args).await;
         }
         Commands::Rewards(_) => {
             miner.rewards().await;
@@ -289,6 +293,7 @@ impl Miner {
         fee_payer_filepath: Option<String>,
         jito_client: Arc<RpcClient>,
         tip: Arc<std::sync::RwLock<u64>>,
+        boost_address: Arc<std::sync::RwLock<Option<Pubkey>>>,
     ) -> Self {
         Self {
             rpc_client,
@@ -299,6 +304,7 @@ impl Miner {
             fee_payer_filepath,
             jito_client,
             tip,
+            boost_address,
         }
     }
 

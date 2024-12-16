@@ -3,21 +3,21 @@ use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 
 use crate::{
-    args::ReserveArgs,
+    args::RotateArgs,
     send_and_confirm::ComputeBudget,
     Miner,
 };
 
 impl Miner {
-    pub async fn reserve(&self, args: ReserveArgs) {
+    pub async fn rotate(&self, args: RotateArgs) {
         let signer = self.signer();
         
         // Parse mint address
         let mint_address = Pubkey::from_str(&args.mint)
             .expect("Failed to parse mint address");
 
-        // Build and submit reserve transaction
-        let ix = ore_boost_api::sdk::reserve(
+        // Build and submit rotate transaction
+        let ix = ore_boost_api::sdk::rotate(
             signer.pubkey(),
             mint_address,
         );

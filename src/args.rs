@@ -129,8 +129,8 @@ pub struct RankArgs {
 pub struct RewardsArgs {}
 
 #[derive(Parser, Debug)]
-pub struct ReserveArgs {
-    #[arg(value_name = "MINT_ADDRESS", help = "The mint to reserve.")]
+pub struct RotateArgs {
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint of the boost to rotate.")]
     pub mint: String,
 }
 
