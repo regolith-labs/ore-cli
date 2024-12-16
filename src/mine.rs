@@ -126,6 +126,7 @@ impl Miner {
             }
 
             // Build mine ix
+            println!("Boost: {:?}", self.boost_address.read().unwrap());
             let ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),

@@ -1,6 +1,7 @@
 mod args;
 mod balance;
 mod benchmark;
+mod boost;
 mod busses;
 mod checkpoint;
 mod claim;
@@ -59,6 +60,9 @@ enum Commands {
 
     #[command(about = "Benchmark your hashpower")]
     Benchmark(BenchmarkArgs),
+
+    #[command(about = "Fetch the boost account details")]
+    Boost(BoostArgs),
 
     #[command(about = "Fetch the bus account balances")]
     Busses(BussesArgs),
@@ -235,6 +239,9 @@ async fn main() {
         }
         Commands::Benchmark(args) => {
             miner.benchmark(args).await;
+        }
+        Commands::Boost(args) => {
+            miner.boost(args).await.unwrap();
         }
         Commands::Busses(_) => {
             miner.busses().await;
