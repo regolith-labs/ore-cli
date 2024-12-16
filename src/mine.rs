@@ -126,13 +126,16 @@ impl Miner {
             }
 
             // Build mine ix
-            println!("Boost: {:?}", self.boost_address.read().unwrap());
+            let boost_address = *self.boost_address.read().unwrap();
+            if let Some(boost_address) = boost_address {
+                println!("  Boost: {:?}", boost_address);
+            }
             let ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
-                *self.boost_address.read().unwrap(),
+                boost_address,
             );
             ixs.push(ix);
 
