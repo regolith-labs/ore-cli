@@ -19,7 +19,7 @@ const MAX_ACCOUNTS_PER_TX: usize = 10;
 impl Miner {
     pub async fn checkpoint(&self, args: CheckpointArgs) -> Result<(), Error> {
         let progress_bar = spinner::new_progress_bar();
-        progress_bar.set_message("Starting checkpoint process...");
+        progress_bar.set_message("Checkpointing...");
 
         // Parse mint address
         let mint_address = Pubkey::from_str(&args.mint)?;
@@ -36,18 +36,14 @@ impl Miner {
         if time_since_last < CHECKPOINT_INTERVAL {
             progress_bar.finish_with_message(format!(
                 "{} Not enough time has passed since last checkpoint. Wait {} more seconds.",
-                "WARNING".yellow(),
+                "WARNING".yellow().bold(),
                 CHECKPOINT_INTERVAL - time_since_last
             ));
             return Ok(());
         }
 
         // Get all stake accounts for this boost
-        progress_bar.set_message("Fetching stake accounts...");
         let mut accounts = get_stake_accounts(&self.rpc_client, boost_address).await?;
-        println!("Stake accounts: {:?}", accounts.len());
-        println!("Checkpoint state: {:?}", checkpoint.current_id);
-
         if accounts.is_empty() {
             progress_bar.finish_with_message("No stake accounts found for this boost");
             return Ok(());
@@ -57,8 +53,6 @@ impl Miner {
         accounts.sort_by(|(_, stake_a), (_, stake_b)| {
             stake_a.id.cmp(&stake_b.id)
         });
-
-        progress_bar.set_message(format!("Processing stake accounts starting from ID {}...", checkpoint.current_id));
 
         // Filter accounts starting from checkpoint.current_id
         let remaining_accounts: Vec<_> = accounts
@@ -75,9 +69,8 @@ impl Miner {
                 mint_address,
                 Pubkey::default(),
             ));
-            let sig = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
+            let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
                 .await?;
-            println!("Rebase transaction: {}", sig);
         } else {
             // Chunk stake accounts into batches
             let chunks = remaining_accounts.chunks(MAX_ACCOUNTS_PER_TX);
@@ -91,16 +84,15 @@ impl Miner {
                     ));
                 }
                 if !ixs.is_empty() {
-                    let sig = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
+                    let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
                         .await?;
-                    println!("Rebase transaction: {}", sig);
                 }
             }
         }
 
         progress_bar.finish_with_message(format!(
-            "{} Checkpoint completed successfully",
-            "SUCCESS".green()
+            "{} Checkpoint completed",
+            "SUCCESS".green().bold()
         ));
 
         Ok(())
