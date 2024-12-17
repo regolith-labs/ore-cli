@@ -36,10 +36,8 @@ impl Miner {
             signer.pubkey(),
             mint_address,
         );
-        let sig = self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false)
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false)
             .await
             .ok();
-
-        println!("Signature: {}", sig.unwrap());
     }
 }

@@ -198,7 +198,7 @@ impl Miner {
             // Build nonce indices
             let num_total_members = member_challenge.num_total_members.max(1);
             let u64_unit = u64::MAX.saturating_div(num_total_members);
-            
+
             // Split member nonce space for multiple devices
             let nonce_unit = u64_unit.saturating_div(member_challenge.num_devices as u64);
             if member_challenge.device_id.gt(&member_challenge.num_devices) {
@@ -207,6 +207,7 @@ impl Miner {
             let device_id = member_challenge.device_id.saturating_sub(1) as u64;
             let left_bound =
                 u64_unit.saturating_mul(nonce_index) + device_id.saturating_mul(nonce_unit);
+
             // Split nonce-device space for muliple cores
             let range_per_core = nonce_unit.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
@@ -460,6 +461,7 @@ impl Miner {
         let proof_address = proof_pubkey(signer.pubkey());
         loop {
             // Get all boost accounts
+            let mut flag = false;
             let clock = get_clock(&self.rpc_client).await;
             if let Ok(accounts) = get_boosts(&self.rpc_client, proof_address).await {
                 // Sort boosts by multiplier in descending order
@@ -472,6 +474,7 @@ impl Miner {
                     if boost.reserved_for == proof_address {
                         let mut w_boost = self.boost.write().unwrap();
                         *w_boost = Some(boost);
+                        flag = true;
                         break;
                     }
 
@@ -487,7 +490,13 @@ impl Miner {
                     }
                 }
             }
-    
+
+
+            if !flag {
+                let mut w_boost = self.boost.write().unwrap();
+                *w_boost = None;
+            }
+
             // Sleep for 1 minute before checking again
             tokio::time::sleep(tokio::time::Duration::from_secs(POLL_INTERVAL)).await;
         }
