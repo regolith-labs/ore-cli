@@ -27,7 +27,7 @@ impl Miner {
         let checkpoint_address = checkpoint_pda(boost_address).0;
 
         // Get boost account data
-        let _boost = get_boost(&self.rpc_client, boost_address).await;
+        let boost = get_boost(&self.rpc_client, boost_address).await;
         let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
 
         // TODO Check if enough time has passed since last checkpoint
@@ -45,7 +45,8 @@ impl Miner {
         // Get all stake accounts for this boost
         progress_bar.set_message("Fetching stake accounts...");
         let mut accounts = get_stake_accounts(&self.rpc_client, boost_address).await?;
-        println!("Stake accounts: {:?}", accounts);
+        println!("Stake accounts: {:?}", accounts.len());
+        println!("Checkpoint state: {:?}", checkpoint.current_id);
 
         if accounts.is_empty() {
             progress_bar.finish_with_message("No stake accounts found for this boost");
@@ -62,9 +63,7 @@ impl Miner {
         // Filter accounts starting from checkpoint.current_id
         let remaining_accounts: Vec<_> = accounts
             .into_iter()
-            .filter(|(_, stake)| {
-                stake.id >= checkpoint.current_id && stake.id < checkpoint.total_stakers
-            })
+            .filter(|(_, stake)| stake.id >= checkpoint.current_id)
             .collect();
 
         // Pack instructions for rebase
