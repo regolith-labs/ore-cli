@@ -27,7 +27,7 @@ impl Miner {
         let checkpoint_address = checkpoint_pda(boost_address).0;
 
         // Get boost account data
-        let boost = get_boost(&self.rpc_client, boost_address).await;
+        let _boost = get_boost(&self.rpc_client, boost_address).await;
         let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
 
         // TODO Check if enough time has passed since last checkpoint
