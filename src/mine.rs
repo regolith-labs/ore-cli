@@ -198,6 +198,7 @@ impl Miner {
             // Build nonce indices
             let num_total_members = member_challenge.num_total_members.max(1);
             let u64_unit = u64::MAX.saturating_div(num_total_members);
+            
             // Split member nonce space for multiple devices
             let nonce_unit = u64_unit.saturating_div(member_challenge.num_devices as u64);
             if member_challenge.device_id.gt(&member_challenge.num_devices) {
