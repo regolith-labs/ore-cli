@@ -460,8 +460,6 @@ impl Miner {
         let signer = self.signer();
         let proof_address = proof_pubkey(signer.pubkey());
         loop {
-            print!("loop");
-
             // Get all boost accounts
             let mut flag = false;
             if let Ok(accounts) = get_boosts(&self.rpc_client, None).await {
@@ -471,11 +469,7 @@ impl Miner {
 
                 // Iterate over sorted boost accounts
                 let clock = get_clock(&self.rpc_client).await;
-                println!("Clock: {:?}", clock.unix_timestamp);
                 'scan: for (_address, boost) in sorted_boosts {
-                    println!("Boost: {:?}", boost);
-                    println!("Boost reserved at: {:?}", boost.reserved_at);
-
                     // If boost is reserved for us, flag the boost address
                     if boost.reserved_for == proof_address {
                         let mut w_boost = self.boost.write().unwrap();
@@ -490,11 +484,9 @@ impl Miner {
                             signer.pubkey(),
                             boost.mint,
                         );
-                        if let Ok(sig) = self.send_and_confirm(&[ix], ComputeBudget::Fixed(30_000), false).await {
-                            println!("Rotated boost {}: {}", boost.mint, sig);
-                        }
+                        let _ =self.send_and_confirm(&[ix], ComputeBudget::Fixed(30_000), false).await;
                     }
-                }
+                }   
             }
 
             // If no boost was reserved, clear the boost
