@@ -72,12 +72,15 @@ pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Boost {
     *Boost::try_from_bytes(&data).expect("Failed to parse boost account")
 }
 
-pub async fn get_boosts(client: &RpcClient, proof_address: Pubkey) -> Result<Vec<(Pubkey, Boost)>, anyhow::Error> {
-    let filter =  RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-        72,
-        proof_address.to_bytes().to_vec(),
-    ));
-    get_program_accounts::<Boost>(client, ore_boost_api::ID, vec![filter]).await
+pub async fn get_boosts(client: &RpcClient, reserved_for: Option<Pubkey>) -> Result<Vec<(Pubkey, Boost)>, anyhow::Error> {
+    let mut filters = vec![];
+    if let Some(reserved_for) = reserved_for {
+        filters.push(RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            72,
+            reserved_for.to_bytes().to_vec(),
+        )));
+    }
+    get_program_accounts::<Boost>(client, ore_boost_api::ID, filters).await
 }
 
 pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {

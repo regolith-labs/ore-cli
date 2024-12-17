@@ -461,10 +461,10 @@ impl Miner {
         let proof_address = proof_pubkey(signer.pubkey());
         loop {
             print!("loop");
-            
+
             // Get all boost accounts
             let mut flag = false;
-            if let Ok(accounts) = get_boosts(&self.rpc_client, proof_address).await {
+            if let Ok(accounts) = get_boosts(&self.rpc_client, None).await {
                 // Sort boosts by multiplier in descending order
                 let mut sorted_boosts = accounts;
                 sorted_boosts.sort_by(|a, b| b.1.multiplier.cmp(&a.1.multiplier));
