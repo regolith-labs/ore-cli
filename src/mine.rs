@@ -392,7 +392,7 @@ impl Miner {
 
         // Update log
         progress_bar.finish_with_message(format!(
-            "Best hash: {} (difficulty {})",
+            "Solution: {} (difficulty {})",
             bs58::encode(best_hash.h).into_string(),
             best_difficulty
         ));
