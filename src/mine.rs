@@ -460,38 +460,44 @@ impl Miner {
         let signer = self.signer();
         let proof_address = proof_pubkey(signer.pubkey());
         loop {
+            print!("loop");
+            
             // Get all boost accounts
             let mut flag = false;
-            let clock = get_clock(&self.rpc_client).await;
             if let Ok(accounts) = get_boosts(&self.rpc_client, proof_address).await {
                 // Sort boosts by multiplier in descending order
                 let mut sorted_boosts = accounts;
                 sorted_boosts.sort_by(|a, b| b.1.multiplier.cmp(&a.1.multiplier));
 
-                // Iterate over all boost accounts
-                for (_address, boost) in sorted_boosts {
-                    // If boost is reserved for us, set track the boost address
+                // Iterate over sorted boost accounts
+                let clock = get_clock(&self.rpc_client).await;
+                println!("Clock: {:?}", clock.unix_timestamp);
+                'scan: for (_address, boost) in sorted_boosts {
+                    println!("Boost: {:?}", boost);
+                    println!("Boost reserved at: {:?}", boost.reserved_at);
+
+                    // If boost is reserved for us, flag the boost address
                     if boost.reserved_for == proof_address {
                         let mut w_boost = self.boost.write().unwrap();
                         *w_boost = Some(boost);
                         flag = true;
-                        break;
+                        break 'scan;
                     }
 
-                    // Reserve boost if reservation is expired
-                    if clock.unix_timestamp > boost.reserved_at + RESERVATION_INTERVAL {
+                    // If reservation is expired, rotate the boost
+                    if clock.unix_timestamp >= boost.reserved_at + RESERVATION_INTERVAL {
                         let ix = ore_boost_api::sdk::rotate(
                             signer.pubkey(),
                             boost.mint,
                         );
-                        if let Ok(sig) = self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false).await {
-                            println!("Reserved boost for mint {}: {}", boost.mint, sig);
+                        if let Ok(sig) = self.send_and_confirm(&[ix], ComputeBudget::Fixed(30_000), false).await {
+                            println!("Rotated boost {}: {}", boost.mint, sig);
                         }
                     }
                 }
             }
 
-
+            // If no boost was reserved, clear the boost
             if !flag {
                 let mut w_boost = self.boost.write().unwrap();
                 *w_boost = None;
@@ -500,7 +506,7 @@ impl Miner {
             // Sleep for 1 minute before checking again
             tokio::time::sleep(tokio::time::Duration::from_secs(POLL_INTERVAL)).await;
         }
-    }    
+    }
 }
 
 fn format_duration(seconds: u32) -> String {
