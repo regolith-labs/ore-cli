@@ -54,6 +54,14 @@ pub struct BussesArgs {}
 pub struct CheckpointArgs {
     #[arg(value_name = "MINT_ADDRESS", help = "The mint address of the boost to checkpoint")]
     pub mint: String,
+
+    #[arg(
+        long,
+        short,
+        help = "Flag indicating whether or not to run in continuous mode.",
+        default_value = "false"
+    )]
+    pub continuous: bool,
 }
 
 #[derive(Parser, Debug)]

@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::Error;
 use solana_program::pubkey::Pubkey;
@@ -7,6 +8,7 @@ use ore_boost_api::consts::CHECKPOINT_INTERVAL;
 use ore_boost_api::state::{boost_pda, checkpoint_pda};
 use solana_rpc_client::spinner;
 use colored::*;
+use tokio::time::sleep;
 
 use crate::{
     args::CheckpointArgs,
@@ -18,6 +20,35 @@ const MAX_ACCOUNTS_PER_TX: usize = 10;
 
 impl Miner {
     pub async fn checkpoint(&self, args: CheckpointArgs) -> Result<(), Error> {
+        if args.continuous {
+            self.checkpoint_continuous(&args).await?;
+        } else {
+            self.checkpoint_once(&args).await?;
+        }
+        Ok(())
+    }
+
+    async fn checkpoint_continuous(&self, args: &CheckpointArgs) -> Result<(), Error> {
+        let mint_address = Pubkey::from_str(&args.mint)?;
+        let boost_address = boost_pda(mint_address).0;
+        let checkpoint_address = checkpoint_pda(boost_address).0;
+        loop {
+            // Get current time and checkpoint data
+            let clock = get_clock(&self.rpc_client).await;
+            let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
+            let time_since_last = clock.unix_timestamp - checkpoint.ts;
+
+            // Call checkpoint if needed
+            if time_since_last >= CHECKPOINT_INTERVAL {
+                let _ = self.checkpoint_once(args).await;
+            }
+
+            // Sleep for 60 seconds
+            sleep(Duration::from_secs(60)).await;
+        }
+    }
+
+    async fn checkpoint_once(&self, args: &CheckpointArgs) -> Result<(), Error> {
         let progress_bar = spinner::new_progress_bar();
         progress_bar.set_message("Checkpointing...");
 
@@ -91,7 +122,7 @@ impl Miner {
         }
 
         progress_bar.finish_with_message(format!(
-            "{} Checkpoint completed",
+            "{} Checkpoint complete",
             "SUCCESS".green().bold()
         ));
 
