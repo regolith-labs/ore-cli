@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use colored::*;
 use ore_api::state::proof_pda;
-use ore_boost_api::state::{boost_pda, stake_pda, Stake, checkpoint_pda};
+use ore_boost_api::{state::{boost_pda, stake_pda, Stake, checkpoint_pda}, consts::BOOST_DENOMINATOR};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
@@ -136,7 +136,7 @@ impl Miner {
             symbol
         );
         println!("Yield: {} ORE", amount_to_ui_amount(boost_proof.balance, mint.decimals));
-        println!("Multiplier: {}x", boost.multiplier);
+        println!("Multiplier: {}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
         println!("Expires at: {}", boost.expires_at);
         println!("Reserved for: {}", boost.reserved_for);
         println!("Reserved at: {}", boost.reserved_at);
