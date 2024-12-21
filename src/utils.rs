@@ -5,9 +5,9 @@ use ore_api::{
     consts::{
         CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS,
     },
-    state::{Config, Proof, Treasury, proof_pda},
+    state::{Config, Proof, Treasury},
 };
-use ore_boost_api::state::{Boost, Stake, Checkpoint, Reservation, reservation_pda};
+use ore_boost_api::state::{Boost, Stake, Checkpoint, Reservation};
 use serde::Deserialize;
 use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::RpcProgramAccountsConfig};
 use solana_client::nonblocking::rpc_client::RpcClient;
