@@ -11,9 +11,9 @@ use drillx::{
 };
 use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
-    state::{Bus, Config},
+    state::{Bus, Config, proof_pda},
 };
-use ore_boost_api::{consts::{RESERVATION_INTERVAL, BOOST_DENOMINATOR}, state::boost_pda};
+use ore_boost_api::state::reservation_pda;
 use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
@@ -27,7 +27,7 @@ use crate::{
     send_and_confirm::ComputeBudget,
     utils::{
         amount_u64_to_string, get_clock, get_config,
-        get_updated_proof_with_authority, proof_pubkey, get_boosts,
+        get_updated_proof_with_authority, proof_pubkey, get_reservation,
     },
     Miner,
 };
@@ -52,16 +52,12 @@ impl Miner {
     async fn mine_solo(&self, args: MineArgs) {
         // Open account, if needed.
         let signer = self.signer();
+        let proof_address = proof_pda(signer.pubkey()).0;
+        let reservation_address = reservation_pda(proof_address).0;
         self.open().await;
 
         // Check num threads
         self.check_num_cores(args.cores);
-
-        // Monitor boosts in a separate thread
-        let miner_clone = self.clone();
-        tokio::spawn(async move {
-            miner_clone.monitor_boosts().await;
-        });
 
         // Start mining loop
         let mut last_hash_at = 0;
@@ -69,9 +65,12 @@ impl Miner {
         loop {
             // Fetch proof
             let config = get_config(&self.rpc_client).await;
-            let proof =
-                get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
-                    .await;
+            let proof = get_updated_proof_with_authority(
+                &self.rpc_client, 
+                signer.pubkey(), 
+                last_hash_at
+            ).await;
+            let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
             // Print unclaimed balance
             println!(
@@ -126,21 +125,24 @@ impl Miner {
             }
 
             // Build mine ix
-            let boost = *self.boost.read().unwrap();
-            let boost_address = if let Some(boost) = boost {
-                println!("  Boost: {:?} ({:?}x)", boost.mint, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
-                Some(boost_pda(boost.mint).0)
-            } else {
+            let boost_address = if reservation.boost == Pubkey::default() {
                 None
+            } else {
+                Some(reservation.boost)
             };
-            let ix = ore_api::sdk::mine(
+            let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
                 boost_address,
+                Some(reservation_address)
             );
-            ixs.push(ix);
+            ixs.push(mine_ix);
+
+            // Build rotation ix
+            let rotate_ix = ore_boost_api::sdk::rotate(signer.pubkey(), proof_address);
+            ixs.push(rotate_ix);
 
             // Submit transaction
             self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
@@ -453,52 +455,6 @@ impl Miner {
         let i = rand::thread_rng().gen_range(0..BUS_COUNT);
         BUS_ADDRESSES[i]
     }
-
-    /// Monitor boosts. Keep track of which boost is reserved for us. Rotate boosts if reservation is expired.
-    async fn monitor_boosts(&self) {
-        const POLL_INTERVAL: u64 = 60;
-        let signer = self.signer();
-        let proof_address = proof_pubkey(signer.pubkey());
-        loop {
-            // Get all boost accounts
-            let mut flag = false;
-            if let Ok(accounts) = get_boosts(&self.rpc_client, None).await {
-                // Sort boosts by multiplier in descending order
-                let mut sorted_boosts = accounts;
-                sorted_boosts.sort_by(|a, b| b.1.multiplier.cmp(&a.1.multiplier));
-
-                // Iterate over sorted boost accounts
-                let clock = get_clock(&self.rpc_client).await;
-                'scan: for (_address, boost) in sorted_boosts {
-                    // If boost is reserved for us, flag the boost address
-                    if boost.reserved_for == proof_address {
-                        let mut w_boost = self.boost.write().unwrap();
-                        *w_boost = Some(boost);
-                        flag = true;
-                        break 'scan;
-                    }
-
-                    // If reservation is expired, rotate the boost
-                    if clock.unix_timestamp >= boost.reserved_at + RESERVATION_INTERVAL {
-                        let ix = ore_boost_api::sdk::rotate(
-                            signer.pubkey(),
-                            boost.mint,
-                        );
-                        let _ =self.send_and_confirm(&[ix], ComputeBudget::Fixed(30_000), false).await;
-                    }
-                }   
-            }
-
-            // If no boost was reserved, clear the boost
-            if !flag {
-                let mut w_boost = self.boost.write().unwrap();
-                *w_boost = None;
-            }
-
-            // Sleep for 1 minute before checking again
-            tokio::time::sleep(tokio::time::Duration::from_secs(POLL_INTERVAL)).await;
-        }
-    }
 }
 
 fn format_duration(seconds: u32) -> String {
@@ -506,75 +462,3 @@ fn format_duration(seconds: u32) -> String {
     let remaining_seconds = seconds % 60;
     format!("{:02}:{:02}", minutes, remaining_seconds)
 }
-
-
-// #[derive(Clone)]
-// struct BoostData {
-//     boost_address: Pubkey,
-//     stake_address: Pubkey,
-//     mint: Mint,
-//     metadata: Option<Metadata>,
-// }
-
-// impl BoostData {
-//     fn to_vec(boost_data: &Option<BoostData>) -> Vec<Pubkey> {
-//         match boost_data {
-//             Some(boost_data) => {
-//                 vec![boost_data.boost_address, boost_data.stake_address]
-//             }
-//             None => vec![],
-//         }
-//     }
-// }
-
-// async fn fetch_boost_data(
-//     rpc: Arc<RpcClient>,
-//     authority: Pubkey,
-//     mint_address: &Option<String>,
-// ) -> Option<BoostData> {
-//     let Some(mint_address) = mint_address else {
-//         return None;
-//     };
-//     let mint_address = Pubkey::from_str(&mint_address).unwrap();
-//     let boost_address = boost_pda(mint_address).0;
-//     let stake_address = stake_pda(authority, boost_address).0;
-//     let mint = rpc
-//         .get_account_data(&mint_address)
-//         .await
-//         .map(|data| Mint::unpack(&data).unwrap())
-//         .unwrap();
-//     let metadata = rpc
-//         .get_account_data(&Metadata::find_pda(&mint_address).0)
-//         .await
-//         .ok()
-//         .map(|data| Metadata::from_bytes(&data).unwrap());
-//     Some(BoostData {
-//         boost_address,
-//         stake_address,
-//         mint,
-//         metadata,
-//     })
-// }
-
-// async fn log_boost_data(rpc: Arc<RpcClient>, boost_data: &Option<BoostData>, id: u64) {
-//     if let Some(boost_data) = boost_data {
-//         let boost = get_boost(&rpc, boost_data.boost_address).await;
-//         let stake = get_stake(&rpc, boost_data.stake_address).await;
-//         let multiplier =
-//             (boost.multiplier as f64) * (stake.balance as f64) / (boost.total_stake as f64);
-//         println!(
-//             "  Boost {}: {:12}x ({})",
-//             id,
-//             multiplier,
-//             format!(
-//                 "{} of {}{}",
-//                 stake.balance as f64 / 10f64.powf(boost_data.mint.decimals as f64),
-//                 boost.total_stake as f64 / 10f64.powf(boost_data.mint.decimals as f64),
-//                 boost_data
-//                     .clone()
-//                     .metadata
-//                     .map_or("".to_string(), |m| format!(" {}", m.symbol))
-//             )
-//         );
-//     }
-// }

@@ -5,9 +5,9 @@ use ore_api::{
     consts::{
         CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS,
     },
-    state::{Config, Proof, Treasury},
+    state::{Config, Proof, Treasury, proof_pda},
 };
-use ore_boost_api::state::{Boost, Stake, Checkpoint};
+use ore_boost_api::state::{Boost, Stake, Checkpoint, Reservation, reservation_pda};
 use serde::Deserialize;
 use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::RpcProgramAccountsConfig};
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -72,7 +72,7 @@ pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Boost {
     *Boost::try_from_bytes(&data).expect("Failed to parse boost account")
 }
 
-pub async fn get_boosts(client: &RpcClient, reserved_for: Option<Pubkey>) -> Result<Vec<(Pubkey, Boost)>, anyhow::Error> {
+pub async fn _get_boosts(client: &RpcClient, reserved_for: Option<Pubkey>) -> Result<Vec<(Pubkey, Boost)>, anyhow::Error> {
     let mut filters = vec![];
     if let Some(reserved_for) = reserved_for {
         filters.push(RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
@@ -136,6 +136,15 @@ pub async fn get_proof(client: &RpcClient, address: Pubkey) -> Proof {
         .expect("Failed to get proof account");
     *Proof::try_from_bytes(&data).expect("Failed to parse proof account")
 }
+
+pub async fn get_reservation(client: &RpcClient, address: Pubkey) -> Reservation {
+    let data = client
+        .get_account_data(&address)
+        .await
+        .expect("Failed to get account");
+    *Reservation::try_from_bytes(&data).expect("Failed to parse account")
+}
+
 
 pub async fn get_clock(client: &RpcClient) -> Clock {
     let data = client

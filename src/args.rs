@@ -134,19 +134,7 @@ pub struct ProofArgs {
 }
 
 #[derive(Parser, Debug)]
-pub struct RankArgs {
-    #[arg(value_name = "ADDRESS", help = "The address of the proof to rank.")]
-    pub address: Option<String>,
-}
-
-#[derive(Parser, Debug)]
 pub struct RewardsArgs {}
-
-#[derive(Parser, Debug)]
-pub struct RotateArgs {
-    #[arg(value_name = "MINT_ADDRESS", help = "The mint of the boost to rotate.")]
-    pub mint: String,
-}
 
 #[derive(Parser, Debug)]
 pub struct StakeArgs {

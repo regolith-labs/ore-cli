@@ -138,8 +138,6 @@ impl Miner {
         println!("Yield: {} ORE", amount_to_ui_amount(boost_proof.balance, mint.decimals));
         println!("Multiplier: {}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
         println!("Expires at: {}", boost.expires_at);
-        println!("Reserved for: {}", boost.reserved_for);
-        println!("Reserved at: {}", boost.reserved_at);
         println!("Locked: {}", boost.locked);
         println!("\n{}", "Checkpoint".bold());
         println!("Current: {}", checkpoint.current_id);
