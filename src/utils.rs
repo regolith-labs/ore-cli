@@ -137,12 +137,12 @@ pub async fn get_proof(client: &RpcClient, address: Pubkey) -> Proof {
     *Proof::try_from_bytes(&data).expect("Failed to parse proof account")
 }
 
-pub async fn get_reservation(client: &RpcClient, address: Pubkey) -> Reservation {
+pub async fn get_reservation(client: &RpcClient, address: Pubkey) -> Result<Reservation, anyhow::Error> {
     let data = client
         .get_account_data(&address)
-        .await
-        .expect("Failed to get account");
-    *Reservation::try_from_bytes(&data).expect("Failed to parse account")
+        .await?;
+    let reservation = Reservation::try_from_bytes(&data)?;
+    Ok(*reservation)
 }
 
 

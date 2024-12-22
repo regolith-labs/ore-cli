@@ -51,19 +51,21 @@ impl Miner {
 
     async fn mine_solo(&self, args: MineArgs) {
         // Open account, if needed.
-        let signer = self.signer();
-        let proof_address = proof_pda(signer.pubkey()).0;
-        let reservation_address = reservation_pda(proof_address).0;
         self.open().await;
 
         // Check num threads
         self.check_num_cores(args.cores);
 
+        // Generate addresses
+        let signer = self.signer();
+        let proof_address = proof_pda(signer.pubkey()).0;
+        let reservation_address = reservation_pda(proof_address).0;
+
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance = 0;
         loop {
-            // Fetch proof
+            // Fetch accounts
             let config = get_config(&self.rpc_client).await;
             let proof = get_updated_proof_with_authority(
                 &self.rpc_client, 
@@ -72,7 +74,7 @@ impl Miner {
             ).await;
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
-            // Print unclaimed balance
+            // Log unclaimed balance
             println!(
                 "\n\nBalance: {} ORE{}",
                 amount_u64_to_string(proof.balance),
@@ -86,7 +88,7 @@ impl Miner {
                 },
             );
 
-            // Print boosts
+            // Log boosts
             // log_boost_data(self.rpc_client.clone(), &boost_data_1, 1).await;
             last_hash_at = proof.last_hash_at;
             last_balance = proof.balance;
@@ -125,11 +127,13 @@ impl Miner {
             }
 
             // Build mine ix
-            let boost_address = if reservation.boost == Pubkey::default() {
-                None
-            } else {
-                Some(reservation.boost)
-            };
+            let boost_address = reservation
+                .map(|r| if r.boost == Pubkey::default() {
+                    None
+                } else {
+                    Some(r.boost)
+                })
+                .unwrap_or(None);
             let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
