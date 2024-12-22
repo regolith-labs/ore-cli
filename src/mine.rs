@@ -13,7 +13,7 @@ use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
     state::{Bus, Config, proof_pda},
 };
-use ore_boost_api::state::reservation_pda;
+use ore_boost_api::{state::reservation_pda, consts::BOOST_DENOMINATOR};
 use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
@@ -27,7 +27,7 @@ use crate::{
     send_and_confirm::ComputeBudget,
     utils::{
         amount_u64_to_string, get_clock, get_config,
-        get_updated_proof_with_authority, proof_pubkey, get_reservation,
+        get_updated_proof_with_authority, proof_pubkey, get_reservation, get_boost,
     },
     Miner,
 };
@@ -134,6 +134,10 @@ impl Miner {
                     Some(r.boost)
                 })
                 .unwrap_or(None);
+            if let Some(boost_address) = boost_address {
+                let boost = get_boost(&self.rpc_client, boost_address).await;
+                println!("Boost: {:?} ({}x)", boost_address, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
+            }
             let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
