@@ -139,8 +139,8 @@ impl Miner {
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
+                reservation_address,
                 boost_address,
-                Some(reservation_address)
             );
             ixs.push(mine_ix);
 
