@@ -136,7 +136,7 @@ impl Miner {
                 .unwrap_or(None);
             if let Some(boost_address) = boost_address {
                 let boost = get_boost(&self.rpc_client, boost_address).await;
-                println!("Boost: {:?} ({}x)", boost_address, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
+                println!("  Boost: {:?} ({}x)", boost_address, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
             }
             let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
