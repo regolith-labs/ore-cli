@@ -18,7 +18,7 @@ impl Miner {
         // Register reservation
         let reservation_address = reservation_pda(proof_address).0;
         if self.rpc_client.get_account(&reservation_address).await.is_err() {
-            let ix = ore_boost_api::sdk::register(signer.pubkey(), fee_payer.pubkey(), reservation_address);
+            let ix = ore_boost_api::sdk::register(signer.pubkey(), fee_payer.pubkey(), proof_address);
             ixs.push(ix);
         }
 
