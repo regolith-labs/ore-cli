@@ -20,7 +20,6 @@ mod rewards;
 mod send_and_confirm;
 mod stake;
 mod transfer;
-mod unstake;
 mod utils;
 
 use futures::StreamExt;
