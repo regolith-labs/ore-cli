@@ -82,6 +82,19 @@ impl Pool {
         }
     }
 
+    pub async fn get_staker_onchain(
+        &self,
+        miner: &Miner,
+        pool_address: Pubkey,
+        mint: Pubkey,
+    ) -> Result<ore_pool_api::state::Share, Error> {
+        let (share_pda, _) =
+            ore_pool_api::state::share_pda(miner.signer().pubkey(), pool_address, mint);
+        let data = miner.rpc_client.get_account_data(&share_pda).await?;
+        let share = ore_pool_api::state::Share::try_from_bytes(data.as_slice())?;
+        Ok(*share)
+    }
+
     pub async fn get_updated_pool_challenge(
         &self,
         miner: &Miner,

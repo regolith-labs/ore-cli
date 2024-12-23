@@ -156,6 +156,9 @@ pub enum StakeCommand {
 
     #[command(about = "Withdraw tokens from a stake account.")]
     Withdraw(StakeWithdrawArgs),
+
+    #[command(about = "Migrate a stake from the legacy boost program to the new global boost program.")]
+    Migrate(StakeMigrateArgs),
 }
 
 #[derive(Parser, Clone, Debug)]
@@ -204,6 +207,17 @@ pub struct StakeWithdrawArgs {
         help = "Token account to withdraw to. Defaults to the associated token account."
     )]
     pub token_account: Option<String>,
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeMigrateArgs {
+    #[arg(
+        long,
+        short,
+        value_name = "POOL_URL",
+        help = "The pool to migrate stake from."
+    )]
+    pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]

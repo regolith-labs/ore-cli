@@ -35,6 +35,7 @@ mpl-token-metadata = "4.1.2"
 num_cpus = "1.16.0"
 ore-api = "3.0"
 ore-boost-api = "1.0"
+ore-boost-legacy-api = { version = "0.3", package = "ore-boost-api" }
 ore-pool-api = "0.2"
 ore-pool-types = "0.2.2"
 url = "2.5"

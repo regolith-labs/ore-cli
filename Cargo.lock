@@ -2842,6 +2842,7 @@ dependencies = [
  "mpl-token-metadata",
  "num_cpus",
  "ore-api 3.0.0",
+ "ore-boost-api 0.3.0",
  "ore-boost-api 1.0.0",
  "ore-pool-api",
  "ore-pool-types",

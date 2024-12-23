@@ -99,6 +99,14 @@ pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Stake {
     *Stake::try_from_bytes(&data).expect("Failed to parse stake account")
 }
 
+pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> ore_boost_legacy_api::state::Stake {
+    let data = client
+        .get_account_data(&address)
+        .await
+        .expect("Failed to get stake account");
+    *ore_boost_legacy_api::state::Stake::try_from_bytes(&data).expect("Failed to parse stake account")
+}
+
 pub async fn get_stake_accounts(
     rpc_client: &RpcClient,
     boost_address: Pubkey,
