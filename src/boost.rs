@@ -27,7 +27,7 @@ impl Miner {
         println!("Address: {:?}", boost_address);
         println!("Expires at: {:?}", boost.expires_at);
         println!("Mint: {:?}", mint);
-        println!("Multiplier: {:?}", boost.multiplier);
+        println!("Multiplier: {:?}", boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
         println!("Total stake: {:?}", boost.total_stake);
         println!("Pending yield: {:?} ORE", amount_to_ui_amount(proof.balance, TOKEN_DECIMALS));
     }
