@@ -124,24 +124,24 @@ impl Miner {
                     symbol,
                 );
                 println!("Last deposit at: {}", stake.last_deposit_at);
-                println!("Yield: {} ORE", amount_to_ui_amount(stake.rewards, mint.decimals));
+                println!("Yield: {} ORE", amount_to_ui_amount(stake.rewards, ore_api::consts::TOKEN_DECIMALS));
             }
         };
         println!("\n{}", "Boost".bold());
         println!("Mint: {}", mint_address);
         println!(
-            "Balance: {} {}",
+            "Deposits: {} {}",
             amount_to_ui_amount(boost.total_stake, mint.decimals),
             symbol
         );
-        println!("Yield: {} ORE", amount_to_ui_amount(boost_proof.balance, mint.decimals));
+        println!("Yield (pending): {} ORE", amount_to_ui_amount(boost_proof.balance, ore_api::consts::TOKEN_DECIMALS));
         println!("Multiplier: {}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
         println!("Expires at: {}", boost.expires_at);
         println!("Locked: {}", boost.locked);
         println!("\n{}", "Checkpoint".bold());
         println!("Current: {}", checkpoint.current_id);
         println!("Total stakers: {}", checkpoint.total_stakers);
-        println!("Total rewards: {}", amount_to_ui_amount(checkpoint.total_rewards, mint.decimals));
+        println!("Total rewards: {} ORE", amount_to_ui_amount(checkpoint.total_rewards, ore_api::consts::TOKEN_DECIMALS));
         println!("Timestamp: {}", checkpoint.ts);
         Ok(())
     }
