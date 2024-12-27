@@ -22,14 +22,16 @@ impl Miner {
         };
         let reservation_address = reservation_pda(proof_address).0;
         let proof = get_proof(&self.rpc_client, proof_address).await;
-        let reservation = get_reservation(&self.rpc_client, reservation_address).await.unwrap();
+        let reservation = get_reservation(&self.rpc_client, reservation_address).await;
         println!("Address: {:?}", proof_address);
         println!("Authority: {:?}", proof.authority);
         println!(
             "Balance: {:?} ORE",
             amount_to_ui_amount(proof.balance, TOKEN_DECIMALS)
         );
-        println!("Boost: {:?}", reservation.boost);
+        if let Ok(reservation) = reservation {
+            println!("Boost: {:?}", reservation.boost);
+        }
         println!(
             "Last hash: {}",
             solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string()
