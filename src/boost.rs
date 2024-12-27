@@ -23,7 +23,6 @@ impl Miner {
         let boost = get_boost(&self.rpc_client, boost_address).await;
         let proof_address = proof_pda(boost_address).0;
         let proof = get_proof(&self.rpc_client, proof_address).await;
-        println!("{:?} ({:?})", boost.mint, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
         println!("Address: {:?}", boost_address);
         println!("Expires at: {:?}", boost.expires_at);
         println!("Mint: {:?}", mint);
