@@ -66,8 +66,8 @@ impl Miner {
         // Build claim instruction with amount or max rewards
         ixs.push(ore_boost_api::sdk::claim(
             pubkey,
-            stake_address, 
             beneficiary,
+            mint_address,
             claim_args.amount
                 .map(|a| crate::utils::amount_f64_to_u64(a))
                 .unwrap_or(stake.rewards),
