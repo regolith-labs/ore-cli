@@ -1,8 +1,9 @@
 use std::str::FromStr;
 
-use ore_api::state::proof_pda;
+use ore_api::{state::proof_pda, consts::TOKEN_DECIMALS};
 use ore_boost_api::{state::boost_pda, consts::BOOST_DENOMINATOR};
 use solana_client::client_error::Result as ClientResult;
+use spl_token::amount_to_ui_amount;
 use steel::*;
 
 use crate::{args::BoostArgs, Miner, utils::{get_boosts, get_boost, get_proof}};
@@ -28,7 +29,7 @@ impl Miner {
         println!("Mint: {:?}", mint);
         println!("Multiplier: {:?}", boost.multiplier);
         println!("Total stake: {:?}", boost.total_stake);
-        println!("Pending yield: {:?}", proof.balance);
+        println!("Pending yield: {:?} ORE", amount_to_ui_amount(proof.balance, TOKEN_DECIMALS));
     }
 
     async fn list_boosts(&self) {
