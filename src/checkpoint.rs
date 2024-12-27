@@ -32,6 +32,7 @@ impl Miner {
         let mint_address = Pubkey::from_str(&args.mint)?;
         let boost_address = boost_pda(mint_address).0;
         let checkpoint_address = checkpoint_pda(boost_address).0;
+        let progress_bar = spinner::new_progress_bar();
         loop {
             // Get current time and checkpoint data
             let clock = get_clock(&self.rpc_client).await;
@@ -40,10 +41,12 @@ impl Miner {
 
             // Call checkpoint if needed
             if time_since_last >= CHECKPOINT_INTERVAL {
+                progress_bar.set_message("Checkpointing...");
                 let _ = self.checkpoint_once(args).await;
             }
 
             // Sleep for 60 seconds
+            progress_bar.set_message("Waiting...");
             sleep(Duration::from_secs(60)).await;
         }
     }
