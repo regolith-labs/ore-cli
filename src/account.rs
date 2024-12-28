@@ -101,36 +101,43 @@ impl Miner {
             key: "Address".to_string(),
             value: proof_address.to_string(),
         });
-        data.push(TableData {
-            key: "Last hash".to_string(),
-            value: solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string(),
-        });
-        data.push(TableData {
-            key: "Last hash at".to_string(),
-            value: format_timestamp(proof.last_hash_at),
-        });
-        data.push(TableData {
-            key: "Miner".to_string(),
-            value: proof.miner.to_string(),
-        });
-        data.push(TableData {
-            key: "Total hashes".to_string(),
-            value: proof.total_hashes.to_string(),
-        });
-        data.push(TableData {
-            key: "Total rewards".to_string(),
-            value: format!("{} ORE", amount_to_ui_amount(proof.total_rewards, ore_api::consts::TOKEN_DECIMALS)),
-        });
-        data.push(TableData {
-            key: "Unclaimed".to_string(),
-            value: format!("{} ORE", amount_to_ui_amount(proof.balance, ore_api::consts::TOKEN_DECIMALS)),
-        });
+        if let Ok(proof) = proof {
+            data.push(TableData {
+                key: "Last hash".to_string(),
+                value: solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string(),
+            });
+            data.push(TableData {
+                key: "Last hash at".to_string(),
+                value: format_timestamp(proof.last_hash_at),
+            });
+            data.push(TableData {
+                key: "Miner".to_string(),
+                value: proof.miner.to_string(),
+            });
+            data.push(TableData {
+                key: "Total hashes".to_string(),
+                value: proof.total_hashes.to_string(),
+            });
+            data.push(TableData {
+                key: "Total rewards".to_string(),
+                value: format!("{} ORE", amount_to_ui_amount(proof.total_rewards, ore_api::consts::TOKEN_DECIMALS)),
+            });
+            data.push(TableData {
+                key: "Unclaimed".to_string(),
+                value: format!("{} ORE", amount_to_ui_amount(proof.balance, ore_api::consts::TOKEN_DECIMALS)),
+            });
+        } else {
+            data.push(TableData {
+                key: "Status".to_string(),
+                value: "Not found".red().bold().to_string(),
+            });
+        }
     }
 
     async fn close(&self, _args: AccountCloseArgs) {
         // Confirm proof exists
         let signer = self.signer();
-        let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await;
+        let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await.unwrap();
 
         // Confirm the user wants to close.
         if !ask_confirm(

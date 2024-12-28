@@ -197,7 +197,7 @@ impl Miner {
 
     async fn fetch_boost_data(&self, address: Pubkey, boost: Boost, mint: Mint, symbol: String, data: &mut Vec<TableData>) {
         let boost_proof_address = proof_pda(address).0;
-        let boost_proof: ore_api::prelude::Proof = get_proof(&self.rpc_client, boost_proof_address).await;
+        let boost_proof: ore_api::prelude::Proof = get_proof(&self.rpc_client, boost_proof_address).await.unwrap();
         data.push(TableData {
             key: "Address".to_string(),
             value: address.to_string(),

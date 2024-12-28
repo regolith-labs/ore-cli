@@ -71,7 +71,7 @@ impl Miner {
                 &self.rpc_client, 
                 signer.pubkey(), 
                 last_hash_at
-            ).await;
+            ).await.unwrap();
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
             // Log unclaimed balance

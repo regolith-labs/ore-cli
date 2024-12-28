@@ -138,7 +138,7 @@ pub async fn get_boost_stake_accounts(
     get_program_accounts::<Stake>(rpc_client, ore_boost_api::ID, vec![filter]).await
 }
 
-pub async fn get_proof_with_authority(client: &RpcClient, authority: Pubkey) -> Proof {
+pub async fn get_proof_with_authority(client: &RpcClient, authority: Pubkey) -> Result<Proof, anyhow::Error> {
     let proof_address = proof_pubkey(authority);
     get_proof(client, proof_address).await
 }
@@ -147,22 +147,22 @@ pub async fn get_updated_proof_with_authority(
     client: &RpcClient,
     authority: Pubkey,
     lash_hash_at: i64,
-) -> Proof {
+) -> Result<Proof, anyhow::Error> {
     loop {
-        let proof = get_proof_with_authority(client, authority).await;
-        if proof.last_hash_at.gt(&lash_hash_at) {
-            return proof;
+        if let Ok(proof) = get_proof_with_authority(client, authority).await {
+            if proof.last_hash_at.gt(&lash_hash_at) {
+                return Ok(proof);
+            }
         }
         tokio::time::sleep(Duration::from_millis(1_000)).await;
     }
 }
 
-pub async fn get_proof(client: &RpcClient, address: Pubkey) -> Proof {
+pub async fn get_proof(client: &RpcClient, address: Pubkey) -> Result<Proof, anyhow::Error> {
     let data = client
         .get_account_data(&address)
-        .await
-        .expect("Failed to get proof account");
-    *Proof::try_from_bytes(&data).expect("Failed to parse proof account")
+        .await?;
+    Ok(*Proof::try_from_bytes(&data)?)
 }
 
 pub async fn get_reservation(client: &RpcClient, address: Pubkey) -> Result<Reservation, anyhow::Error> {
