@@ -9,7 +9,7 @@ use tabled::{Table, settings::{Style, Remove, object::{Rows, Columns}, Alignment
 
 use crate::{
     args::{AccountArgs, AccountCommand, ClaimArgs, AccountCloseArgs},
-    utils::{get_proof, format_timestamp, get_proof_with_authority, ask_confirm, TableData, TableSectionTitle},
+    utils::{get_proof, format_timestamp, get_proof_with_authority, ask_confirm, TableData, TableSectionTitle, amount_u64_to_f64},
     Miner, send_and_confirm::ComputeBudget,
 };
 
@@ -114,7 +114,12 @@ impl Miner {
             });
             data.push(TableData {
                 key: "Unclaimed".to_string(),
-                value: format!("{} ORE", amount_to_ui_amount(proof.balance, ore_api::consts::TOKEN_DECIMALS)),
+                value: if proof.balance > 0 {
+                    format!("{} ORE", amount_u64_to_f64(proof.balance)).bold().yellow().to_string()
+                } else {
+                    format!("{} ORE", amount_u64_to_f64(proof.balance))
+                }
+                
             });
         } else {
             data.push(TableData {
