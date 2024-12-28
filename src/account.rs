@@ -49,7 +49,7 @@ impl Miner {
         table.with(Remove::row(Rows::first()));
         table.modify(Columns::single(1), Alignment::right());
         table.with(Style::blank());
-        let title_color = Color::try_from(" ".bold().default_color().on_white().to_string()).unwrap();
+        let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
         
         // Account title
         table.with(Highlight::new(Rows::first()).color(BorderColor::default().top(Color::FG_WHITE)));
