@@ -1,7 +1,6 @@
 mod args;
 mod account;
 mod benchmark;
-mod boost;
 #[cfg(feature = "admin")]
 mod checkpoint;
 mod claim;

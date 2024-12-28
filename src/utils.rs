@@ -6,20 +6,31 @@ use ore_api::{
     consts::{
         CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS,
     },
-    state::{Config, Proof, Treasury, bus_pda, Bus},
+    state::{Config, Proof, Treasury, Bus},
 };
-use ore_boost_api::state::{Boost, Stake, Checkpoint, Reservation};
+use ore_boost_api::state::{Boost, Stake, Reservation};
 use serde::Deserialize;
 use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::RpcProgramAccountsConfig};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_program::{pubkey::Pubkey, sysvar};
+use solana_program::{pubkey::Pubkey, sysvar, program_pack::Pack};
 use solana_sdk::{clock::Clock, hash::Hash};
 use spl_associated_token_account::get_associated_token_address;
+use spl_token::state::Mint;
 use steel::{AccountDeserialize, Discriminator};
+use tabled::Tabled;
 use tokio::time::sleep;
+
+#[cfg(feature = "admin")]
+use ore_boost_api::state::Checkpoint;
 
 pub const BLOCKHASH_QUERY_RETRIES: usize = 5;
 pub const BLOCKHASH_QUERY_DELAY: u64 = 500;
+
+#[derive(Tabled)]
+pub struct TableData {
+    pub key: String,
+    pub value: String,
+}
 
 pub async fn get_program_accounts<T>(client: &RpcClient, program_id: Pubkey, filters: Vec<RpcFilterType>) -> Result<Vec<(Pubkey, T)>, anyhow::Error> 
     where T: AccountDeserialize + Discriminator + Clone {
@@ -57,6 +68,12 @@ pub async fn _get_treasury(client: &RpcClient) -> Treasury {
     *Treasury::try_from_bytes(&data).expect("Failed to parse treasury account")
 }
 
+pub async fn get_mint(client: &RpcClient, address: Pubkey) -> Result<Mint, anyhow::Error> {
+    let mint_data = client.get_account_data(&address).await?;
+    let mint = Mint::unpack(&mint_data)?;
+    Ok(mint)
+}
+
 pub async fn get_config(client: &RpcClient) -> Config {
     let data = client
         .get_account_data(&CONFIG_ADDRESS)
@@ -77,6 +94,7 @@ pub async fn get_boosts(client: &RpcClient) -> Result<Vec<(Pubkey, Boost)>, anyh
     get_program_accounts::<Boost>(client, ore_boost_api::ID, vec![]).await
 }
 
+#[cfg(feature = "admin")]
 pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {
     let data = client
         .get_account_data(&address)
@@ -85,12 +103,11 @@ pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {
     *Checkpoint::try_from_bytes(&data).expect("Failed to parse checkpoint account")
 }
 
-pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Stake {
+pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Result<Stake, anyhow::Error> {
     let data = client
         .get_account_data(&address)
-        .await
-        .expect("Failed to get stake account");
-    *Stake::try_from_bytes(&data).expect("Failed to parse stake account")
+        .await?;
+    Ok(*Stake::try_from_bytes(&data)?)
 }
 
 pub async fn get_bus(client: &RpcClient, address: Pubkey) -> Bus {

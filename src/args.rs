@@ -170,13 +170,13 @@ pub struct ProofArgs {
     pub address: Option<String>,
 }
 
-#[derive(Parser, Debug)]
+#[derive(Clone, Parser, Debug)]
 pub struct StakeArgs {
     #[command(subcommand)]
     pub command: Option<StakeCommand>,
 
     #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake with.")]
-    pub mint: String,
+    pub mint: Option<String>,
 }
 
 // TODO Rename to boost?

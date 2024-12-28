@@ -2,14 +2,15 @@ use std::str::FromStr;
 
 use colored::Colorize;
 use ore_api::state::proof_pda;
+use owo_colors::OwoColorize;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 use spl_token::amount_to_ui_amount;
-use tabled::{Tabled, Table, settings::{Style, Rotate, Panel}};
+use tabled::{Table, settings::{Style, Remove, object::{Rows, Columns}, Color, Highlight, style::{LineText, BorderColor}, Border, Alignment}};
 
 use crate::{
     args::{AccountArgs, AccountCommand, ClaimArgs, AccountCloseArgs},
-    utils::{get_proof, format_timestamp, get_proof_with_authority, ask_confirm},
+    utils::{get_proof, format_timestamp, get_proof_with_authority, ask_confirm, TableData},
     Miner, send_and_confirm::ComputeBudget,
 };
 
@@ -25,16 +26,7 @@ impl Miner {
     }
 
     pub async fn get_account(&self, args: AccountArgs) {
-        #[derive(Tabled)]
-        struct AccountData {
-            address: String,
-            balance: String,
-            last_solution: String,
-            last_solution_at: String,
-            lifetime_solutions: String,
-            miner: String,
-            proof: String,
-        }
+        // Parse account address
         let signer = self.signer();
         let address = if let Some(address) = &args.address {
             if let Ok(address) = Pubkey::from_str(&address) {
@@ -46,10 +38,36 @@ impl Miner {
         } else {
             signer.pubkey()
         };
-        let proof_address = proof_pda(address).0;
-        let proof = get_proof(&self.rpc_client, proof_address).await;
+
+        // Aggregate data   
+        let mut data = vec![];
+        self.get_account_data(address, &mut data).await;
+        self.get_proof_data(address, &mut data).await;
+
+        // Build table
+        let mut table = Table::new(data);
+        table.with(Remove::row(Rows::first()));
+        table.modify(Columns::single(1), Alignment::right());
+        table.with(Style::blank());
+        let title_color = Color::try_from(" ".bold().default_color().on_white().to_string()).unwrap();
+        
+        // Account title
+        table.with(Highlight::new(Rows::first()).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(Highlight::new(Rows::first()).border(Border::new().top('━')));
+        table.with(LineText::new("Account", Rows::first()).color(title_color.clone()));
+
+        // Proof title
+        table.with(Highlight::new(Rows::single(2)).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(Highlight::new(Rows::single(2)).border(Border::new().top('━')));
+        table.with(LineText::new("Proof", Rows::single(2)).color(title_color.clone()));
+ 
+        println!("{table}\n");
+    }
+
+    async fn get_account_data(&self, authority: Pubkey, data: &mut Vec<TableData>) {
+        // Get balance
         let token_account_address = spl_associated_token_account::get_associated_token_address(
-            &address,
+            &authority,
             &ore_api::consts::MINT_ADDRESS,
         );
         let token_balance = if let Ok(Some(token_account)) = self
@@ -61,21 +79,52 @@ impl Miner {
         } else {
             "0".to_string()
         };
-        let mut data: Vec<AccountData> = vec![];
-        data.push(AccountData {
-            address: address.to_string(),
-            balance: token_balance,
-            last_solution: solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string(),
-            last_solution_at: format_timestamp(proof.last_hash_at),
-            lifetime_solutions: proof.total_hashes.to_string(),
-            miner: proof.miner.to_string(),
-            proof: proof_address.to_string(),
+
+        // Aggregate data
+        data.push(TableData {
+            key: "Address".to_string(),
+            value: authority.to_string(),
         });
-        let mut table = Table::new(data);
-        table.with(Rotate::Left);
-        // table.with(Panel::header("Account"));
-        table.with(Style::modern());
-        println!("{}\n", table);
+        data.push(TableData {
+            key: "Balance".to_string(),
+            value: format!("{} ORE", token_balance),
+        });
+    }
+
+    async fn get_proof_data(&self, authority: Pubkey, data: &mut Vec<TableData>) {
+        // Parse addresses
+        let proof_address = proof_pda(authority).0;
+        let proof = get_proof(&self.rpc_client, proof_address).await;
+
+        // Aggregate data
+        data.push(TableData {
+            key: "Address".to_string(),
+            value: proof_address.to_string(),
+        });
+        data.push(TableData {
+            key: "Last hash".to_string(),
+            value: solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string(),
+        });
+        data.push(TableData {
+            key: "Last hash at".to_string(),
+            value: format_timestamp(proof.last_hash_at),
+        });
+        data.push(TableData {
+            key: "Miner".to_string(),
+            value: proof.miner.to_string(),
+        });
+        data.push(TableData {
+            key: "Total hashes".to_string(),
+            value: proof.total_hashes.to_string(),
+        });
+        data.push(TableData {
+            key: "Total rewards".to_string(),
+            value: format!("{} ORE", amount_to_ui_amount(proof.total_rewards, ore_api::consts::TOKEN_DECIMALS)),
+        });
+        data.push(TableData {
+            key: "Unclaimed".to_string(),
+            value: format!("{} ORE", amount_to_ui_amount(proof.balance, ore_api::consts::TOKEN_DECIMALS)),
+        });
     }
 
     async fn close(&self, _args: AccountCloseArgs) {
