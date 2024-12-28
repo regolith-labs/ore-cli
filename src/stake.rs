@@ -21,9 +21,9 @@ pub struct StakeTableData {
     pub mint: String,
     #[tabled(rename = "Multiplier")]
     pub multiplier: String,
-    #[tabled(rename = "Total stakers")]
+    #[tabled(rename = "Stakers")]
     pub total_stakers: String,
-    #[tabled(rename = "Total deposits")]
+    #[tabled(rename = "Deposits")]
     pub total_deposits: String,
     #[tabled(rename = "My deposits")]
     pub my_deposits: String,
