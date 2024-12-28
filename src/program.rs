@@ -1,4 +1,4 @@
-use ore_api::consts::{EPOCH_DURATION, BUS_ADDRESSES};
+use ore_api::consts::{EPOCH_DURATION, BUS_ADDRESSES, TREASURY_TOKENS_ADDRESS, TREASURY_ADDRESS};
 use tabled::{Table, settings::{Style, object::{Rows, Columns}, Alignment, Remove}};
 
 use crate::{utils::{get_config, amount_u64_to_f64, format_timestamp, get_bus, TableData, TableSectionTitle}, Miner};
@@ -13,6 +13,8 @@ impl Miner {
         self.fetch_busses_data(&mut data).await;
         let len2 = data.len();
         self.fetch_rewards_data(&mut data).await;
+        let len3 = data.len();
+        self.fetch_treasury_data(&mut data).await;
 
         // Build table
         let mut table = Table::new(data);
@@ -22,6 +24,7 @@ impl Miner {
         table.section_title(0, "Config");
         table.section_title(len1, "Busses");
         table.section_title(len2, "Reward rates");
+        table.section_title(len3, "Treasury");
         println!("{table}\n");
     }
 
@@ -65,5 +68,20 @@ impl Miner {
                 break;
             }
         }
+    }
+
+    async fn fetch_treasury_data(&self, data: &mut Vec<TableData>) {
+        let token_balance =  self
+            .rpc_client
+            .get_token_account(&TREASURY_TOKENS_ADDRESS)
+            .await.unwrap().unwrap();
+        data.push(TableData {
+            key: "Address".to_string(),
+            value: TREASURY_ADDRESS.to_string(),
+        });
+        data.push(TableData {
+            key: "Balance".to_string(),
+            value: format!("{} ORE", token_balance.token_amount.ui_amount_string),
+        });
     }
 }

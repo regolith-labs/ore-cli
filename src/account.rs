@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use colored::Colorize;
 use ore_api::state::proof_pda;
-use solana_program::pubkey::Pubkey;
+use solana_program::{pubkey::Pubkey, native_token::lamports_to_sol};
 use solana_sdk::signature::Signer;
 use spl_token::amount_to_ui_amount;
 use tabled::{Table, settings::{Style, Remove, object::{Rows, Columns}, Alignment}};
@@ -55,7 +55,7 @@ impl Miner {
     }
 
     async fn get_account_data(&self, authority: Pubkey, data: &mut Vec<TableData>) {
-        // Get balance
+        // Get ORE balance
         let token_account_address = spl_associated_token_account::get_associated_token_address(
             &authority,
             &ore_api::consts::MINT_ADDRESS,
@@ -70,6 +70,9 @@ impl Miner {
             "0".to_string()
         };
 
+        // Get SOL balance
+        let sol_balance = self.rpc_client.get_balance(&authority).await.unwrap();
+
         // Aggregate data
         data.push(TableData {
             key: "Address".to_string(),
@@ -78,6 +81,10 @@ impl Miner {
         data.push(TableData {
             key: "Balance".to_string(),
             value: format!("{} ORE", token_balance),
+        });
+        data.push(TableData {
+            key: "SOL".to_string(),
+            value: format!("{} SOL", lamports_to_sol(sol_balance)),
         });
     }
 
