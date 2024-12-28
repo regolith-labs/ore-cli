@@ -8,7 +8,6 @@ use spl_token::amount_to_ui_amount;
 
 use crate::{
     args::ClaimArgs,
-    cu_limits::CU_LIMIT_CLAIM,
     pool::Pool,
     send_and_confirm::ComputeBudget,
     utils::{amount_f64_to_u64, ask_confirm, get_proof_with_authority},
@@ -90,7 +89,7 @@ impl Miner {
 
         // Send and confirm
         ixs.push(ore_api::sdk::claim(pubkey, beneficiary, amount));
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false)
             .await
             .ok();
     }

@@ -13,7 +13,7 @@ use tokio::time::sleep;
 use crate::{
     args::CheckpointArgs,
     send_and_confirm::ComputeBudget,
-    Miner, utils::{get_clock, get_boost, get_checkpoint, get_stake_accounts},
+    Miner, utils::{get_clock, get_boost, get_checkpoint, get_boost_stake_accounts},
 };
 
 const MAX_ACCOUNTS_PER_TX: usize = 10;
@@ -77,7 +77,7 @@ impl Miner {
         }
 
         // Get all stake accounts for this boost
-        let mut accounts = get_stake_accounts(&self.rpc_client, boost_address).await?;
+        let mut accounts = get_boost_stake_accounts(&self.rpc_client, boost_address).await?;
         if accounts.is_empty() {
             progress_bar.finish_with_message("No stake accounts found for this boost");
             return Ok(());

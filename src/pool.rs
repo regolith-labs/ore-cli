@@ -10,7 +10,61 @@ use solana_sdk::{
 };
 use steel::AccountDeserialize;
 
-use crate::{error::Error, send_and_confirm::ComputeBudget, Miner};
+use crate::{error::Error, send_and_confirm::ComputeBudget, Miner, args::{PoolArgs, PoolCommitArgs, PoolCommand}, utils};
+
+impl Miner {
+    // TODO
+    pub async fn pool(&self, args: PoolArgs) {
+        if let Some(subcommand) = args.command.clone() {
+            match subcommand {
+                PoolCommand::Commit(commit_args) => self.pool_commit(args, commit_args).await.unwrap(),
+            }
+        } else {
+            self.pool_account(&args.pool_url).await.unwrap();
+        }
+    }
+
+    async fn pool_commit(&self, args: PoolArgs, _commit_args: PoolCommitArgs) -> Result<(), Error> {
+        let pool = Pool {
+            http_client: reqwest::Client::new(),
+            pool_url: args.pool_url,
+        };
+        if let Err(err) = pool.post_update_balance(self).await {
+            println!("{:?}", err);
+        }
+        Ok(())
+    }
+
+    async fn pool_account(&self, pool_url: &String) -> Result<(), Error> {
+        let signer = self.signer();
+        // build pool client
+        let pool = Pool {
+            http_client: reqwest::Client::new(),
+            pool_url: pool_url.clone(),
+        };
+        // fetch pool address
+        let pool_address = pool.get_pool_address().await?;
+        println!("Pool: {}", pool_address.address);
+        
+        // fetch on-chain balance
+        let (member_pda, _) =
+            ore_pool_api::state::member_pda(signer.pubkey(), pool_address.address);
+        let member_data = self.rpc_client.get_account_data(&member_pda).await?;
+        let member = ore_pool_api::state::Member::try_from_bytes(member_data.as_slice())?;
+        println!("Yield: {} ORE", utils::amount_u64_to_string(member.balance));
+
+        // fetch pending balance
+        let member_db = pool.get_pool_member(&self).await?;
+        let diff = (member_db.total_balance as u64) - member.total_balance;
+        println!(
+            "Yield (pending): {} ORE\n",
+            utils::amount_u64_to_string(diff)
+        );
+        println!("Pool operators automatically commit pending yield to the blockchain at regular intervals. To manually commit your pending yield now, run the following command:\n\n`ore pool {} commit`\n", pool_url);
+        Ok(())
+    }
+}
+
 
 #[derive(Clone)]
 pub struct Pool {

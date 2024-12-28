@@ -57,6 +57,9 @@ steel = "2.0"
 thiserror = "1.0.63"
 tokio = "1.35.1"
 tokio-tungstenite = "0.16"
+tabled = { version = "0.17.0", features = ["ansi"] }
+owo-colors = "4.1.0"
+crossterm = "0.28.1"
 
 [patch.crates-io]
 ore-api = { path = "../ore/api" }

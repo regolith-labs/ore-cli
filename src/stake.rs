@@ -10,7 +10,6 @@ use steel::AccountDeserialize;
 
 use crate::{
     args::{StakeArgs, StakeCommand, StakeDepositArgs, StakeWithdrawArgs, StakeClaimArgs, StakeMigrateArgs},
-    cu_limits::CU_LIMIT_CLAIM,
     error::Error,
     send_and_confirm::ComputeBudget,
     Miner, utils::{get_boost, get_checkpoint, get_stake, get_proof, get_legacy_stake}, pool::Pool,
@@ -74,7 +73,7 @@ impl Miner {
         ));
 
         // Send and confirm transaction
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false)
             .await?;
 
         Ok(())
@@ -195,14 +194,14 @@ impl Miner {
         if let Err(_err) = self.rpc_client.get_account_data(&stake_address).await {
             println!("Failed to fetch stake account");
             let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
-            self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+            self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false)
                 .await
                 .ok();
         }
 
         // Send tx
         let ix = ore_boost_api::sdk::deposit(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false)
             .await
             .ok();
 
@@ -257,7 +256,7 @@ impl Miner {
         // Send tx
         // TODO: benfeciary should be arg to ix builder
         let ix = ore_boost_api::sdk::withdraw(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false)
             .await
             .ok();
 

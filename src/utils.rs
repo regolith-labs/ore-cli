@@ -1,11 +1,12 @@
 use std::{io::Read, time::Duration};
 
 use cached::proc_macro::cached;
+use chrono::{Local, TimeZone};
 use ore_api::{
     consts::{
         CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS,
     },
-    state::{Config, Proof, Treasury},
+    state::{Config, Proof, Treasury, bus_pda, Bus},
 };
 use ore_boost_api::state::{Boost, Stake, Checkpoint, Reservation};
 use serde::Deserialize;
@@ -92,6 +93,14 @@ pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Stake {
     *Stake::try_from_bytes(&data).expect("Failed to parse stake account")
 }
 
+pub async fn get_bus(client: &RpcClient, address: Pubkey) -> Bus {
+    let data = client
+        .get_account_data(&address)
+        .await
+        .expect("Failed to get stake account");
+    *Bus::try_from_bytes(&data).expect("Failed to parse bus account")
+}
+
 pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> ore_boost_legacy_api::state::Stake {
     let data = client
         .get_account_data(&address)
@@ -100,7 +109,8 @@ pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> ore_boost_
     *ore_boost_legacy_api::state::Stake::try_from_bytes(&data).expect("Failed to parse stake account")
 }
 
-pub async fn get_stake_accounts(
+#[cfg(feature = "admin")]
+pub async fn get_boost_stake_accounts(
     rpc_client: &RpcClient,
     boost_address: Pubkey,
 ) -> Result<Vec<(Pubkey, Stake)>, anyhow::Error> {
@@ -205,6 +215,11 @@ pub async fn get_latest_blockhash_with_retries(
             });
         }
     }
+}
+
+pub fn format_timestamp(timestamp: i64) -> String {
+    let dt = Local.timestamp_opt(timestamp, 0).unwrap();
+    dt.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
 #[cached]

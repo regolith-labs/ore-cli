@@ -1,13 +1,11 @@
 mod args;
-mod balance;
+mod account;
 mod benchmark;
 mod boost;
-mod busses;
+#[cfg(feature = "admin")]
 mod checkpoint;
 mod claim;
-mod close;
-mod config;
-mod cu_limits;
+mod program;
 mod dynamic_fee;
 mod error;
 #[cfg(feature = "admin")]
@@ -15,8 +13,6 @@ mod initialize;
 mod mine;
 mod open;
 mod pool;
-mod proof;
-mod rewards;
 mod send_and_confirm;
 mod stake;
 mod transfer;
@@ -36,6 +32,11 @@ use solana_sdk::{
 };
 use utils::Tip;
 
+// TODO: Unify balance and proof into "account"
+// TODO: Move balance subcommands to "pool"
+// TODO: Make checkpoint an admin command
+// TODO: Remove boost command
+
 #[derive(Clone)]
 struct Miner {
     pub keypair_filepath: Option<String>,
@@ -50,44 +51,33 @@ struct Miner {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    #[command(about = "Fetch an account balance")]
-    Balance(BalanceArgs),
+    #[command(about = "Fetch your account details")]
+    Account(AccountArgs),
 
-    #[command(about = "Benchmark your hashpower")]
+    #[command(about = "Benchmark your machine's hashpower")]
     Benchmark(BenchmarkArgs),
 
-    #[command(about = "Fetch the boost account details")]
-    Boost(BoostArgs),
-
-    #[command(about = "Fetch the bus account balances")]
-    Busses(BussesArgs),
-
-    #[command(about = "Execute checkpoint operation for a boost")]
-    Checkpoint(CheckpointArgs),
-
-    #[command(about = "Claim your mining rewards")]
+    #[command(about = "Claim your mining yield")]
     Claim(ClaimArgs),
 
-    #[command(about = "Close your account to recover rent")]
-    Close(CloseArgs),
+    #[command(about = "Fetch onchain global program variables")]
+    Program(ProgramArgs),
 
-    #[command(about = "Fetch the program config")]
-    Config(ConfigArgs),
-
-    #[command(about = "Start mining")]
+    #[command(about = "Start mining on your local machine")]
     Mine(MineArgs),
 
-    #[command(about = "Fetch a proof account by address")]
-    Proof(ProofArgs),
+    #[command(about = "Connect to a mining pool")]
+    Pool(PoolArgs),
 
-    #[command(about = "Fetch the current reward rate for each difficulty level")]
-    Rewards(RewardsArgs),
-
-    #[command(about = "Manage your stake position")]
+    #[command(about = "Manage your stake positions")]
     Stake(StakeArgs),
 
-    #[command(about = "Send ORE to anyone, anywhere in the world")]
+    #[command(about = "Send ORE to another user")]
     Transfer(TransferArgs),
+
+    #[cfg(feature = "admin")]
+    #[command(about = "Execute checkpoint operation for a boost")]
+    Checkpoint(CheckpointArgs),
 
     #[cfg(feature = "admin")]
     #[command(about = "Initialize the program")]
@@ -221,48 +211,37 @@ async fn main() {
 
     // Execute user command.
     match args.command {
-        Commands::Balance(args) => {
-            miner.balance(args).await;
+        Commands::Account(args) => {
+            miner.account(args).await;
         }
         Commands::Benchmark(args) => {
             miner.benchmark(args).await;
-        }
-        Commands::Boost(args) => {
-            miner.boost(args).await.unwrap();
-        }
-        Commands::Busses(_) => {
-            miner.busses().await;
-        }
-        Commands::Checkpoint(args) => {
-            miner.checkpoint(args).await.unwrap();
         }
         Commands::Claim(args) => {
             if let Err(err) = miner.claim(args).await {
                 println!("{:?}", err);
             }
         }
-        Commands::Close(_) => {
-            miner.close().await;
+        Commands::Pool(args) => {
+            miner.pool(args).await;
         }
-        Commands::Config(_) => {
-            miner.config().await;
+        Commands::Program(_) => {
+            miner.program().await;
         }
         Commands::Mine(args) => {
             if let Err(err) = miner.mine(args).await {
                 println!("{:?}", err);
             }
         }
-        Commands::Proof(args) => {
-            miner.proof(args).await;
-        }
-        Commands::Rewards(_) => {
-            miner.rewards().await;
-        }
         Commands::Stake(args) => {
             miner.stake(args).await;
         }
         Commands::Transfer(args) => {
             miner.transfer(args).await;
+        }
+        #[cfg(feature = "admin")]
+        Commands::Checkpoint(args) => {
+            miner.checkpoint(args).await.unwrap();
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {
