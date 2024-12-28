@@ -2,15 +2,14 @@ use std::str::FromStr;
 
 use colored::Colorize;
 use ore_api::state::proof_pda;
-use owo_colors::OwoColorize;
 use solana_program::pubkey::Pubkey;
 use solana_sdk::signature::Signer;
 use spl_token::amount_to_ui_amount;
-use tabled::{Table, settings::{Style, Remove, object::{Rows, Columns}, Color, Highlight, style::{LineText, BorderColor}, Border, Alignment}};
+use tabled::{Table, settings::{Style, Remove, object::{Rows, Columns}, Alignment}};
 
 use crate::{
     args::{AccountArgs, AccountCommand, ClaimArgs, AccountCloseArgs},
-    utils::{get_proof, format_timestamp, get_proof_with_authority, ask_confirm, TableData},
+    utils::{get_proof, format_timestamp, get_proof_with_authority, ask_confirm, TableData, TableSectionTitle},
     Miner, send_and_confirm::ComputeBudget,
 };
 
@@ -49,17 +48,8 @@ impl Miner {
         table.with(Remove::row(Rows::first()));
         table.modify(Columns::single(1), Alignment::right());
         table.with(Style::blank());
-        let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
-        
-        // Account title
-        table.with(Highlight::new(Rows::first()).color(BorderColor::default().top(Color::FG_WHITE)));
-        table.with(Highlight::new(Rows::first()).border(Border::new().top('━')));
-        table.with(LineText::new("Account", Rows::first()).color(title_color.clone()));
-
-        // Proof title
-        table.with(Highlight::new(Rows::single(2)).color(BorderColor::default().top(Color::FG_WHITE)));
-        table.with(Highlight::new(Rows::single(2)).border(Border::new().top('━')));
-        table.with(LineText::new("Proof", Rows::single(2)).color(title_color.clone()));
+        table.section_title(0, "Account");
+        table.section_title(2, "Proof");
  
         println!("{table}\n");
     }

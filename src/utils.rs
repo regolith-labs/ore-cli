@@ -2,6 +2,7 @@ use std::{io::Read, time::Duration};
 
 use cached::proc_macro::cached;
 use chrono::{Local, TimeZone};
+use colored::Colorize;
 use ore_api::{
     consts::{
         CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS,
@@ -17,7 +18,7 @@ use solana_sdk::{clock::Clock, hash::Hash};
 use spl_associated_token_account::get_associated_token_address;
 use spl_token::state::Mint;
 use steel::{AccountDeserialize, Discriminator};
-use tabled::Tabled;
+use tabled::{Tabled, settings::{object::Rows, style::{BorderColor, LineText}, Color, Border, Highlight, Padding}, Table};
 use tokio::time::sleep;
 
 #[cfg(feature = "admin")]
@@ -258,4 +259,20 @@ pub struct Tip {
     pub landed_tips_95th_percentile: f64,
     pub landed_tips_99th_percentile: f64,
     pub ema_landed_tips_50th_percentile: f64,
+}
+
+pub trait TableSectionTitle {
+    fn section_title(&mut self, row: usize, title: &str);
+}
+
+impl TableSectionTitle for Table {
+    fn section_title(&mut self, row: usize, title: &str) {
+        let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
+        self.with(Highlight::new(Rows::single(row)).color(BorderColor::default().top(Color::FG_WHITE)));
+        self.with(Highlight::new(Rows::single(row)).border(Border::new().top('━')));
+        self.with(LineText::new(title, Rows::single(row)).color(title_color.clone()));
+        if row > 0 {
+            self.modify(Rows::single(row - 1), Padding::new(1, 1, 0, 1));
+        }
+    }
 }

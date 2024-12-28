@@ -6,13 +6,13 @@ use ore_boost_api::{state::{boost_pda, stake_pda, Boost}, consts::BOOST_DENOMINA
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
-use tabled::{Table, settings::{Style, Color, Remove, object::{Rows, Columns}, Alignment, Highlight, style::{BorderColor, LineText}, Border}, Tabled};
+use tabled::{Table, settings::{Style, Color, Remove, object::{Rows, Columns}, Alignment, Highlight, style::BorderColor, Border}, Tabled};
 
 use crate::{
     args::{StakeArgs, StakeCommand, StakeDepositArgs, StakeWithdrawArgs, StakeClaimArgs, StakeMigrateArgs},
     error::Error,
     send_and_confirm::ComputeBudget,
-    Miner, utils::{get_boost, get_stake, get_proof, get_legacy_stake, TableData, format_timestamp, amount_u64_to_f64, get_boosts, get_mint}, pool::Pool,
+    Miner, utils::{get_boost, get_stake, get_proof, get_legacy_stake, TableData, format_timestamp, amount_u64_to_f64, get_boosts, get_mint, TableSectionTitle}, pool::Pool,
 };
 
 #[derive(Tabled)]
@@ -132,22 +132,9 @@ impl Miner {
         table.with(Remove::row(Rows::first()));
         table.modify(Columns::single(1), Alignment::right());
         table.with(Style::blank());
-        let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
-
-        // Boost title
-        table.with(Highlight::new(Rows::first()).color(BorderColor::default().top(Color::FG_WHITE)));
-        table.with(Highlight::new(Rows::first()).border(Border::new().top('━')));
-        table.with(LineText::new("Boost", Rows::first()).color(title_color.clone()));
-
-        // TODO If admin, display checkpoint data
-
-        // Stake title
-        table.with(Highlight::new(Rows::single(len1)).color(BorderColor::default().top(Color::FG_WHITE)));
-        table.with(Highlight::new(Rows::single(len1)).border(Border::new().top('━')));
-        table.with(LineText::new("Stake", Rows::single(len1)).color(title_color));
-
+        table.section_title(0, "Boost");
+        table.section_title(len1, "Stake");
         println!("{table}\n");
-
         Ok(())
     }
 
@@ -182,10 +169,11 @@ impl Miner {
             });
             data.push(TableData {
                 key: "Yield".to_string(),
-                value: format!(
-                    "{:.11} ORE",
-                    amount_u64_to_f64(stake.rewards)
-                ),
+                value: if stake.rewards > 0 {
+                    format!("{:.11} ORE", amount_u64_to_f64(stake.rewards)).yellow().bold().to_string()
+                } else {
+                    format!("{:.11} ORE", amount_u64_to_f64(stake.rewards))
+                },
             });
         } else {
             data.push(TableData {

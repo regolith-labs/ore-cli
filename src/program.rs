@@ -1,10 +1,7 @@
-use std::convert::TryFrom;
-
 use ore_api::consts::{EPOCH_DURATION, BUS_ADDRESSES};
-use owo_colors::OwoColorize;
-use tabled::{Table, settings::{Style, Color, Border, object::{Rows, Columns}, Highlight, style::{BorderColor, LineText}, Alignment, Remove}};
+use tabled::{Table, settings::{Style, object::{Rows, Columns}, Alignment, Remove}};
 
-use crate::{utils::{get_config, amount_u64_to_f64, format_timestamp, get_bus, TableData}, Miner};
+use crate::{utils::{get_config, amount_u64_to_f64, format_timestamp, get_bus, TableData, TableSectionTitle}, Miner};
 
 
 impl Miner {
@@ -22,39 +19,25 @@ impl Miner {
         table.with(Remove::row(Rows::first()));
         table.modify(Columns::single(1), Alignment::right());
         table.with(Style::blank());
-        let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
-        
-        // Config title
-        table.with(Highlight::new(Rows::first()).color(BorderColor::default().top(Color::FG_WHITE)));
-        table.with(Highlight::new(Rows::first()).border(Border::new().top('━')));
-        table.with(LineText::new("Config", Rows::first()).color(title_color.clone()));
-
-        // Busses title
-        table.with(Highlight::new(Rows::single(len1)).color(BorderColor::default().top(Color::FG_WHITE)));
-        table.with(Highlight::new(Rows::single(len1)).border(Border::new().top('━')));
-        table.with(LineText::new("Busses", Rows::single(len1)).color(title_color.clone()));
-
-        // Reward rate title
-        table.with(Highlight::new(Rows::single(len2)).color(BorderColor::default().top(Color::FG_WHITE)));
-        table.with(Highlight::new(Rows::single(len2)).border(Border::new().top('━')));
-        table.with(LineText::new("Reward rates", Rows::single(len2)).color(title_color));
-
+        table.section_title(0, "Config");
+        table.section_title(len1, "Busses");
+        table.section_title(len2, "Reward rates");
         println!("{table}\n");
     }
 
     async fn fetch_config_data(&self, data: &mut Vec<TableData>) {
         let config = get_config(&self.rpc_client).await;
         data.push(TableData {
-            key: "Last reset at".to_string(),
+            key: "Epoch duration".to_string(),
+            value: format!("{} sec", EPOCH_DURATION),
+        });
+        data.push(TableData {
+            key: "Epoch start at".to_string(),
             value: format_timestamp(config.last_reset_at),
         });
         data.push(TableData {
             key: "Min difficulty".to_string(),
             value: config.min_difficulty.to_string(),
-        });
-        data.push(TableData {
-            key: "Epoch duration".to_string(),
-            value: format!("{} sec", EPOCH_DURATION),
         });
     }
 
