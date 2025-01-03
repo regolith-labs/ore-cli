@@ -117,6 +117,24 @@ impl Miner {
             ).await.unwrap();
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
+            let mining_data = MiningData {
+                signature: "–".to_string(),
+                block: "–".to_string(),
+                timestamp: "–".to_string(),
+                difficulty: "–".to_string(),
+                base_reward: "–".to_string(),
+                boost_reward: "–".to_string(),
+                total_reward: "–".to_string(),
+                timing: "–".to_string(),
+                status: "Mining...".bold().to_string(),
+            };
+            let mut data: std::sync::RwLockWriteGuard<'_, Vec<MiningData>> = self.recent_mining_data.write().unwrap();
+            data.insert(0, mining_data); 
+            if data.len() >= 12 {
+                data.pop();
+            }
+            drop(data);
+
             // Log mining table
             self.update_mining_table();
 
@@ -209,20 +227,18 @@ impl Miner {
         // Add loading row
         let mining_data = MiningData {
             signature: sig.to_string(),
-            block: "".to_string(),
-            timestamp: "".to_string(),
-            difficulty: "".to_string(),
-            base_reward: "".to_string(),
-            boost_reward: "".to_string(),
-            total_reward: "".to_string(),
-            timing: "".to_string(),
-            status: "Loading...".bold().to_string(),
+            block: "–".to_string(),
+            timestamp: "–".to_string(),
+            difficulty: "–".to_string(),
+            base_reward: "–".to_string(),
+            boost_reward: "–".to_string(),
+            total_reward: "–".to_string(),
+            timing: "–".to_string(),
+            status: "Submitting".bold().yellow().to_string(),
         };
         let mut data: std::sync::RwLockWriteGuard<'_, Vec<MiningData>> = self.recent_mining_data.write().unwrap();
+        data.remove(0);
         data.insert(0, mining_data); 
-        if data.len() >= 12 {
-            data.pop();
-        }
         drop(data);
 
         // Update table
@@ -265,9 +281,6 @@ impl Miner {
                                 };
                                 data.remove(0);
                                 data.insert(0, mining_data);
-                                if data.len() >= 12 {
-                                    data.pop();
-                                }
                             }
                         }
                     }

@@ -227,7 +227,6 @@ impl Miner {
                                         } else if let Some(confirmation) =
                                             status.confirmation_status
                                         {
-                                            println!("Confirmation: {:?}", confirmation);
                                             match confirmation {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
