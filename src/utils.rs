@@ -83,12 +83,11 @@ pub async fn get_config(client: &RpcClient) -> Config {
     *Config::try_from_bytes(&data).expect("Failed to parse config account")
 }
 
-pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Boost {
+pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Result<Boost, anyhow::Error> {
     let data = client
         .get_account_data(&address)
-        .await
-        .expect("Failed to get boost account");
-    *Boost::try_from_bytes(&data).expect("Failed to parse boost account")
+        .await?;
+    Ok(*Boost::try_from_bytes(&data).expect("Failed to parse boost account"))
 }
 
 pub async fn get_boosts(client: &RpcClient) -> Result<Vec<(Pubkey, Boost)>, anyhow::Error> {

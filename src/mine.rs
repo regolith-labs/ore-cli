@@ -103,7 +103,6 @@ impl Miner {
 
         // Start mining loop
         let mut last_hash_at = 0;
-        let mut last_balance = 0;
         loop {            
             // Fetch accounts
             let config = get_config(&self.rpc_client).await;
@@ -135,24 +134,8 @@ impl Miner {
             // Log mining table
             self.update_mining_table();
 
-            // Log unclaimed balance
-            // println!(
-            //     "\n\nBalance: {} ORE{}",
-            //     amount_u64_to_string(proof.balance),
-            //     if last_hash_at.gt(&0) {
-            //         format!(
-            //             "\n  Change: {} ORE",
-            //             amount_u64_to_string(proof.balance.saturating_sub(last_balance))
-            //         )
-            //     } else {
-            //         "".to_string()
-            //     },
-            // );
-
-            // Log boosts
-            // log_boost_data(self.rpc_client.clone(), &boost_data_1, 1).await;
+            // Track timestamp
             last_hash_at = proof.last_hash_at;
-            last_balance = proof.balance;
 
             // Calculate cutoff time
             let cutoff_time = self.get_cutoff(proof.last_hash_at, args.buffer_time).await;
@@ -195,10 +178,6 @@ impl Miner {
                     Some(r.boost)
                 })
                 .unwrap_or(None);
-            // if let Some(boost_address) = boost_address {
-                // let boost = get_boost(&self.rpc_client, boost_address).await;
-                // println!("  Boost: {:?} ({}x)", boost_address, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
-            // }
             let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),

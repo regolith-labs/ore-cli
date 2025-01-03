@@ -106,7 +106,7 @@ impl Miner {
         let mint_address = Pubkey::from_str(&mint).unwrap();
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
-        let boost = get_boost(&self.rpc_client, boost_address).await;
+        let boost = get_boost(&self.rpc_client, boost_address).await.unwrap();
         let mint = get_mint(&self.rpc_client, mint_address).await.unwrap();
         let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
         let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
@@ -307,16 +307,15 @@ impl Miner {
         };
 
         // Get token account
+        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
+            println!("Failed to fetch mint account");
+            return Ok(());
+        };
+        let mint = Mint::unpack(&mint_data).unwrap();
         let Ok(Some(token_account)) = self.rpc_client.get_token_account(&sender).await else {
             println!("Failed to fetch token account");
             return Ok(());
         };
-
-        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
-            println!("Failed to fetch mint address");
-            return Ok(());
-        };
-        let mint = Mint::unpack(&mint_data).unwrap();
 
         // Parse amount
         let amount: u64 = if let Some(amount) = args.amount {
@@ -329,22 +328,28 @@ impl Miner {
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(signer.pubkey(), boost_address).0;
-        let _boost = get_boost(&self.rpc_client, boost_address).await;
+        if let Err(err) = get_boost(&self.rpc_client, boost_address).await {
+            println!("Failed to fetch boost account: {}", err);
+            return Ok(());
+        }
 
         // Open stake account, if needed
         if let Err(_err) = self.rpc_client.get_account_data(&stake_address).await {
-            println!("Failed to fetch stake account");
+            println!("Initializing stake account...");
             let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
-            self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false)
-                .await
-                .ok();
+            match self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await {
+                Err(e) => println!("Failed to initialize stake account: {}", e),
+                Ok(sig) => println!("{}: {}", "OK".green().bold(), sig),
+            }
         }
 
         // Send tx
+        println!("Depositing stake...");
         let ix = ore_boost_api::sdk::deposit(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false)
-            .await
-            .ok();
+        match self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await {
+            Err(e) => println!("Failed to deposit stake: {}", e),
+            Ok(sig) => println!("{}: {}", "OK".green().bold(), sig),
+        }
 
         Ok(())
     }
