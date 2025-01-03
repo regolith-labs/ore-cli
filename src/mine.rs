@@ -193,8 +193,30 @@ impl Miner {
             ixs.push(rotate_ix);
 
             // Submit transaction
-            if let Ok(sig) = self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false).await {
-                self.parse_mine_event(sig).await;
+            match self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false).await {
+                Ok(sig) => self.parse_mine_event(sig).await,
+                Err(err) => {
+                    let mining_data = MiningData {
+                        signature: "–".to_string(),
+                        block: "–".to_string(),
+                        timestamp: "–".to_string(),
+                        difficulty: "–".to_string(),
+                        base_reward: "–".to_string(),
+                        boost_reward: "–".to_string(),
+                        total_reward: "–".to_string(),
+                        timing: "–".to_string(),
+                        status: "Failed".bold().red().to_string(),
+                    };
+                    let mut data: std::sync::RwLockWriteGuard<'_, Vec<MiningData>> = self.recent_mining_data.write().unwrap();
+                    data.remove(0);
+                    data.insert(0, mining_data); 
+                    drop(data);
+
+                    // Log mining table
+                    self.update_mining_table();
+                    println!("{}: {}", "ERROR".bold().red(), err);
+                    return;
+                }
             }
         }
     }

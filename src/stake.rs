@@ -339,7 +339,7 @@ impl Miner {
             let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
             match self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await {
                 Err(e) => println!("Failed to initialize stake account: {}", e),
-                Ok(sig) => println!("{}: {}", "OK".green().bold(), sig),
+                Ok(sig) => println!("{} {}", "OK".green().bold(), sig),
             }
         }
 
@@ -348,8 +348,11 @@ impl Miner {
         let ix = ore_boost_api::sdk::deposit(signer.pubkey(), mint_address, amount);
         match self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await {
             Err(e) => println!("Failed to deposit stake: {}", e),
-            Ok(sig) => println!("{}: {}", "OK".green().bold(), sig),
+            Ok(sig) => println!("{} {}", "OK".green().bold(), sig),
         }
+
+        // Print updated stake data
+        self.stake_get(mint_address.to_string()).await.unwrap();
 
         Ok(())
     }
