@@ -30,32 +30,10 @@ use crate::{
     send_and_confirm::ComputeBudget,
     utils::{
         amount_u64_to_string, get_clock, get_config,
-        get_updated_proof_with_authority, proof_pubkey, get_reservation, get_boost, TableData, amount_u64_to_f64, format_timestamp,
+        get_updated_proof_with_authority, proof_pubkey, get_reservation, format_timestamp,
     },
     Miner,
 };
-
-#[derive(Clone, Tabled)]
-pub struct MiningData {
-    #[tabled(rename = "Signature")]
-    signature: String,
-    #[tabled(rename = "Block")]
-    block: String,
-    #[tabled(rename = "Timestamp")]
-    timestamp: String,
-    #[tabled(rename = "Timing")]
-    timing: String,
-    #[tabled(rename = "Difficulty")]
-    difficulty: String,
-    #[tabled(rename = "Base Reward")]
-    base_reward: String,
-    #[tabled(rename = "Boost Reward")]
-    boost_reward: String,
-    #[tabled(rename = "Total Reward")]
-    total_reward: String,
-    #[tabled(rename = "Status")]
-    status: String,
-}
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) -> Result<(), Error> {
@@ -85,7 +63,6 @@ impl Miner {
         table.modify(Rows::first(), Color::BOLD);
         table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
-        // table.with(Panel::footer(format!("Yield: {} ORE", amount_u64_to_f64(proof.balance))));
         println!("\n{}\n", table);
     }
 
@@ -113,18 +90,9 @@ impl Miner {
             ).await.unwrap();
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
-            let mining_data = MiningData {
-                signature: "–".to_string(),
-                block: "–".to_string(),
-                timestamp: "–".to_string(),
-                difficulty: "–".to_string(),
-                base_reward: "–".to_string(),
-                boost_reward: "–".to_string(),
-                total_reward: "–".to_string(),
-                timing: "–".to_string(),
-                status: "Mining...".bold().to_string(),
-            };
-            let mut data: std::sync::RwLockWriteGuard<'_, Vec<MiningData>> = self.recent_mining_data.write().unwrap();
+            // Insert mining data
+            let mining_data = MiningData::mining();
+            let mut data = self.recent_mining_data.write().unwrap();
             data.insert(0, mining_data); 
             if data.len() >= 12 {
                 data.pop();
@@ -196,18 +164,8 @@ impl Miner {
             match self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false).await {
                 Ok(sig) => self.parse_mine_event(sig).await,
                 Err(err) => {
-                    let mining_data = MiningData {
-                        signature: "–".to_string(),
-                        block: "–".to_string(),
-                        timestamp: "–".to_string(),
-                        difficulty: "–".to_string(),
-                        base_reward: "–".to_string(),
-                        boost_reward: "–".to_string(),
-                        total_reward: "–".to_string(),
-                        timing: "–".to_string(),
-                        status: "Failed".bold().red().to_string(),
-                    };
-                    let mut data: std::sync::RwLockWriteGuard<'_, Vec<MiningData>> = self.recent_mining_data.write().unwrap();
+                    let mining_data = MiningData::failed();
+                    let mut data = self.recent_mining_data.write().unwrap();
                     data.remove(0);
                     data.insert(0, mining_data); 
                     drop(data);
@@ -215,6 +173,7 @@ impl Miner {
                     // Log mining table
                     self.update_mining_table();
                     println!("{}: {}", "ERROR".bold().red(), err);
+
                     return;
                 }
             }
@@ -223,18 +182,8 @@ impl Miner {
 
     async fn parse_mine_event(&self, sig: Signature) {        
         // Add loading row
-        let mining_data = MiningData {
-            signature: sig.to_string(),
-            block: "–".to_string(),
-            timestamp: "–".to_string(),
-            difficulty: "–".to_string(),
-            base_reward: "–".to_string(),
-            boost_reward: "–".to_string(),
-            total_reward: "–".to_string(),
-            timing: "–".to_string(),
-            status: "Submitting".bold().yellow().to_string(),
-        };
-        let mut data: std::sync::RwLockWriteGuard<'_, Vec<MiningData>> = self.recent_mining_data.write().unwrap();
+        let mining_data = MiningData::submitting();
+        let mut data = self.recent_mining_data.write().unwrap();
         data.remove(0);
         data.insert(0, mining_data); 
         drop(data);
@@ -597,4 +546,71 @@ fn format_duration(seconds: u32) -> String {
     let minutes = seconds / 60;
     let remaining_seconds = seconds % 60;
     format!("{:02}:{:02}", minutes, remaining_seconds)
+}
+
+
+#[derive(Clone, Tabled)]
+pub struct MiningData {
+    #[tabled(rename = "Signature")]
+    signature: String,
+    #[tabled(rename = "Block")]
+    block: String,
+    #[tabled(rename = "Timestamp")]
+    timestamp: String,
+    #[tabled(rename = "Timing")]
+    timing: String,
+    #[tabled(rename = "Difficulty")]
+    difficulty: String,
+    #[tabled(rename = "Base Reward")]
+    base_reward: String,
+    #[tabled(rename = "Boost Reward")]
+    boost_reward: String,
+    #[tabled(rename = "Total Reward")]
+    total_reward: String,
+    #[tabled(rename = "Status")]
+    status: String,
+}
+
+impl MiningData {
+    fn mining() -> Self {
+        Self {
+            signature: "–".to_string(),
+            block: "–".to_string(),
+            timestamp: "–".to_string(),
+            difficulty: "–".to_string(),
+            base_reward: "–".to_string(),
+            boost_reward: "–".to_string(),
+            total_reward: "–".to_string(),
+            timing: "–".to_string(),
+            status: "Mining...".bold().to_string(),
+        }
+    }
+
+    fn submitting() -> Self {
+        Self {
+            signature: "–".to_string(),
+            block: "–".to_string(),
+            timestamp: "–".to_string(),
+            difficulty: "–".to_string(),
+            base_reward: "–".to_string(),
+            boost_reward: "–".to_string(),
+            total_reward: "–".to_string(),
+            timing: "–".to_string(),
+            status: "Submitting".bold().yellow().to_string(),
+        }
+    }
+
+    fn failed() -> Self {
+        Self {
+            signature: "–".to_string(),
+            block: "–".to_string(),
+            timestamp: "–".to_string(),
+            difficulty: "–".to_string(),
+            base_reward: "–".to_string(),
+            boost_reward: "–".to_string(),
+            total_reward: "–".to_string(),
+            timing: "–".to_string(),
+            status: "Failed".bold().red().to_string(),
+        }
+    }
 }
