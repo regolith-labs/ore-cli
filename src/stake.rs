@@ -95,8 +95,11 @@ impl Miner {
         ));
 
         // Send and confirm transaction
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false)
-            .await?;
+        println!("Claiming staking yield...");
+        match self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false).await {
+            Ok(sig) => println!("{} {}", "OK".green().bold(), sig),
+            Err(e) => println!("{}: {}", "ERROR".bold().red(), e),
+        }
 
         Ok(())
     }
@@ -350,9 +353,6 @@ impl Miner {
             Err(e) => println!("Failed to deposit stake: {}", e),
             Ok(sig) => println!("{} {}", "OK".green().bold(), sig),
         }
-
-        // Print updated stake data
-        self.stake_get(mint_address.to_string()).await.unwrap();
 
         Ok(())
     }
