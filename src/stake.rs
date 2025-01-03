@@ -280,13 +280,8 @@ impl Miner {
         table.with(Style::blank());
         table.modify(Columns::new(1..), Alignment::right());
         table.modify(Rows::first(), Color::BOLD);
-        // let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
-
-        // Title
         table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
-        // table.with(LineText::new("Boosts", Rows::first()).color(title_color.clone()));
-
         println!("\n{table}\n");
         Ok(())
     }

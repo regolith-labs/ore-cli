@@ -1,24 +1,30 @@
 use std::{
     sync::{Arc, RwLock},
-    time::Instant,
-    usize,
+    time::{Instant, Duration},
+    usize, io::stdout, str::FromStr, thread::sleep,
 };
 
+use b64::FromBase64;
 use colored::*;
+use crossterm::{execute, terminal::{Clear, ClearType}, cursor::MoveTo};
 use drillx::{
     equix::{self},
     Hash, Solution,
 };
 use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
-    state::{Bus, Config, proof_pda},
+    state::{Bus, Config, proof_pda, Proof}, event::MineEvent,
 };
-use ore_boost_api::{state::reservation_pda, consts::BOOST_DENOMINATOR};
+use ore_boost_api::{state::{reservation_pda, Reservation}, consts::BOOST_DENOMINATOR};
 use rand::Rng;
+use serde_json::{json, Value};
+use solana_client::{rpc_config::RpcTransactionConfig, client_error::ClientError};
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
-use solana_sdk::signer::Signer;
+use solana_sdk::{signer::Signer, commitment_config::{CommitmentLevel, CommitmentConfig}, signature::Signature};
+use solana_transaction_status::{UiTransactionEncoding, option_serializer::OptionSerializer};
 use steel::AccountDeserialize;
+use tabled::{Table, Tabled, settings::{Style, Color, Panel, object::{Columns, Rows}, Alignment, Highlight, style::BorderColor, Border}};
 
 use crate::{
     args::MineArgs,
@@ -27,10 +33,32 @@ use crate::{
     send_and_confirm::ComputeBudget,
     utils::{
         amount_u64_to_string, get_clock, get_config,
-        get_updated_proof_with_authority, proof_pubkey, get_reservation, get_boost,
+        get_updated_proof_with_authority, proof_pubkey, get_reservation, get_boost, TableData, amount_u64_to_f64, format_timestamp,
     },
     Miner,
 };
+
+#[derive(Clone, Tabled)]
+pub struct MiningData {
+    #[tabled(rename = "Signature")]
+    signature: String,
+    #[tabled(rename = "Block")]
+    block: String,
+    #[tabled(rename = "Timestamp")]
+    timestamp: String,
+    #[tabled(rename = "Timing")]
+    timing: String,
+    #[tabled(rename = "Difficulty")]
+    difficulty: String,
+    #[tabled(rename = "Base Reward")]
+    base_reward: String,
+    #[tabled(rename = "Boost Reward")]
+    boost_reward: String,
+    #[tabled(rename = "Total Reward")]
+    total_reward: String,
+    #[tabled(rename = "Status")]
+    status: String,
+}
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) -> Result<(), Error> {
@@ -49,6 +77,21 @@ impl Miner {
         Ok(())
     }
 
+    fn update_mining_table(&self) {
+        execute!(stdout(), Clear(ClearType::All), MoveTo(0, 0)).unwrap();
+        let mut rows: Vec<MiningData>  = vec![];
+        let data = self.recent_mining_data.read().unwrap();
+        rows.extend(data.iter().cloned());
+        let mut table = Table::new(&rows);
+        table.with(Style::blank());
+        table.modify(Columns::new(1..), Alignment::right());
+        table.modify(Rows::first(), Color::BOLD);
+        table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
+        // table.with(Panel::footer(format!("Yield: {} ORE", amount_u64_to_f64(proof.balance))));
+        println!("\n{}\n", table);
+    }
+
     async fn mine_solo(&self, args: MineArgs) {
         // Open account, if needed.
         self.open().await;
@@ -64,7 +107,7 @@ impl Miner {
         // Start mining loop
         let mut last_hash_at = 0;
         let mut last_balance = 0;
-        loop {
+        loop {            
             // Fetch accounts
             let config = get_config(&self.rpc_client).await;
             let proof = get_updated_proof_with_authority(
@@ -74,19 +117,22 @@ impl Miner {
             ).await.unwrap();
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
+            // Log mining table
+            self.update_mining_table();
+
             // Log unclaimed balance
-            println!(
-                "\n\nBalance: {} ORE{}",
-                amount_u64_to_string(proof.balance),
-                if last_hash_at.gt(&0) {
-                    format!(
-                        "\n  Change: {} ORE",
-                        amount_u64_to_string(proof.balance.saturating_sub(last_balance))
-                    )
-                } else {
-                    "".to_string()
-                },
-            );
+            // println!(
+            //     "\n\nBalance: {} ORE{}",
+            //     amount_u64_to_string(proof.balance),
+            //     if last_hash_at.gt(&0) {
+            //         format!(
+            //             "\n  Change: {} ORE",
+            //             amount_u64_to_string(proof.balance.saturating_sub(last_balance))
+            //         )
+            //     } else {
+            //         "".to_string()
+            //     },
+            // );
 
             // Log boosts
             // log_boost_data(self.rpc_client.clone(), &boost_data_1, 1).await;
@@ -134,10 +180,10 @@ impl Miner {
                     Some(r.boost)
                 })
                 .unwrap_or(None);
-            if let Some(boost_address) = boost_address {
-                let boost = get_boost(&self.rpc_client, boost_address).await;
-                println!("  Boost: {:?} ({}x)", boost_address, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
-            }
+            // if let Some(boost_address) = boost_address {
+                // let boost = get_boost(&self.rpc_client, boost_address).await;
+                // println!("  Boost: {:?} ({}x)", boost_address, boost.multiplier as f64 / BOOST_DENOMINATOR as f64);
+            // }
             let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
@@ -153,9 +199,80 @@ impl Miner {
             ixs.push(rotate_ix);
 
             // Submit transaction
-            self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
-                .await
-                .ok();
+            if let Ok(sig) = self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false).await {
+                self.parse_mine_event(sig).await;
+            }
+        }
+    }
+
+    async fn parse_mine_event(&self, sig: Signature) {        
+        // Add loading row
+        let mining_data = MiningData {
+            signature: sig.to_string(),
+            block: "".to_string(),
+            timestamp: "".to_string(),
+            difficulty: "".to_string(),
+            base_reward: "".to_string(),
+            boost_reward: "".to_string(),
+            total_reward: "".to_string(),
+            timing: "".to_string(),
+            status: "Loading...".bold().to_string(),
+        };
+        let mut data: std::sync::RwLockWriteGuard<'_, Vec<MiningData>> = self.recent_mining_data.write().unwrap();
+        data.insert(0, mining_data); 
+        if data.len() >= 12 {
+            data.pop();
+        }
+        drop(data);
+
+        // Update table
+        self.update_mining_table();
+        
+        // Poll for transaction
+        let mut tx;
+        let mut attempts = 0;
+        loop {
+            tx = self.rpc_client.get_transaction(&sig, UiTransactionEncoding::Json).await;
+            if tx.is_ok() {
+                break;
+            }
+            sleep(Duration::from_secs(1));
+            attempts += 1;
+            if attempts > 30 {
+                break;
+            }
+        }
+
+        // Parse transaction response
+        if let Ok(tx) = tx {
+            if let Some(meta) = tx.transaction.meta {
+                if let OptionSerializer::Some(log_messages) = meta.log_messages {
+                    if let Some(return_log) = log_messages.iter().find(|log| log.starts_with("Program return: ")) {
+                        if let Some(return_data) = return_log.strip_prefix(&format!("Program return: {} ", ore_api::ID)) {
+                            if let Ok(return_data) = return_data.from_base64() {
+                                let mut data = self.recent_mining_data.write().unwrap();
+                                let event = MineEvent::from_bytes(&return_data);
+                                let mining_data = MiningData {
+                                    signature: sig.to_string(),
+                                    block: tx.slot.to_string(),
+                                    timestamp: format_timestamp(tx.block_time.unwrap_or_default()),
+                                    difficulty: event.difficulty.to_string(),
+                                    base_reward: amount_u64_to_string(event.net_base_reward),
+                                    boost_reward: amount_u64_to_string(event.net_miner_boost_reward),
+                                    total_reward: amount_u64_to_string(event.net_reward),
+                                    timing: format!("{}s", event.timing),
+                                    status: "Confirmed".bold().green().to_string(),
+                                };
+                                data.remove(0);
+                                data.insert(0, mining_data);
+                                if data.len() >= 12 {
+                                    data.pop();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -179,7 +296,7 @@ impl Miner {
             async move {
                 while let Some(solution) = rx.recv().await {
                     if let Err(err) = pool.post_pool_solution(&miner, &solution).await {
-                        println!("error submitting continuous solution: {:?}", err);
+                        // println!("error submitting continuous solution: {:?}", err);
                     }
                 }
             }
@@ -265,17 +382,17 @@ impl Miner {
             };
 
             // Print progress
-            println!(
-                "Claimable ORE balance: {}",
-                amount_u64_to_string(pool_member_onchain.balance)
-            );
+            // println!(
+            //     "Claimable ORE balance: {}",
+            //     amount_u64_to_string(pool_member_onchain.balance)
+            // );
             if last_hash_at.gt(&0) {
-                println!(
-                    "Change of ORE credits in pool: {}",
-                    amount_u64_to_string(
-                        pool_member.total_balance.saturating_sub(last_balance) as u64
-                    )
-                )
+                // println!(
+                //     "Change of ORE credits in pool: {}",
+                //     amount_u64_to_string(
+                //         pool_member.total_balance.saturating_sub(last_balance) as u64
+                //     )
+                // )
             }
         }
     }
@@ -289,16 +406,16 @@ impl Miner {
         pool_channel: Option<tokio::sync::mpsc::UnboundedSender<Solution>>,
     ) -> Solution {
         // Dispatch job to each thread
-        let progress_bar = Arc::new(spinner::new_progress_bar());
+        // let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
-        progress_bar.set_message("Mining...");
+        // progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().unwrap();
         let core_ids = core_ids.into_iter().filter(|id| id.id < (cores as usize));
         let handles: Vec<_> = core_ids
             .map(|i| {
                 let global_best_difficulty = Arc::clone(&global_best_difficulty);
                 std::thread::spawn({
-                    let progress_bar = progress_bar.clone();
+                    // let progress_bar = progress_bar.clone();
                     let nonce = nonce_indices[i.id];
                     let mut memory = equix::SolverMemory::new();
                     let pool_channel = pool_channel.clone();
@@ -342,7 +459,7 @@ impl Miner {
                                                     n: nonce,
                                                 };
                                                 if let Err(err) = ch.send(solution) {
-                                                    println!("{:?}", err);
+                                                    // println!("{:?}", err);
                                                 }
                                             }
                                         }
@@ -356,24 +473,24 @@ impl Miner {
                                     *global_best_difficulty.read().unwrap();
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
                                     if i.id == 0 {
-                                        progress_bar.set_message(format!(
-                                            "Mining... (difficulty {})",
-                                            global_best_difficulty,
-                                        ));
+                                        // progress_bar.set_message(format!(
+                                        //     "Mining... (difficulty {})",
+                                        //     global_best_difficulty,
+                                        // ));
                                     }
                                     if global_best_difficulty.ge(&min_difficulty) {
                                         // Mine until min difficulty has been met
                                         break;
                                     }
                                 } else if i.id == 0 {
-                                    progress_bar.set_message(format!(
-                                        "Mining... (difficulty {}, time {})",
-                                        global_best_difficulty,
-                                        format_duration(
-                                            cutoff_time.saturating_sub(timer.elapsed().as_secs())
-                                                as u32
-                                        ),
-                                    ));
+                                    // progress_bar.set_message(format!(
+                                    //     "Mining... (difficulty {}, time {})",
+                                    //     global_best_difficulty,
+                                    //     format_duration(
+                                    //         cutoff_time.saturating_sub(timer.elapsed().as_secs())
+                                    //             as u32
+                                    //     ),
+                                    // ));
                                 }
                             }
 
@@ -403,11 +520,11 @@ impl Miner {
         }
 
         // Update log
-        progress_bar.finish_with_message(format!(
-            "Solution: {} (difficulty {})",
-            bs58::encode(best_hash.h).into_string(),
-            best_difficulty
-        ));
+        // progress_bar.finish_with_message(format!(
+        //     "Solution: {} (difficulty {})",
+        //     bs58::encode(best_hash.h).into_string(),
+        //     best_difficulty
+        // ));
 
         Solution::new(best_hash.d, best_nonce.to_le_bytes())
     }

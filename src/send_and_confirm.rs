@@ -50,7 +50,7 @@ impl Miner {
         compute_budget: ComputeBudget,
         skip_confirm: bool,
     ) -> ClientResult<Signature> {
-        let progress_bar = spinner::new_progress_bar();
+        // let progress_bar = spinner::new_progress_bar();
         let signer = self.signer();
         let client = self.rpc_client.clone();
         let fee_payer = self.fee_payer();
@@ -105,7 +105,7 @@ impl Miner {
                 .unwrap(),
                 jito_tip,
             ));
-            progress_bar.println(format!("  Jito tip: {} SOL", lamports_to_sol(jito_tip)));
+            // progress_bar.println(format!("  Jito tip: {} SOL", lamports_to_sol(jito_tip)));
         }
 
         // Build tx
@@ -121,7 +121,7 @@ impl Miner {
         // Submit tx
         let mut attempts = 0;
         loop {
-            progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts,));
+            // progress_bar.set_message(format!("Submitting transaction... (attempt {})", attempts,));
 
             // Sign tx with a new blockhash (after approximately ~45 sec)
             if attempts % 10 == 0 {
@@ -129,18 +129,18 @@ impl Miner {
                 if self.dynamic_fee {
                     let fee = match self.dynamic_fee().await {
                         Ok(fee) => {
-                            progress_bar.println(format!("  Priority fee: {} microlamports", fee));
+                            // progress_bar.println(format!("  Priority fee: {} microlamports", fee));
                             fee
                         }
                         Err(err) => {
                             let fee = self.priority_fee.unwrap_or(0);
-                            log_warning(
-                                &progress_bar,
-                                &format!(
-                                    "{} Falling back to static value: {} microlamports",
-                                    err, fee
-                                ),
-                            );
+                            // log_warning(
+                            //     &progress_bar,
+                            //     &format!(
+                            //         "{} Falling back to static value: {} microlamports",
+                            //         err, fee
+                            //     ),
+                            // );
                             fee
                         }
                     };
@@ -168,7 +168,7 @@ impl Miner {
                 Ok(sig) => {
                     // Skip confirmation
                     if skip_confirm {
-                        progress_bar.finish_with_message(format!("Sent: {}", sig));
+                        // progress_bar.finish_with_message(format!("Sent: {}", sig));
                         return Ok(sig);
                     }
 
@@ -189,11 +189,11 @@ impl Miner {
                                                             match err_code {
                                                                 e if e == OreError::NeedsReset as u32 => {
                                                                     attempts = 0;
-                                                                    log_error(&progress_bar, "Needs reset. Retrying...", false);
+                                                                    // log_error(&progress_bar, "Needs reset. Retrying...", false);
                                                                     break 'confirm;
                                                                 },
                                                                 _ => {
-                                                                    log_error(&progress_bar, &err.to_string(), true);
+                                                                    // log_error(&progress_bar, &err.to_string(), true);
                                                                     return Err(ClientError {
                                                                         request: None,
                                                                         kind: ClientErrorKind::Custom(err.to_string()),
@@ -204,8 +204,8 @@ impl Miner {
 
                                                         // Non custom instruction error, return
                                                         _ => {
-                                                            println!("E1: {:?}", err);
-                                                            log_error(&progress_bar, &err.to_string(), true);
+                                                            // println!("E1: {:?}", err);
+                                                            // log_error(&progress_bar, &err.to_string(), true);
                                                             return Err(ClientError {
                                                                 request: None,
                                                                 kind: ClientErrorKind::Custom(err.to_string()),
@@ -216,8 +216,8 @@ impl Miner {
 
                                                 // Non instruction error, return
                                                 _ => {
-                                                    println!("E2: {:?}", err);
-                                                    log_error(&progress_bar, &err.to_string(), true);
+                                                    // println!("E2: {:?}", err);
+                                                    // log_error(&progress_bar, &err.to_string(), true);
                                                     return Err(ClientError {
                                                         request: None,
                                                         kind: ClientErrorKind::Custom(err.to_string()),
@@ -227,22 +227,23 @@ impl Miner {
                                         } else if let Some(confirmation) =
                                             status.confirmation_status
                                         {
+                                            println!("Confirmation: {:?}", confirmation);
                                             match confirmation {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
-                                                    let now = Local::now();
-                                                    let formatted_time =
-                                                        now.format("%Y-%m-%d %H:%M:%S").to_string();
-                                                    progress_bar.println(format!(
-                                                        "  Timestamp: {}",
-                                                        formatted_time
-                                                    ));
-                                                    progress_bar.finish_with_message(format!(
-                                                        "{} {}",
-                                                        "OK".bold().green(),
-                                                        sig
-                                                    ));
+                                                    // let now = Local::now();
+                                                    // let formatted_time =
+                                                    //     now.format("%Y-%m-%d %H:%M:%S").to_string();
+                                                    // progress_bar.println(format!(
+                                                    //     "  Timestamp: {}",
+                                                    //     formatted_time
+                                                    // ));
+                                                    // progress_bar.finish_with_message(format!(
+                                                    //     "{} {}",
+                                                    //     "OK".bold().green(),
+                                                    //     sig
+                                                    // ));
                                                     return Ok(sig);
                                                 }
                                             }
@@ -253,8 +254,8 @@ impl Miner {
 
                             // Handle confirmation errors
                             Err(err) => {
-                                println!("E3: {:?}", err);
-                                log_error(&progress_bar, &err.kind().to_string(), false);
+                                // println!("E3: {:?}", err);
+                                // log_error(&progress_bar, &err.kind().to_string(), false);
                             }
                         }
                     }
@@ -262,15 +263,15 @@ impl Miner {
 
                 // Handle submit errors
                 Err(err) => {
-                    println!("E4: {:?}", err);
-                    log_error(&progress_bar, &err.kind().to_string(), false);
+                    // println!("E4: {:?}", err);
+                    // log_error(&progress_bar, &err.kind().to_string(), false);
                 }
             }
 
             // Retry
             tokio::time::sleep(Duration::from_millis(GATEWAY_DELAY)).await;
             if attempts > GATEWAY_RETRIES {
-                log_error(&progress_bar, "Max retries", true);
+                // log_error(&progress_bar, "Max retries", true);
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),
@@ -299,7 +300,6 @@ impl Miner {
 
     // TODO
     fn _simulate(&self) {
-
         // Simulate tx
         // let mut sim_attempts = 0;
         // 'simulate: loop {

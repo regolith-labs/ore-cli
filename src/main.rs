@@ -18,6 +18,7 @@ mod transfer;
 mod utils;
 
 use futures::StreamExt;
+use mine::MiningData;
 use std::{sync::Arc, sync::RwLock};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
@@ -46,6 +47,7 @@ struct Miner {
     pub fee_payer_filepath: Option<String>,
     pub jito_client: Arc<RpcClient>,
     pub tip: Arc<std::sync::RwLock<u64>>,
+    pub recent_mining_data: Arc<std::sync::RwLock<Vec<MiningData>>>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -177,6 +179,7 @@ async fn main() {
 
     let tip = Arc::new(RwLock::new(0_u64));
     let tip_clone = Arc::clone(&tip);
+    let recent_mining_data = Arc::new(RwLock::new(Vec::new()));
 
     if args.jito {
         let url = "ws://bundles-api-rest.jito.wtf/api/v1/bundles/tip_stream";
@@ -206,6 +209,7 @@ async fn main() {
         Some(fee_payer_filepath),
         Arc::new(jito_client),
         tip,
+        recent_mining_data,
     ));
 
     // Execute user command.
@@ -259,6 +263,7 @@ impl Miner {
         fee_payer_filepath: Option<String>,
         jito_client: Arc<RpcClient>,
         tip: Arc<std::sync::RwLock<u64>>,
+        recent_mining_data: Arc<std::sync::RwLock<Vec<MiningData>>>,
     ) -> Self {
         Self {
             rpc_client,
@@ -269,6 +274,7 @@ impl Miner {
             fee_payer_filepath,
             jito_client,
             tip,
+            recent_mining_data,
         }
     }
 
