@@ -1,7 +1,7 @@
 use std::{
     sync::{Arc, RwLock},
     time::{Instant, Duration},
-    usize, io::stdout, str::FromStr, thread::sleep,
+    usize, io::stdout, thread::sleep,
 };
 
 use b64::FromBase64;
@@ -13,18 +13,15 @@ use drillx::{
 };
 use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
-    state::{Bus, Config, proof_pda, Proof}, event::MineEvent,
+    state::{Bus, Config, proof_pda}, event::MineEvent,
 };
-use ore_boost_api::{state::{reservation_pda, Reservation}, consts::BOOST_DENOMINATOR};
+use ore_boost_api::state::reservation_pda;
 use rand::Rng;
-use serde_json::{json, Value};
-use solana_client::{rpc_config::RpcTransactionConfig, client_error::ClientError};
 use solana_program::pubkey::Pubkey;
-use solana_rpc_client::spinner;
-use solana_sdk::{signer::Signer, commitment_config::{CommitmentLevel, CommitmentConfig}, signature::Signature};
+use solana_sdk::{signer::Signer, signature::Signature};
 use solana_transaction_status::{UiTransactionEncoding, option_serializer::OptionSerializer};
 use steel::AccountDeserialize;
-use tabled::{Table, Tabled, settings::{Style, Color, Panel, object::{Columns, Rows}, Alignment, Highlight, style::BorderColor, Border}};
+use tabled::{Table, Tabled, settings::{Style, Color, object::{Columns, Rows}, Alignment, Highlight, style::BorderColor, Border}};
 
 use crate::{
     args::MineArgs,

@@ -49,7 +49,7 @@ impl Miner {
         table.modify(Columns::single(1), Alignment::right());
         table.with(Style::blank());
         table.section_title(0, "Account");
-        table.section_title(2, "Proof");
+        table.section_title(3, "Proof");
  
         println!("{table}\n");
     }
