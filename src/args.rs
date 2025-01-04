@@ -143,7 +143,7 @@ pub struct MineArgs {
 pub struct PoolArgs {
     #[arg(
         value_name = "POOL_URL",
-        help = "The pool url to connect with."
+        help = "The pool url to connect to."
     )]
     pub pool_url: String,
 

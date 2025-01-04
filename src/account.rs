@@ -126,7 +126,6 @@ impl Miner {
                 } else {
                     format!("{} ORE", amount_u64_to_f64(proof.balance))
                 }
-                
             });
         } else {
             data.push(TableData {

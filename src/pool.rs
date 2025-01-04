@@ -1,6 +1,8 @@
-use std::sync::Arc;
+use std::{sync::Arc, str::FromStr};
 
 use drillx::Solution;
+use ore_api::state::proof_pda;
+use ore_pool_api::state::member_pda;
 use ore_pool_types::{
     BalanceUpdate, ContributePayload, Member, MemberChallengeV2, PoolAddress, RegisterPayload, UpdateBalancePayload,
 };
@@ -9,8 +11,9 @@ use solana_sdk::{
     compute_budget, pubkey::Pubkey, signature::Signature, signer::Signer, transaction::Transaction,
 };
 use steel::AccountDeserialize;
+use tabled::{Table, settings::{Remove, object::{Rows, Columns}, Alignment, Style}};
 
-use crate::{error::Error, send_and_confirm::ComputeBudget, Miner, args::{PoolArgs, PoolCommitArgs, PoolCommand}, utils};
+use crate::{error::Error, send_and_confirm::ComputeBudget, Miner, args::{PoolArgs, PoolCommitArgs, PoolCommand}, utils::{self, get_pool, TableData, format_timestamp, get_member, get_proof, amount_u64_to_f64, TableSectionTitle}};
 
 impl Miner {
     // TODO
@@ -20,8 +23,107 @@ impl Miner {
                 PoolCommand::Commit(commit_args) => self.pool_commit(args, commit_args).await.unwrap(),
             }
         } else {
-            self.pool_account(&args.pool_url).await.unwrap();
+            self.get_pool(args).await.unwrap();
         }
+    }
+
+    async fn get_pool(&self, args: PoolArgs) -> Result<(), Error> {
+        // build pool client
+        let pool = Pool {
+            http_client: reqwest::Client::new(),
+            pool_url: args.pool_url.clone(),
+        };
+
+        // Fetch pool account
+        let pool_address = pool.get_pool_address().await?.address;
+        let pool_account = get_pool(&self.rpc_client, pool_address).await.unwrap();
+
+        // Aggregate table data
+        let mut data = vec![];
+        data.push(TableData {
+            key: "Address".to_string(),
+            value: pool_address.to_string(),
+        });
+        data.push(TableData {
+            key: "Total members".to_string(),
+            value: pool_account.total_members.to_string(),
+        });
+        data.push(TableData {
+            key: "Url".to_string(),
+            value: args.pool_url.to_string(),
+        });
+
+        // Get proof account
+        let proof_address = proof_pda(pool_address).0;
+        let proof = get_proof(&self.rpc_client, proof_address).await.unwrap();
+        data.push(TableData {
+            key: "Address".to_string(),
+            value: proof_address.to_string(),
+        });
+        data.push(TableData {
+            key: "Balance".to_string(),
+            value: format!("{} ORE", amount_u64_to_f64(proof.balance))
+        });
+        data.push(TableData {
+            key: "Last hash".to_string(),
+            value: solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string(),
+        });
+        data.push(TableData {
+            key: "Last hash at".to_string(),
+            value: format_timestamp(proof.last_hash_at),
+        });
+        data.push(TableData {
+            key: "Miner".to_string(),
+            value: proof.miner.to_string(),
+        });
+        data.push(TableData {
+            key: "Total hashes".to_string(),
+            value: proof.total_hashes.to_string(),
+        });
+        data.push(TableData {
+            key: "Total rewards".to_string(),
+            value: format!("{} ORE", amount_u64_to_f64(proof.total_rewards)),
+        });
+
+        // Get member account
+        let member_address = member_pda(self.signer().pubkey(), pool_address).0;
+        let member = get_member(&self.rpc_client, member_address).await;
+        if let Ok(member) = member {
+            data.push(TableData {
+                key: "Address".to_string(),
+                value: member_address.to_string(),
+            });
+            data.push(TableData {
+                key: "Rewards".to_string(),
+                value: format!("{} ORE", utils::amount_u64_to_string(member.balance)),
+            });
+            data.push(TableData {
+                key: "Total rewards".to_string(),
+                value: format!("{} ORE", utils::amount_u64_to_string(member.total_balance)),
+            });
+        }
+
+        // Build table
+        let mut table = Table::new(data);
+        table.with(Remove::row(Rows::first()));
+        table.modify(Columns::single(1), Alignment::right());
+        table.with(Style::blank());
+        table.section_title(0, "Pool");
+        table.section_title(3, "Proof");
+        if member.is_ok() {
+            table.section_title(10, "Member");
+        }
+        println!("\n{table}\n");
+
+        // fetch pending balance
+        // let member_db = pool.get_pool_member(&self).await?;
+        // let diff = (member_db.total_balance as u64) - member.total_balance;
+        // println!(
+        //     "Yield (pending): {} ORE\n",
+        //     utils::amount_u64_to_string(diff)
+        // );
+        // println!("Pool operators automatically commit pending yield to the blockchain at regular intervals. To manually commit your pending yield now, run the following command:\n\n`ore pool {} commit`\n", pool_url);
+        Ok(())
     }
 
     async fn pool_commit(&self, args: PoolArgs, _commit_args: PoolCommitArgs) -> Result<(), Error> {
@@ -32,35 +134,6 @@ impl Miner {
         if let Err(err) = pool.post_update_balance(self).await {
             println!("{:?}", err);
         }
-        Ok(())
-    }
-
-    async fn pool_account(&self, pool_url: &String) -> Result<(), Error> {
-        let signer = self.signer();
-        // build pool client
-        let pool = Pool {
-            http_client: reqwest::Client::new(),
-            pool_url: pool_url.clone(),
-        };
-        // fetch pool address
-        let pool_address = pool.get_pool_address().await?;
-        println!("Pool: {}", pool_address.address);
-        
-        // fetch on-chain balance
-        let (member_pda, _) =
-            ore_pool_api::state::member_pda(signer.pubkey(), pool_address.address);
-        let member_data = self.rpc_client.get_account_data(&member_pda).await?;
-        let member = ore_pool_api::state::Member::try_from_bytes(member_data.as_slice())?;
-        println!("Yield: {} ORE", utils::amount_u64_to_string(member.balance));
-
-        // fetch pending balance
-        let member_db = pool.get_pool_member(&self).await?;
-        let diff = (member_db.total_balance as u64) - member.total_balance;
-        println!(
-            "Yield (pending): {} ORE\n",
-            utils::amount_u64_to_string(diff)
-        );
-        println!("Pool operators automatically commit pending yield to the blockchain at regular intervals. To manually commit your pending yield now, run the following command:\n\n`ore pool {} commit`\n", pool_url);
         Ok(())
     }
 }
@@ -100,7 +173,7 @@ impl Pool {
     }
 
     pub async fn get_pool_address(&self) -> Result<PoolAddress, Error> {
-        let get_url = format!("{}/pool-address", self.pool_url);
+        let get_url = format!("{}/address", self.pool_url);
         let resp = self.http_client.get(get_url).send().await?;
         match resp.error_for_status() {
             Err(err) => {
@@ -268,3 +341,25 @@ impl Pool {
         keypair.sign_message(solution.to_bytes().as_slice())
     }
 }
+
+// async fn parse_pool_id(pool_id: &String) -> Result<Pubkey, Error> {
+//     if let Ok(_address) = Pubkey::from_str(pool_id) {
+//         // Ok(address)
+//         // TODO We need a way to lookup pool url from the address (url must be onchain)
+//         panic!("Not implemented");
+//     } else {
+//         lookup_pool_address(pool_id.clone()).await
+//     }
+// }
+
+// async fn lookup_pool_address(url: String) -> Result<Pubkey, Error> {
+//     let get_url = format!("{}/address", url);
+//     let resp = reqwest::Client::new().get(get_url).send().await?;
+//     match resp.error_for_status() {
+//         Err(err) => {
+//             println!("{:?}", err);
+//             Err(err).map_err(From::from)
+//         }
+//         Ok(resp) => resp.json::<Pubkey>().await.map_err(From::from),
+//     }
+// }

@@ -10,6 +10,7 @@ use ore_api::{
     state::{Config, Proof, Treasury, Bus},
 };
 use ore_boost_api::state::{Boost, Stake, Reservation};
+use ore_pool_api::state::{Pool, Member};
 use serde::Deserialize;
 use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::RpcProgramAccountsConfig};
 use solana_client::nonblocking::rpc_client::RpcClient;
@@ -101,6 +102,20 @@ pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {
         .await
         .expect("Failed to get checkpoint account");
     *Checkpoint::try_from_bytes(&data).expect("Failed to parse checkpoint account")
+}
+
+pub async fn get_pool(client: &RpcClient, address: Pubkey) -> Result<Pool, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*Pool::try_from_bytes(&data)?)
+}
+
+pub async fn get_member(client: &RpcClient, address: Pubkey) -> Result<Member, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*Member::try_from_bytes(&data)?)
 }
 
 pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Result<Stake, anyhow::Error> {
