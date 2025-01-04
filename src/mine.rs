@@ -146,13 +146,17 @@ impl Miner {
                     Some(r.boost)
                 })
                 .unwrap_or(None);
+            let boost_keys = if let Some(boost_address) = boost_address {
+                Some([boost_address, reservation_address])
+            } else {
+                None
+            };
             let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
-                reservation_address,
-                boost_address,
+                boost_keys,
             );
             ixs.push(mine_ix);
 
@@ -275,6 +279,8 @@ impl Miner {
                 Ok(member_challenge) => member_challenge,
             };
 
+            println!("member_challenge: {:?}", member_challenge);
+
             // Increment last balance and hash
             last_balance = pool_member.total_balance;
             last_hash_at = member_challenge.challenge.lash_hash_at;
@@ -284,19 +290,19 @@ impl Miner {
 
             // Build nonce indices
             let num_total_members = member_challenge.num_total_members.max(1);
-            let u64_unit = u64::MAX.saturating_div(num_total_members);
+            let member_search_space_size = u64::MAX.saturating_div(num_total_members);
+            let device_search_space_size = member_search_space_size.saturating_div(member_challenge.num_devices as u64);
 
-            // Split member nonce space for multiple devices
-            let nonce_unit = u64_unit.saturating_div(member_challenge.num_devices as u64);
+            // Calculate bounds on 
             if member_challenge.device_id.gt(&member_challenge.num_devices) {
                 return Err(Error::TooManyDevices);
             }
             let device_id = member_challenge.device_id.saturating_sub(1) as u64;
             let left_bound =
-                u64_unit.saturating_mul(nonce_index) + device_id.saturating_mul(nonce_unit);
+                member_search_space_size.saturating_mul(nonce_index) + device_id.saturating_mul(device_search_space_size);
 
             // Split nonce-device space for muliple cores
-            let range_per_core = nonce_unit.saturating_div(args.cores);
+            let range_per_core = device_search_space_size.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
             for n in 0..(args.cores) {
                 let index = left_bound + n * range_per_core;
@@ -368,6 +374,7 @@ impl Miner {
         // Dispatch job to each thread
         // let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
+
         // progress_bar.set_message("Mining...");
         let core_ids = core_affinity::get_core_ids().unwrap();
         let core_ids = core_ids.into_iter().filter(|id| id.id < (cores as usize));
@@ -377,6 +384,7 @@ impl Miner {
                 std::thread::spawn({
                     // let progress_bar = progress_bar.clone();
                     let nonce = nonce_indices[i.id];
+                    println!("Spawning thread: {} nonce: {}", i.id, nonce);
                     let mut memory = equix::SolverMemory::new();
                     let pool_channel = pool_channel.clone();
                     move || {
@@ -432,6 +440,7 @@ impl Miner {
                                 let global_best_difficulty =
                                     *global_best_difficulty.read().unwrap();
                                 if timer.elapsed().as_secs().ge(&cutoff_time) {
+                                    println!("Elapsed cutoff");
                                     if i.id == 0 {
                                         // progress_bar.set_message(format!(
                                         //     "Mining... (difficulty {})",
@@ -439,6 +448,7 @@ impl Miner {
                                         // ));
                                     }
                                     if global_best_difficulty.ge(&min_difficulty) {
+                                        println!("Breaking {} {}", global_best_difficulty, min_difficulty);
                                         // Mine until min difficulty has been met
                                         break;
                                     }
