@@ -147,7 +147,7 @@ impl Miner {
                 })
                 .unwrap_or(None);
             let boost_keys = if let Some(boost_address) = boost_address {
-                Some([boost_address, reservation_address])
+                Some((boost_address, reservation_address))
             } else {
                 None
             };
