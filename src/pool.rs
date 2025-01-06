@@ -1,10 +1,10 @@
-use std::{sync::Arc, str::FromStr};
+use std::sync::Arc;
 
 use drillx::Solution;
 use ore_api::state::proof_pda;
 use ore_pool_api::state::member_pda;
 use ore_pool_types::{
-    BalanceUpdate, ContributePayload, Member, MemberChallengeV2, PoolAddress, RegisterPayload, UpdateBalancePayload,
+    BalanceUpdate, ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload, UpdateBalancePayload,
 };
 use solana_rpc_client::spinner;
 use solana_sdk::{
@@ -226,7 +226,7 @@ impl Pool {
         &self,
         miner: &Miner,
         last_hash_at: i64,
-    ) -> Result<MemberChallengeV2, Error> {
+    ) -> Result<MemberChallenge, Error> {
         let mut retries = 0;
         let progress_bar = Arc::new(spinner::new_progress_bar());
         loop {
@@ -239,6 +239,29 @@ impl Pool {
                 progress_bar.finish_with_message("Found new challenge");
                 return Ok(challenge);
             }
+        }
+    }
+
+    pub async fn get_latest_pool_event(&self, authority: Pubkey, last_hash_at: i64) -> Result<ore_pool_types::PoolMemberMiningEvent, Error> {
+        let get_url = format!("{}/event/latest/{}", self.pool_url, authority);
+        let mut attempts = 0;
+        loop {
+            // Parse pool event
+            let resp = self.http_client.get(get_url.clone()).send().await?;
+            if let Ok(resp) = resp.error_for_status() {
+                if let Ok(event) = resp.json::<ore_pool_types::PoolMemberMiningEvent>().await {
+                    if event.last_hash_at as i64 >= last_hash_at {
+                        return Ok(event);
+                    }
+                }
+            }
+
+            // Retry
+            attempts += 1;
+            if attempts > 10 {
+                return Err(Error::Internal("Failed to get latest event from pool server".to_string())).map_err(From::from);
+            }
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
     }
 
@@ -295,7 +318,7 @@ impl Pool {
         }
     }
 
-    async fn get_pool_challenge(&self, miner: &Miner) -> Result<MemberChallengeV2, Error> {
+    async fn get_pool_challenge(&self, miner: &Miner) -> Result<MemberChallenge, Error> {
         let pubkey = miner.signer().pubkey();
         let get_url = format!("{}/challenge/{}", self.pool_url, pubkey);
         let resp = self.http_client.get(get_url).send().await?;
@@ -304,7 +327,7 @@ impl Pool {
                 println!("{:?}", err);
                 Err(err).map_err(From::from)
             }
-            Ok(resp) => resp.json::<MemberChallengeV2>().await.map_err(From::from),
+            Ok(resp) => resp.json::<MemberChallenge>().await.map_err(From::from),
         }
     }
 
