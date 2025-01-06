@@ -96,10 +96,7 @@ impl Miner {
 
         // Send and confirm transaction
         println!("Claiming staking yield...");
-        match self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false).await {
-            Ok(sig) => println!("{} {}", "OK".green().bold(), sig),
-            Err(e) => println!("{}: {}", "ERROR".bold().red(), e),
-        }
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false).await.ok();
 
         Ok(())
     }
@@ -340,20 +337,13 @@ impl Miner {
         if let Err(_err) = self.rpc_client.get_account_data(&stake_address).await {
             println!("Initializing stake account...");
             let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
-            match self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await {
-                Err(e) => println!("Failed to initialize stake account: {}", e),
-                Ok(sig) => println!("{} {}", "OK".green().bold(), sig),
-            }
+            self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await.ok();
         }
 
         // Send tx
         println!("Depositing stake...");
         let ix = ore_boost_api::sdk::deposit(signer.pubkey(), mint_address, amount);
-        match self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await {
-            Err(e) => println!("Failed to deposit stake: {}", e),
-            Ok(sig) => println!("{} {}", "OK".green().bold(), sig),
-        }
-
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await.ok();
         Ok(())
     }
 
