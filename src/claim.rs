@@ -104,10 +104,11 @@ impl Miner {
             .get_pool_member_onchain(self, pool_address.address)
             .await?;
         let mut ixs = vec![];
+
+        // Create beneficiary token account, if needed
         let beneficiary = match args.to {
             None => self.initialize_ata(self.signer().pubkey()).await,
             Some(to) => {
-                // Create beneficiary token account, if needed
                 let wallet = Pubkey::from_str(&to).expect("Failed to parse wallet address");
                 let benefiary_tokens = spl_associated_token_account::get_associated_token_address(
                     &wallet,
