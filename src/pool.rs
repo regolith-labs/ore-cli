@@ -97,6 +97,16 @@ impl Miner {
                 key: "Rewards".to_string(),
                 value: format!("{} ORE", utils::amount_u64_to_string(member.balance)),
             });
+
+            // Get offchain data from pool server
+            if let Ok(member_offchain) = pool.get_pool_member(&self).await {
+                let pending_rewards = (member_offchain.total_balance as u64) - member.total_balance;
+                data.push(TableData {
+                    key: "Rewards (pending)".to_string(),
+                    value: format!("{} ORE", utils::amount_u64_to_string(pending_rewards)),
+                });
+            }
+
             data.push(TableData {
                 key: "Total rewards".to_string(),
                 value: format!("{} ORE", utils::amount_u64_to_string(member.total_balance)),
@@ -114,15 +124,8 @@ impl Miner {
             table.section_title(10, "Member");
         }
         println!("\n{table}\n");
+        println!("Pool operators automatically commit pending rewards to the blockchain at regular intervals. To manually commit your pending rewards now, run the following command:\n\n`ore pool {} commit`\n", args.pool_url);
 
-        // fetch pending balance
-        // let member_db = pool.get_pool_member(&self).await?;
-        // let diff = (member_db.total_balance as u64) - member.total_balance;
-        // println!(
-        //     "Yield (pending): {} ORE\n",
-        //     utils::amount_u64_to_string(diff)
-        // );
-        // println!("Pool operators automatically commit pending yield to the blockchain at regular intervals. To manually commit your pending yield now, run the following command:\n\n`ore pool {} commit`\n", pool_url);
         Ok(())
     }
 
