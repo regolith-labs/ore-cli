@@ -510,8 +510,6 @@ impl Miner {
 
     async fn fetch_pool_mine_event(&self, pool: &Pool, last_hash_at: i64) {
         if let Ok(event) = pool.get_latest_pool_event(self.signer().pubkey(), last_hash_at).await {
-            println!("Pool event: {:?}", event);
-
             // Add loading row
             let mining_data = PoolMiningData {
                 signature: event.signature.to_string(),
@@ -519,11 +517,11 @@ impl Miner {
                 timestamp: format_timestamp(event.timestamp as i64),
                 timing: format!("{}s", event.timing),
                 difficulty: event.difficulty.to_string(),
-                base_reward: format!("{:.11} ORE", amount_u64_to_f64(event.net_base_reward)),
-                boost_reward: format!("{:.11} ORE", amount_u64_to_f64(event.net_miner_boost_reward)),
-                total_reward: format!("{:.11} ORE", amount_u64_to_f64(event.net_reward)),
+                base_reward: amount_u64_to_string(event.net_base_reward),
+                boost_reward: amount_u64_to_string(event.net_miner_boost_reward),
+                total_reward: amount_u64_to_string(event.net_reward),
                 my_difficulty: event.member_difficulty.to_string(),
-                my_reward: format!("{:.11} ORE", amount_u64_to_f64(event.member_reward)).bold().yellow().to_string(),
+                my_reward: amount_u64_to_string(event.member_reward).bold().yellow().to_string(),
             };
 
             // Add loading row
