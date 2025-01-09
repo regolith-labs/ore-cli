@@ -1,4 +1,4 @@
-use std::str::FromStr;
+use std::{str::FromStr, collections::HashMap};
 
 use colored::*;
 use ore_api::state::proof_pda;
@@ -12,7 +12,7 @@ use crate::{
     args::{StakeArgs, StakeCommand, StakeDepositArgs, StakeWithdrawArgs, StakeClaimArgs, StakeMigrateArgs},
     error::Error,
     send_and_confirm::ComputeBudget,
-    Miner, utils::{get_boost, get_stake, get_proof, get_legacy_stake, TableData, format_timestamp, amount_u64_to_f64, get_boosts, get_mint, TableSectionTitle}, pool::Pool,
+    Miner, utils::{get_boost, get_stake, get_proof, get_legacy_stake, TableData, format_timestamp, amount_u64_to_f64, get_boosts, get_mint, TableSectionTitle, get_pools, get_share},
 };
 
 #[derive(Tabled)]
@@ -409,92 +409,86 @@ impl Miner {
 
 
 impl Miner {
-    async fn stake_migrate(&self, args: StakeMigrateArgs, stake_args: StakeArgs) -> Result<(), Error> {
-        if args.pool_url.is_some() {
-            self.stake_migrate_pool(args, stake_args).await
-        } else {
-            self.stake_migrate_solo(args, stake_args).await
-        }
-    }
-
-    async fn stake_migrate_solo(&self, _args: StakeMigrateArgs, stake_args: StakeArgs) -> Result<(), Error> {
+    async fn stake_migrate(&self, _args: StakeMigrateArgs, _stake_args: StakeArgs) -> Result<(), Error> {
         let signer = self.signer();
         let pubkey = signer.pubkey();
-        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
-        let legacy_boost_address = ore_boost_legacy_api::state::boost_pda(mint_address).0;
-        let legacy_stake_address = ore_boost_legacy_api::state::stake_pda(pubkey, legacy_boost_address).0;
-        let boost_address = boost_pda(mint_address).0;
-        let stake_address = stake_pda(pubkey, boost_address).0;
-        let mut ixs = vec![];
 
-        // Withdraw from legacy boost
-        let legacy_stake_account = get_legacy_stake(&self.rpc_client, legacy_stake_address).await;
-        ixs.push(
-            ore_boost_legacy_api::sdk::withdraw(
-                pubkey, 
-                mint_address, 
-                legacy_stake_account.balance
-            )
-        );
-
-        // Open new stake account
-        if self.rpc_client.get_account_data(&stake_address).await.is_err() {
-            ixs.push(ore_boost_api::sdk::open(pubkey, pubkey, mint_address));
-        }
-
-        // Deposit into new stake account
-        ixs.push(ore_boost_api::sdk::deposit(pubkey, mint_address, legacy_stake_account.balance));
-
-        // Send and confirm transaction
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(50_000), false)
-            .await
-            .ok();
-
-        Ok(())
-    }
-
-    async fn stake_migrate_pool(&self, args: StakeMigrateArgs, stake_args: StakeArgs) -> Result<(), Error> {
-        let signer = self.signer();
-        let pubkey = signer.pubkey();
-        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
-        let boost_address = boost_pda(mint_address).0;
-        let stake_address = stake_pda(pubkey, boost_address).0;
-        let mut ixs = vec![];
-
-        // Get pool address
-        let pool = Pool {
-            http_client: reqwest::Client::new(),
-            pool_url: args.pool_url.unwrap(),
-        };
-        let Ok(pool_address) = pool.get_pool_address().await else {
-            println!("Pool not found");
-            return Ok(());
+        // Get boost metadata
+        let boost_mints = [
+            Pubkey::from_str("8H8rPiWW4iTFCfEkSnf7jpqeNpFfvdH9gLouAL3Fe2Zx").unwrap(),
+            Pubkey::from_str("DrSS5RM7zUd9qjUEdDaf31vnDUSbCrMto6mjqTrHFifN").unwrap(),
+            Pubkey::from_str("7G3dfZkSk1HpDGnyL37LMBbPEgT4Ca6vZmZPUyi2syWt").unwrap(),
+            Pubkey::from_str("meUwDp23AaxhiNKaQCyJ2EAF2T4oe1gSkEkGXSRVdZb").unwrap(),
+            Pubkey::from_str("oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp").unwrap(),
+        ];
+        let mut boost_metadatas = HashMap::new();
+        for mint_address in boost_mints {   
+            let mint_account = get_mint(&self.rpc_client, mint_address).await.unwrap();
+            let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
+            let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
+                Ok(metadata_data) => {
+                    if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
+                        format!(" {}", metadata.symbol)
+                    } else {
+                        "".to_string()
+                    }
+                }
+                Err(_) => "".to_string()
+            };
+            boost_metadatas.insert(mint_address, (mint_account, symbol));
         };
 
-        // Get pool share account
-        let share = pool
-            .get_staker_onchain(self, pool_address.address, mint_address)
-            .await?;
-        
-        // Withdraw from share account
-        let recipient = spl_associated_token_account::get_associated_token_address(
-            &pubkey,
-            &mint_address,
-        );
-        ixs.push(ore_pool_api::sdk::unstake(pubkey, mint_address, pool_address.address, recipient, share.balance));
-
-        // Open new stake account
-        if self.rpc_client.get_account_data(&stake_address).await.is_err() {
-            ixs.push(ore_boost_api::sdk::open(pubkey, pubkey, mint_address));
+        // Migrate stake from direct accounts
+        let mut ixs = vec![];
+        println!("{}", "Private stake balances".bold().to_string());
+        for mint in boost_mints {
+            let legacy_boost_address = ore_boost_legacy_api::state::boost_pda(mint).0;
+            let legacy_stake_address = ore_boost_legacy_api::state::stake_pda(pubkey, legacy_boost_address).0;
+            let new_boost_address = boost_pda(mint).0;
+            let new_stake_address = stake_pda(pubkey, new_boost_address).0;
+            if let Ok(legacy_stake_account) = get_legacy_stake(&self.rpc_client, legacy_stake_address).await {
+                println!("{} {}", mint, format!("{}{}", amount_to_ui_amount(legacy_stake_account.balance, boost_metadatas[&mint].0.decimals), boost_metadatas[&mint].1));
+                if legacy_stake_account.balance > 0 {
+                    ixs.push(ore_boost_legacy_api::sdk::withdraw(pubkey, mint, legacy_stake_account.balance));
+                    if self.rpc_client.get_account_data(&new_stake_address).await.is_err() {
+                        ixs.push(ore_boost_api::sdk::open(pubkey, pubkey, mint));
+                    }
+                    ixs.push(ore_boost_api::sdk::deposit(pubkey, mint, legacy_stake_account.balance));
+                    println!("Migrating stake...");
+                    self.send_and_confirm(&ixs, ComputeBudget::Fixed(50_000), false)
+                        .await
+                        .ok();
+                }
+            }
         }
 
-        // Deposit into new stake account
-        ixs.push(ore_boost_api::sdk::deposit(pubkey, mint_address, share.balance));
-
-        // Send and confirm transaction
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(500_000), false)
-            .await
-            .ok();
+        // Migrate stake from pools
+        println!("\n{}", "Pool stake balances".bold().to_string());
+        let pools = get_pools(&self.rpc_client).await.unwrap();
+        for (pool_address, pool) in pools {
+            let pool_url = String::from_utf8(pool.url.to_vec()).unwrap_or_default();
+            let pool_url = pool_url.trim_end_matches('\0');
+            for mint in boost_mints {
+                let boost_address = boost_pda(mint).0;
+                let share_address = ore_pool_api::state::share_pda(signer.pubkey(), pool_address, mint).0;
+                if let Ok(share) = get_share(&self.rpc_client, share_address).await {
+                    let new_stake_address = stake_pda(pubkey, boost_address).0;
+                    println!("{} {}", pool_url, format!("{}{}", amount_to_ui_amount(share.balance, boost_metadatas[&mint].0.decimals), boost_metadatas[&mint].1));
+                    if share.balance > 0 {
+                        let beneficiary_address = spl_associated_token_account::get_associated_token_address(&signer.pubkey(), &mint);
+                        ixs.push(ore_pool_api::sdk::unstake(signer.pubkey(), mint, pool_address, beneficiary_address, share.balance));
+                        if self.rpc_client.get_account_data(&new_stake_address).await.is_err() {
+                            ixs.push(ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint));
+                        }
+                        ixs.push(ore_boost_api::sdk::deposit(signer.pubkey(), mint, share.balance));
+                        println!("Migrating stake...");
+                        self.send_and_confirm(&ixs, ComputeBudget::Fixed(50_000), false)
+                            .await
+                            .ok();
+                    }
+                }
+            }
+        }
 
         Ok(())
     }

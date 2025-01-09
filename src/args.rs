@@ -145,7 +145,7 @@ pub struct PoolArgs {
         value_name = "POOL_URL",
         help = "The pool url to connect to."
     )]
-    pub pool_url: String,
+    pub pool_url: Option<String>,
 
     #[command(subcommand)]
     pub command: Option<PoolCommand>,
@@ -191,7 +191,7 @@ pub enum StakeCommand {
     #[command(about = "Withdraw tokens from a stake account.")]
     Withdraw(StakeWithdrawArgs),
 
-    #[command(about = "Migrate a stake from the legacy boost program to the new global boost program.")]
+    #[command(about = "Migrate stake from legacy boost accounts to global boosts.")]
     Migrate(StakeMigrateArgs),
 }
 
@@ -245,13 +245,13 @@ pub struct StakeWithdrawArgs {
 
 #[derive(Parser, Clone, Debug)]
 pub struct StakeMigrateArgs {
-    #[arg(
-        long,
-        short,
-        value_name = "POOL_URL",
-        help = "The pool to migrate stake from."
-    )]
-    pub pool_url: Option<String>,
+    // #[arg(
+    //     long,
+    //     short,
+    //     value_name = "POOL_URL",
+    //     help = "The pool to migrate stake from."
+    // )]
+    // pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]

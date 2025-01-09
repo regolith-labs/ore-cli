@@ -12,9 +12,9 @@ use solana_sdk::{
     compute_budget, pubkey::Pubkey, signature::Signature, signer::Signer, transaction::Transaction,
 };
 use steel::AccountDeserialize;
-use tabled::{Table, settings::{Remove, object::{Rows, Columns}, Alignment, Style}};
+use tabled::{Table, settings::{Remove, object::{Rows, Columns}, Alignment, Style, Color, Highlight, style::BorderColor, Border}, Tabled};
 
-use crate::{error::Error, send_and_confirm::ComputeBudget, Miner, args::{PoolArgs, PoolCommitArgs, PoolCommand}, utils::{self, get_pool, TableData, format_timestamp, get_member, get_proof, amount_u64_to_f64, TableSectionTitle}};
+use crate::{error::Error, send_and_confirm::ComputeBudget, Miner, args::{PoolArgs, PoolCommitArgs, PoolCommand}, utils::{self, get_pool, TableData, format_timestamp, get_member, get_proof, amount_u64_to_f64, TableSectionTitle, get_pools}};
 
 impl Miner {
     // TODO
@@ -24,15 +24,60 @@ impl Miner {
                 PoolCommand::Commit(commit_args) => self.pool_commit(args, commit_args).await.unwrap(),
             }
         } else {
-            self.get_pool(args).await.unwrap();
+            if let Some(pool_url) = args.pool_url {
+                self.get_pool(pool_url).await.unwrap();
+            } else {
+                self.list_pools(args).await.unwrap();
+            }
         }
     }
 
-    async fn get_pool(&self, args: PoolArgs) -> Result<(), Error> {
+    async fn list_pools(&self, _args: PoolArgs) -> Result<(), Error> {
+        let pools = get_pools(&self.rpc_client).await.unwrap();
+        let mut data = vec![];
+        for (pool_address, pool) in pools {
+            let url = String::from_utf8(pool.url.to_vec()).unwrap_or_default();
+            let url = url.trim_end_matches('\0');
+            let mut point = PoolTableData {
+                address: pool_address.to_string(),
+                url: url.to_string(),
+                balance: "".to_string(),
+                last_hash_at: "".to_string(),
+                lifetime_hashes: "".to_string(),
+                lifetime_rewards: "".to_string(),
+                members: pool.total_members.to_string(),
+            };
+
+            // Get proof data
+            let proof_address = proof_pda(pool_address).0;
+            if let Ok(proof) = get_proof(&self.rpc_client, proof_address).await {
+                point.balance = format!("{} ORE", amount_u64_to_f64(proof.balance));
+                point.last_hash_at = format_timestamp(proof.last_hash_at);
+                point.lifetime_hashes = proof.total_hashes.to_string();
+                point.lifetime_rewards = format!("{} ORE", amount_u64_to_f64(proof.total_rewards));
+            }
+
+            // Push data 
+            data.push(point);
+        }
+
+        // Print table
+        let mut table = Table::new(&data);
+        table.with(Style::blank());
+        table.modify(Columns::new(1..), Alignment::right());
+        table.modify(Rows::first(), Color::BOLD);
+        table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
+        println!("\n{}\n", table);
+
+        Ok(())
+    }
+
+    async fn get_pool(&self, pool_url: String) -> Result<(), Error> {
         // build pool client
         let pool = Pool {
             http_client: reqwest::Client::new(),
-            pool_url: args.pool_url.clone(),
+            pool_url: pool_url.clone(),
         };
 
         // Fetch pool account
@@ -51,7 +96,7 @@ impl Miner {
         });
         data.push(TableData {
             key: "Url".to_string(),
-            value: args.pool_url.to_string(),
+            value: pool_url.clone(),
         });
 
         // Get proof account
@@ -123,7 +168,7 @@ impl Miner {
             table.section_title(10, "Member");
         }
         println!("\n{table}\n");
-        println!("Pool operators automatically commit pending rewards to the blockchain at regular intervals. To manually commit your pending rewards now, run the following command:\n\n`ore pool {} commit`\n", args.pool_url);
+        println!("Pool operators automatically commit pending rewards to the blockchain at regular intervals. To manually commit your pending rewards now, run the following command:\n\n`ore pool {} commit`\n", pool_url);
 
         Ok(())
     }
@@ -131,7 +176,7 @@ impl Miner {
     async fn pool_commit(&self, args: PoolArgs, _commit_args: PoolCommitArgs) -> Result<(), Error> {
         let pool = Pool {
             http_client: reqwest::Client::new(),
-            pool_url: args.pool_url,
+            pool_url: args.pool_url.expect("Pool URL is required"),
         };
         if let Err(err) = pool.post_update_balance(self).await {
             println!("{:?}", err);
@@ -211,7 +256,7 @@ impl Pool {
         }
     }
 
-    pub async fn get_staker_onchain(
+    pub async fn _get_staker_onchain(
         &self,
         miner: &Miner,
         pool_address: Pubkey,
@@ -393,3 +438,21 @@ impl Pool {
 //         Ok(resp) => resp.json::<Pubkey>().await.map_err(From::from),
 //     }
 // }
+
+#[derive(Clone, Tabled)]
+pub struct PoolTableData {
+    #[tabled(rename = "Address")]
+    address: String,
+    #[tabled(rename = "Balance")]
+    balance: String,
+    #[tabled(rename = "Last hash at")]
+    last_hash_at: String,
+    #[tabled(rename = "Lifetime hashes")]
+    lifetime_hashes: String,
+    #[tabled(rename = "Lifetime rewards")]
+    lifetime_rewards: String,
+    #[tabled(rename = "Members")]
+    members: String,
+    #[tabled(rename = "Url")]
+    url: String,
+}

@@ -43,6 +43,7 @@ ore-pool-types = { version = "0.2", path = "../ore-pool/types" }
 url = "2.5"
 rand = "0.8.4"
 reqwest = { version = "0.12", features = ["json"] }
+solana-account-decoder = "^1.18"
 solana-cli-config = "^1.18"
 solana-client = "^1.18"
 solana-rpc-client = "^1.18"

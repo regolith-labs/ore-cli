@@ -10,9 +10,10 @@ use ore_api::{
     state::{Config, Proof, Treasury, Bus},
 };
 use ore_boost_api::state::{Boost, Stake, Reservation};
-use ore_pool_api::state::{Pool, Member};
+use ore_pool_api::state::{Pool, Member, Share};
 use serde::Deserialize;
-use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::RpcProgramAccountsConfig};
+use solana_account_decoder::UiAccountEncoding;
+use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::{RpcProgramAccountsConfig, RpcAccountInfoConfig}};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar, program_pack::Pack};
 use solana_sdk::{clock::Clock, hash::Hash};
@@ -48,6 +49,10 @@ pub async fn get_program_accounts<T>(client: &RpcClient, program_id: Pubkey, fil
             &program_id,
             RpcProgramAccountsConfig {
                 filters: Some(all_filters),
+                account_config: RpcAccountInfoConfig {
+                    encoding: Some(UiAccountEncoding::Base64),
+                    ..Default::default()
+                },
                 ..Default::default()
             },
         )
@@ -95,6 +100,11 @@ pub async fn get_boosts(client: &RpcClient) -> Result<Vec<(Pubkey, Boost)>, anyh
     get_program_accounts::<Boost>(client, ore_boost_api::ID, vec![]).await
 }
 
+pub async fn get_pools(client: &RpcClient) -> Result<Vec<(Pubkey, Pool)>, anyhow::Error> {
+    get_program_accounts::<Pool>(client, ore_pool_api::ID, vec![]).await
+}
+
+
 #[cfg(feature = "admin")]
 pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {
     let data = client
@@ -125,6 +135,13 @@ pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Result<Stake, any
     Ok(*Stake::try_from_bytes(&data)?)
 }
 
+pub async fn get_share(client: &RpcClient, address: Pubkey) -> Result<Share, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*Share::try_from_bytes(&data)?)
+}
+
 pub async fn get_bus(client: &RpcClient, address: Pubkey) -> Bus {
     let data = client
         .get_account_data(&address)
@@ -133,12 +150,11 @@ pub async fn get_bus(client: &RpcClient, address: Pubkey) -> Bus {
     *Bus::try_from_bytes(&data).expect("Failed to parse bus account")
 }
 
-pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> ore_boost_legacy_api::state::Stake {
+pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> Result<ore_boost_legacy_api::state::Stake, anyhow::Error> {
     let data = client
         .get_account_data(&address)
-        .await
-        .expect("Failed to get stake account");
-    *ore_boost_legacy_api::state::Stake::try_from_bytes(&data).expect("Failed to parse stake account")
+        .await?;
+    Ok(*ore_boost_legacy_api::state::Stake::try_from_bytes(&data)?)
 }
 
 #[cfg(feature = "admin")]

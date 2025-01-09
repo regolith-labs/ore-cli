@@ -3041,6 +3041,7 @@ dependencies = [
  "reqwest 0.12.4",
  "serde",
  "serde_json",
+ "solana-account-decoder",
  "solana-cli-config",
  "solana-client",
  "solana-program",
