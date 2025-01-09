@@ -76,6 +76,7 @@ impl Miner {
                 last_hash_at
             ).await.unwrap();
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
+            println!("Reservation: {:?}", reservation); 
 
             // Log mining table
             self.update_solo_mining_table();
@@ -117,7 +118,6 @@ impl Miner {
             }
 
             // Build mine ix
-            println!("Reservation: {:?}", reservation); 
             let boost_address = reservation
                 .map(|r| if r.boost == Pubkey::default() {
                     None
