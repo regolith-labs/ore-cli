@@ -74,16 +74,16 @@ impl Miner {
             value: format_timestamp(proof.last_hash_at),
         });
         data.push(TableData {
-            key: "Miner".to_string(),
-            value: proof.miner.to_string(),
-        });
-        data.push(TableData {
             key: "Lifetime hashes".to_string(),
             value: proof.total_hashes.to_string(),
         });
         data.push(TableData {
             key: "Lifetime rewards".to_string(),
             value: format!("{} ORE", amount_u64_to_f64(proof.total_rewards)),
+        });
+        data.push(TableData {
+            key: "Miner".to_string(),
+            value: proof.miner.to_string(),
         });
 
         // Get member account
@@ -95,20 +95,20 @@ impl Miner {
                 value: member_address.to_string(),
             });
             data.push(TableData {
-                key: "Lifetime rewards".to_string(),
-                value: format!("{} ORE", utils::amount_u64_to_string(member.total_balance)),
+                key: "Balance".to_string(),
+                value: format!("{} ORE", utils::amount_u64_to_string(member.balance)).bold().yellow().to_string(),
             });
             // Get offchain data from pool server
             if let Ok(member_offchain) = pool.get_pool_member(&self).await {
                 let pending_rewards = (member_offchain.total_balance as u64) - member.total_balance;
                 data.push(TableData {
-                    key: "Rewards (pending)".to_string(),
+                    key: "Pending rewards".to_string(),
                     value: format!("{} ORE", utils::amount_u64_to_string(pending_rewards)),
                 });
             }
             data.push(TableData {
-                key: "Rewards (claimable)".to_string(),
-                value: format!("{} ORE", utils::amount_u64_to_string(member.balance)).bold().yellow().to_string(),
+                key: "Lifetime rewards".to_string(),
+                value: format!("{} ORE", utils::amount_u64_to_string(member.total_balance)),
             });
         }
 

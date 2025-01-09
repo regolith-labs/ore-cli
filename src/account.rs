@@ -100,16 +100,20 @@ impl Miner {
         });
         if let Ok(proof) = proof {
             data.push(TableData {
+                key: "Balance".to_string(),
+                value: if proof.balance > 0 {
+                    format!("{} ORE", amount_u64_to_f64(proof.balance)).bold().yellow().to_string()
+                } else {
+                    format!("{} ORE", amount_u64_to_f64(proof.balance))
+                }
+            });
+            data.push(TableData {
                 key: "Last hash".to_string(),
                 value: solana_sdk::hash::Hash::new_from_array(proof.last_hash).to_string(),
             });
             data.push(TableData {
                 key: "Last hash at".to_string(),
                 value: format_timestamp(proof.last_hash_at),
-            });
-            data.push(TableData {
-                key: "Miner".to_string(),
-                value: proof.miner.to_string(),
             });
             data.push(TableData {
                 key: "Lifetime hashes".to_string(),
@@ -120,12 +124,8 @@ impl Miner {
                 value: format!("{} ORE", amount_to_ui_amount(proof.total_rewards, ore_api::consts::TOKEN_DECIMALS)),
             });
             data.push(TableData {
-                key: "Rewards (claimable)".to_string(),
-                value: if proof.balance > 0 {
-                    format!("{} ORE", amount_u64_to_f64(proof.balance)).bold().yellow().to_string()
-                } else {
-                    format!("{} ORE", amount_u64_to_f64(proof.balance))
-                }
+                key: "Miner".to_string(),
+                value: proof.miner.to_string(),
             });
         } else {
             data.push(TableData {

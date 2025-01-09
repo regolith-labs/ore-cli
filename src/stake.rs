@@ -155,7 +155,7 @@ impl Miner {
                 ),
             });
             data.push(TableData {
-                key: "Deposits (pending)".to_string(),
+                key: "Pending deposits".to_string(),
                 value: format!(
                     "{}{}({:.8}% of total)",
                     amount_to_ui_amount(stake.pending_balance, mint.decimals),
@@ -210,6 +210,13 @@ impl Miner {
             ),
         });
         data.push(TableData {
+            key: "Pending yield".to_string(),
+            value: format!(
+                "{:.11} ORE",
+                amount_to_ui_amount(boost_proof.balance, ore_api::consts::TOKEN_DECIMALS)
+            ),
+        });
+        data.push(TableData {
             key: "Total deposits".to_string(),
             value: format!(
                 "{}{}",
@@ -220,13 +227,6 @@ impl Miner {
         data.push(TableData { 
             key: "Total stakers".to_string(), 
             value: boost.total_stakers.to_string()
-        });
-        data.push(TableData {
-            key: "Yield (pending)".to_string(),
-            value: format!(
-                "{:.11} ORE",
-                amount_to_ui_amount(boost_proof.balance, ore_api::consts::TOKEN_DECIMALS)
-            ),
         });
     }
 
