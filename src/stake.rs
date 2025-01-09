@@ -21,6 +21,8 @@ pub struct StakeTableData {
     pub mint: String,
     #[tabled(rename = "Multiplier")]
     pub multiplier: String,
+    #[tabled(rename = "Expires at")]
+    pub expires_at: String,
     #[tabled(rename = "Stakers")]
     pub total_stakers: String,
     #[tabled(rename = "Deposits")]
@@ -263,6 +265,7 @@ impl Miner {
             data.push(StakeTableData {
                 mint: boost.mint.to_string(),
                 multiplier: format!("{}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64),
+                expires_at: format_timestamp(boost.expires_at),
                 total_deposits: format!("{:.11}{}", amount_to_ui_amount(boost.total_stake, mint.decimals), symbol.trim_end_matches(' ')),
                 total_stakers: boost.total_stakers.to_string(),
                 my_deposits: format!("{:.11}{}", amount_to_ui_amount(stake_balance, mint.decimals), symbol.trim_end_matches(' ')),
