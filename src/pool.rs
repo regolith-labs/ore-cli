@@ -284,8 +284,8 @@ impl Pool {
 
         // build attribute instruction
         let ix = ore_pool_api::sdk::attribute(
-            *signer_pubkey,
             pool_authority,
+            *signer_pubkey,
             member.total_balance as u64,
         );
         let compute_budget_limit_ix =
@@ -305,7 +305,7 @@ impl Pool {
             transaction: tx,
             hash,
         };
-
+        
         // post
         let resp = self
             .http_client
