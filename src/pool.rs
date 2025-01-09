@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crossterm::style::Stylize;
 use drillx::Solution;
 use ore_api::state::proof_pda;
 use ore_pool_api::state::member_pda;
@@ -77,11 +78,11 @@ impl Miner {
             value: proof.miner.to_string(),
         });
         data.push(TableData {
-            key: "Total hashes".to_string(),
+            key: "Lifetime hashes".to_string(),
             value: proof.total_hashes.to_string(),
         });
         data.push(TableData {
-            key: "Total rewards".to_string(),
+            key: "Lifetime rewards".to_string(),
             value: format!("{} ORE", amount_u64_to_f64(proof.total_rewards)),
         });
 
@@ -94,10 +95,9 @@ impl Miner {
                 value: member_address.to_string(),
             });
             data.push(TableData {
-                key: "Rewards".to_string(),
-                value: format!("{} ORE", utils::amount_u64_to_string(member.balance)),
+                key: "Lifetime rewards".to_string(),
+                value: format!("{} ORE", utils::amount_u64_to_string(member.total_balance)),
             });
-
             // Get offchain data from pool server
             if let Ok(member_offchain) = pool.get_pool_member(&self).await {
                 let pending_rewards = (member_offchain.total_balance as u64) - member.total_balance;
@@ -106,10 +106,9 @@ impl Miner {
                     value: format!("{} ORE", utils::amount_u64_to_string(pending_rewards)),
                 });
             }
-
             data.push(TableData {
-                key: "Total rewards".to_string(),
-                value: format!("{} ORE", utils::amount_u64_to_string(member.total_balance)),
+                key: "Rewards (claimable)".to_string(),
+                value: format!("{} ORE", utils::amount_u64_to_string(member.balance)).bold().yellow().to_string(),
             });
         }
 

@@ -112,15 +112,15 @@ impl Miner {
                 value: proof.miner.to_string(),
             });
             data.push(TableData {
-                key: "Total hashes".to_string(),
+                key: "Lifetime hashes".to_string(),
                 value: proof.total_hashes.to_string(),
             });
             data.push(TableData {
-                key: "Total rewards".to_string(),
+                key: "Lifetime rewards".to_string(),
                 value: format!("{} ORE", amount_to_ui_amount(proof.total_rewards, ore_api::consts::TOKEN_DECIMALS)),
             });
             data.push(TableData {
-                key: "Unclaimed".to_string(),
+                key: "Rewards (claimable)".to_string(),
                 value: if proof.balance > 0 {
                     format!("{} ORE", amount_u64_to_f64(proof.balance)).bold().yellow().to_string()
                 } else {

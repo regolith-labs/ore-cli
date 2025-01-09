@@ -76,7 +76,6 @@ impl Miner {
                 last_hash_at
             ).await.unwrap();
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
-            println!("Reservation: {:?}", reservation); 
 
             // Log mining table
             self.update_solo_mining_table();
@@ -169,10 +168,6 @@ impl Miner {
         // Register, if needed
         let pool_member = pool.post_pool_register(self).await?;
         let nonce_index = pool_member.id as u64;
-
-        // Get onchain pool accounts
-        // let pool_address = pool.get_pool_address().await?;
-        // let mut pool_member_onchain: ore_pool_api::state::Member;
 
         // Check num threads
         self.check_num_cores(args.cores);
@@ -379,13 +374,6 @@ impl Miner {
                 }
             }
         }
-
-        // Update log
-        // progress_bar.finish_with_message(format!(
-        //     "Solution: {} (difficulty {})",
-        //     bs58::encode(best_hash.h).into_string(),
-        //     best_difficulty
-        // ));
 
         Solution::new(best_hash.d, best_nonce.to_le_bytes())
     }
