@@ -272,17 +272,20 @@ impl Pool {
         let signer = &miner.signer();
         let signer_pubkey = &signer.pubkey();
         let post_url = format!("{}/update-balance", self.pool_url);
-        // fetch member balance
+
+        // fetch offchain member balance
         let member = self.get_pool_member(miner).await?;
+
         // fetch pool for authority
         let pool = self.get_pool_address().await?;
         let data = miner.rpc_client.get_account_data(&pool.address).await?;
         let pool = ore_pool_api::state::Pool::try_from_bytes(data.as_slice())?;
         let pool_authority = pool.authority;
+
         // build attribute instruction
         let ix = ore_pool_api::sdk::attribute(
-            pool_authority,
             *signer_pubkey,
+            pool_authority,
             member.total_balance as u64,
         );
         let compute_budget_limit_ix =
@@ -295,12 +298,14 @@ impl Pool {
         );
         let hash = miner.rpc_client.get_latest_blockhash().await?;
         tx.partial_sign(&[signer], hash);
+
         // build payload
         let paylaod = UpdateBalancePayload {
             authority: *signer_pubkey,
             transaction: tx,
             hash,
         };
+
         // post
         let resp = self
             .http_client
