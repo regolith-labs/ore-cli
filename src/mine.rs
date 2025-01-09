@@ -432,7 +432,7 @@ impl Miner {
 
     async fn fetch_solo_mine_event(&self, sig: Signature) {        
         // Add loading row
-        let mining_data = SoloMiningData::submitting();
+        let mining_data = SoloMiningData::fetching(sig);
         let mut data = self.solo_mining_data.write().unwrap();
         data.insert(0, mining_data); 
         if data.len() >= 12 {
@@ -572,9 +572,9 @@ pub struct SoloMiningData {
 }
 
 impl SoloMiningData {
-    fn submitting() -> Self {
+    fn fetching(sig: Signature) -> Self {
         Self {
-            signature: "–".to_string(),
+            signature: sig.to_string(),
             block: "–".to_string(),
             timestamp: "–".to_string(),
             difficulty: "–".to_string(),
@@ -582,7 +582,7 @@ impl SoloMiningData {
             boost_reward: "–".to_string(),
             total_reward: "–".to_string(),
             timing: "–".to_string(),
-            status: "Submitting".bold().yellow().to_string(),
+            status: "Fetching".to_string(),
         }
     }
 
@@ -624,6 +624,4 @@ pub struct PoolMiningData {
     my_difficulty: String,
     #[tabled(rename = "My Reward")]
     my_reward: String,
-    // #[tabled(rename = "Status")]
-    // status: String,
 }
