@@ -77,15 +77,6 @@ impl Miner {
             ).await.unwrap();
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
-            // Insert mining data
-            // let mining_data = SoloMiningData::mining();
-            // let mut data = self.recent_mining_data.write().unwrap();
-            // data.insert(0, mining_data); 
-            // if data.len() >= 12 {
-            //     data.pop();
-            // }
-            // drop(data);
-
             // Log mining table
             self.update_solo_mining_table();
 
@@ -126,6 +117,7 @@ impl Miner {
             }
 
             // Build mine ix
+            println!("Reservation: {:?}", reservation); 
             let boost_address = reservation
                 .map(|r| if r.boost == Pubkey::default() {
                     None
