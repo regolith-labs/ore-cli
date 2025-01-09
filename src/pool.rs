@@ -271,7 +271,7 @@ impl Pool {
     pub async fn post_update_balance(&self, miner: &Miner) -> Result<(), Error> {
         let signer = &miner.signer();
         let signer_pubkey = &signer.pubkey();
-        let post_url = format!("{}/update-balance", self.pool_url);
+        let post_url = format!("{}/commit", self.pool_url);
 
         // fetch offchain member balance
         let member = self.get_pool_member(miner).await?;
