@@ -31,7 +31,7 @@ use crate::{
     send_and_confirm::ComputeBudget,
     utils::{
         amount_u64_to_string, get_clock, get_config,
-        get_updated_proof_with_authority, proof_pubkey, get_reservation, format_timestamp, amount_u64_to_f64,
+        get_updated_proof_with_authority, proof_pubkey, get_reservation, format_timestamp,
     },
     Miner,
 };
