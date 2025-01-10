@@ -438,7 +438,7 @@ impl Miner {
             boost_metadatas.insert(mint_address, (mint_account, symbol));
         };
 
-        // Migrate stake from direct accounts
+        // Migrate stake from solo accounts
         let mut ixs = vec![];
         println!("{}", "Private stake balances".bold().to_string());
         for mint in boost_mints {
