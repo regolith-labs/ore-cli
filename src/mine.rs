@@ -185,7 +185,7 @@ impl Miner {
         let mut last_balance: i64;
         loop {
             // Fetch latest challenge
-            let member_challenge = match pool.get_updated_pool_challenge(last_hash_at).await {
+            let member_challenge = match pool.get_updated_pool_challenge(self, last_hash_at).await {
                 Err(_err) => {
                     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                     continue;
@@ -198,13 +198,21 @@ impl Miner {
             last_hash_at = member_challenge.challenge.lash_hash_at;
 
             // Compute cutoff time
-            let cutoff_time = self.get_cutoff(last_hash_at, member_challenge.buffer).await;
+            let cutoff_time = self.get_cutoff(last_hash_at, args.buffer_time).await;
 
             // Build nonce indices
             let num_total_members = member_challenge.num_total_members.max(1);
             let u64_unit = u64::MAX.saturating_div(num_total_members);
-            let left_bound = u64_unit.saturating_mul(nonce_index);
-            let range_per_core = u64_unit.saturating_div(args.cores);
+            // Split member nonce space for multiple devices
+            let nonce_unit = u64_unit.saturating_div(member_challenge.num_devices as u64);
+            if member_challenge.device_id.gt(&member_challenge.num_devices) {
+                return Err(Error::TooManyDevices);
+            }
+            let device_id = member_challenge.device_id.saturating_sub(1) as u64;
+            let left_bound =
+                u64_unit.saturating_mul(nonce_index) + device_id.saturating_mul(nonce_unit);
+            // Split nonce-device space for muliple cores
+            let range_per_core = nonce_unit.saturating_div(args.cores);
             let mut nonce_indices = Vec::with_capacity(args.cores as usize);
             for n in 0..(args.cores) {
                 let index = left_bound + n * range_per_core;
