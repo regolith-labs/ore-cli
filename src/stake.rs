@@ -269,7 +269,11 @@ impl Miner {
                 total_deposits: format!("{:.11}{}", amount_to_ui_amount(boost.total_deposits, mint.decimals), symbol.trim_end_matches(' ')),
                 total_stakers: boost.total_stakers.to_string(),
                 my_deposits: format!("{:.11}{}", amount_to_ui_amount(stake_balance, mint.decimals), symbol.trim_end_matches(' ')),
-                my_share: format!("{:.8}%", (stake_balance as f64 / boost.total_deposits as f64) * 100f64),
+                my_share: if boost.total_deposits > 0 {
+                    format!("{:.8}%", (stake_balance as f64 / boost.total_deposits as f64) * 100f64)
+                } else {
+                    "NaN".to_string()
+                },
                 my_yield: if stake_rewards > 0 {
                     format!("{:.11} ORE", amount_u64_to_f64(stake_rewards)).yellow().bold().to_string()
                 } else {
