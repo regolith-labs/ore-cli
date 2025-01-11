@@ -19,6 +19,8 @@ use crate::{
 pub struct StakeTableData {
     #[tabled(rename = "Mint")]
     pub mint: String,
+    // #[tabled(rename = "Symbol")]
+    // pub symbol: String,
     #[tabled(rename = "Multiplier")]
     pub multiplier: String,
     #[tabled(rename = "Expires at")]
@@ -244,15 +246,15 @@ impl Miner {
             let mint = get_mint(&self.rpc_client, boost.mint).await.unwrap();
             let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&boost.mint).0;
             let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
-                Err(_) => " ".to_string(),
+                Err(_) => "".to_string(),
                 Ok(metadata_data) => {
                     if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
-                        format!(" {} ", metadata.symbol)
+                        format!("{}", metadata.symbol)
                     } else {
-                        " ".to_string()
+                        "".to_string()
                     }
                 }
-            };
+            }.trim().to_string();
 
             // Parse optional stake data
             let (stake_balance, stake_rewards) = if let Ok(stake) = stake {
@@ -264,20 +266,23 @@ impl Miner {
             // Aggregate data
             data.push(StakeTableData {
                 mint: boost.mint.to_string(),
+                // symbol,
                 multiplier: format!("{}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64),
                 expires_at: format_timestamp(boost.expires_at),
-                total_deposits: format!("{:.11}{}", amount_to_ui_amount(boost.total_deposits, mint.decimals), symbol.trim_end_matches(' ')),
+                // total_deposits: format!("{:.11}{}", amount_to_ui_amount(boost.total_deposits, mint.decimals), symbol),
+                total_deposits: format!("{}", amount_to_ui_amount(boost.total_deposits, mint.decimals)),
                 total_stakers: boost.total_stakers.to_string(),
-                my_deposits: format!("{:.11}{}", amount_to_ui_amount(stake_balance, mint.decimals), symbol.trim_end_matches(' ')),
+                // my_deposits: format!("{:.11}{}", amount_to_ui_amount(stake_balance, mint.decimals), symbol),
+                my_deposits: format!("{}", amount_to_ui_amount(stake_balance, mint.decimals)),
                 my_share: if boost.total_deposits > 0 {
                     format!("{:.8}%", (stake_balance as f64 / boost.total_deposits as f64) * 100f64)
                 } else {
                     "NaN".to_string()
                 },
                 my_yield: if stake_rewards > 0 {
-                    format!("{:.11} ORE", amount_u64_to_f64(stake_rewards)).yellow().bold().to_string()
+                    format!("{:.11}", amount_u64_to_f64(stake_rewards)).yellow().bold().to_string()
                 } else {
-                    format!("{:.11} ORE", amount_u64_to_f64(stake_rewards))
+                    format!("{:.11}", amount_u64_to_f64(stake_rewards))
                 },
             });
         }
@@ -285,8 +290,8 @@ impl Miner {
         // Build table
         let mut table = Table::new(data);
         table.with(Style::blank());
-        table.modify(Columns::new(1..), Alignment::right());
         table.modify(Rows::first(), Color::BOLD);
+        table.modify(Columns::new(1..), Alignment::right());
         table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
         println!("\n{table}\n");
