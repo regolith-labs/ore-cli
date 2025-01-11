@@ -153,16 +153,16 @@ impl Miner {
                     "{:.11}{}({:.8}% of total)",
                     amount_to_ui_amount(stake.balance, mint.decimals),
                     symbol,
-                    (stake.balance as f64 / boost.total_stake as f64) * 100f64
+                    (stake.balance as f64 / boost.total_deposits as f64) * 100f64
                 ),
             });
             data.push(TableData {
                 key: "Pending deposits".to_string(),
                 value: format!(
                     "{}{}({:.8}% of total)",
-                    amount_to_ui_amount(stake.pending_balance, mint.decimals),
+                    amount_to_ui_amount(stake.balance_pending, mint.decimals),
                     symbol,
-                    (stake.pending_balance as f64 / boost.total_stake as f64) * 100f64
+                    (stake.balance_pending as f64 / boost.total_deposits as f64) * 100f64
                 ),
             });
             data.push(TableData {
@@ -222,7 +222,7 @@ impl Miner {
             key: "Total deposits".to_string(),
             value: format!(
                 "{}{}",
-                amount_to_ui_amount(boost.total_stake, mint.decimals),
+                amount_to_ui_amount(boost.total_deposits, mint.decimals),
                 symbol.trim_end_matches(' ')
             ),
         });
@@ -266,10 +266,10 @@ impl Miner {
                 mint: boost.mint.to_string(),
                 multiplier: format!("{}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64),
                 expires_at: format_timestamp(boost.expires_at),
-                total_deposits: format!("{:.11}{}", amount_to_ui_amount(boost.total_stake, mint.decimals), symbol.trim_end_matches(' ')),
+                total_deposits: format!("{:.11}{}", amount_to_ui_amount(boost.total_deposits, mint.decimals), symbol.trim_end_matches(' ')),
                 total_stakers: boost.total_stakers.to_string(),
                 my_deposits: format!("{:.11}{}", amount_to_ui_amount(stake_balance, mint.decimals), symbol.trim_end_matches(' ')),
-                my_share: format!("{:.8}%", (stake_balance as f64 / boost.total_stake as f64) * 100f64),
+                my_share: format!("{:.8}%", (stake_balance as f64 / boost.total_deposits as f64) * 100f64),
                 my_yield: if stake_rewards > 0 {
                     format!("{:.11} ORE", amount_u64_to_f64(stake_rewards)).yellow().bold().to_string()
                 } else {
