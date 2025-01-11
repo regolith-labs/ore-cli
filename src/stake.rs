@@ -244,17 +244,17 @@ impl Miner {
             let stake_address = stake_pda(self.signer().pubkey(), address).0;
             let stake = get_stake(&self.rpc_client, stake_address).await;
             let mint = get_mint(&self.rpc_client, boost.mint).await.unwrap();
-            let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&boost.mint).0;
-            let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
-                Err(_) => "".to_string(),
-                Ok(metadata_data) => {
-                    if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
-                        format!("{}", metadata.symbol)
-                    } else {
-                        "".to_string()
-                    }
-                }
-            }.trim().to_string();
+            // let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&boost.mint).0;
+            // let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
+            //     Err(_) => "".to_string(),
+            //     Ok(metadata_data) => {
+            //         if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
+            //             format!("{}", metadata.symbol)
+            //         } else {
+            //             "".to_string()
+            //         }
+            //     }
+            // }.trim().to_string();
 
             // Parse optional stake data
             let (stake_balance, stake_rewards) = if let Ok(stake) = stake {
