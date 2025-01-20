@@ -1,6 +1,27 @@
 use clap::{arg, command, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
+pub struct AccountArgs {
+    #[arg(
+        value_name = "ADDRESS",
+        help = "The address to the account to fetch."
+    )]
+    pub address: Option<String>,
+
+    #[command(subcommand)]
+    pub command: Option<AccountCommand>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum AccountCommand {
+    #[command(about = "Close an account and reclaim rent.")]
+    Close(AccountCloseArgs),
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct AccountCloseArgs {}
+
+#[derive(Parser, Debug)]
 pub struct BalanceArgs {
     #[arg(
         value_name = "ADDRESS",
@@ -42,7 +63,24 @@ pub struct BenchmarkArgs {
 }
 
 #[derive(Parser, Debug)]
-pub struct BussesArgs {}
+pub struct BoostArgs {
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint address of the boost to get.")]
+    pub mint: Option<String>,
+}
+
+#[derive(Parser, Debug)]
+pub struct CheckpointArgs {
+    #[arg(value_name = "MINT_ADDRESS", help = "The mint address of the boost to checkpoint")]
+    pub mint: String,
+
+    #[arg(
+        long,
+        short,
+        help = "Flag indicating whether or not to run in continuous mode.",
+        default_value = "false"
+    )]
+    pub continuous: bool,
+}
 
 #[derive(Parser, Debug)]
 pub struct ClaimArgs {
@@ -67,12 +105,6 @@ pub struct ClaimArgs {
     )]
     pub pool_url: Option<String>,
 }
-
-#[derive(Parser, Debug)]
-pub struct CloseArgs {}
-
-#[derive(Parser, Debug)]
-pub struct ConfigArgs {}
 
 #[cfg(feature = "admin")]
 #[derive(Parser, Debug)]
@@ -100,27 +132,6 @@ pub struct MineArgs {
 
     #[arg(
         long,
-        value_name = "MINT_ADDRESS",
-        help = "The token to apply as boost #1"
-    )]
-    pub boost_1: Option<String>,
-
-    #[arg(
-        long,
-        value_name = "MINT_ADDRESS",
-        help = "The token to apply as boost #2"
-    )]
-    pub boost_2: Option<String>,
-
-    #[arg(
-        long,
-        value_name = "MINT_ADDRESS",
-        help = "The token to apply as boost #3"
-    )]
-    pub boost_3: Option<String>,
-
-    #[arg(
-        long,
         short,
         value_name = "POOL_URL",
         help = "The optional pool url to join and forward solutions to."
@@ -129,38 +140,75 @@ pub struct MineArgs {
 }
 
 #[derive(Parser, Debug)]
+pub struct PoolArgs {
+    #[arg(
+        value_name = "POOL_URL",
+        help = "The pool url to connect to."
+    )]
+    pub pool_url: Option<String>,
+
+    #[command(subcommand)]
+    pub command: Option<PoolCommand>,
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum PoolCommand {
+    #[command(about = "Commit a pending pool balance to the chain.")]
+    Commit(PoolCommitArgs),
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct PoolCommitArgs {}
+
+
+#[derive(Parser, Debug)]
+pub struct ProgramArgs {}
+
+#[derive(Parser, Debug)]
 pub struct ProofArgs {
     #[arg(value_name = "ADDRESS", help = "The address of the proof to fetch.")]
     pub address: Option<String>,
 }
 
-#[derive(Parser, Debug)]
-pub struct RewardsArgs {}
-
-#[derive(Parser, Debug)]
+#[derive(Clone, Parser, Debug)]
 pub struct StakeArgs {
     #[command(subcommand)]
     pub command: Option<StakeCommand>,
 
     #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake with.")]
-    pub mint: String,
-
-    #[arg(
-        long,
-        short,
-        value_name = "POOL_URL",
-        help = "The pool url to stake with."
-    )]
-    pub pool_url: Option<String>,
+    pub mint: Option<String>,
 }
 
+// TODO Rename to boost?
 #[derive(Subcommand, Clone, Debug)]
 pub enum StakeCommand {
+    #[command(about = "Claim rewards from a stake account.")]
+    Claim(StakeClaimArgs),
+
     #[command(about = "Deposit tokens into a stake account.")]
     Deposit(StakeDepositArgs),
 
     #[command(about = "Withdraw tokens from a stake account.")]
     Withdraw(StakeWithdrawArgs),
+
+    #[command(about = "Migrate stake from legacy boost accounts to global boosts.")]
+    Migrate(StakeMigrateArgs),
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeClaimArgs {
+    #[arg(
+        value_name = "AMOUNT",
+        help = "The amount of rewards to claim. Defaults to max."
+    )]
+    pub amount: Option<f64>,
+
+    #[arg(
+        long,
+        value_name = "WALLET_ADDRESS",
+        help = "Wallet address to receive claimed tokens."
+    )]
+    pub to: Option<String>,
 }
 
 #[derive(Parser, Clone, Debug)]
@@ -193,6 +241,17 @@ pub struct StakeWithdrawArgs {
         help = "Token account to withdraw to. Defaults to the associated token account."
     )]
     pub token_account: Option<String>,
+}
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeMigrateArgs {
+    // #[arg(
+    //     long,
+    //     short,
+    //     value_name = "POOL_URL",
+    //     help = "The pool to migrate stake from."
+    // )]
+    // pub pool_url: Option<String>,
 }
 
 #[derive(Parser, Debug)]

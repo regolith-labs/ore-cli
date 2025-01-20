@@ -1,163 +1,301 @@
-use std::str::FromStr;
+use std::{str::FromStr, collections::HashMap};
 
 use colored::*;
-use ore_boost_api::state::{boost_pda, stake_pda, Boost, Stake};
-use ore_pool_api::state::{share_pda, Share};
+use ore_api::state::proof_pda;
+use ore_boost_api::{state::{boost_pda, stake_pda, Boost}, consts::BOOST_DENOMINATOR};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
-use steel::AccountDeserialize;
+use tabled::{Table, settings::{Style, Color, Remove, object::{Rows, Columns}, Alignment, Highlight, style::BorderColor, Border}, Tabled};
 
 use crate::{
-    args::{StakeArgs, StakeCommand, StakeDepositArgs, StakeWithdrawArgs},
-    cu_limits::CU_LIMIT_CLAIM,
-    error::Error,
-    pool::Pool,
-    send_and_confirm::ComputeBudget,
-    Miner,
+    args::{StakeArgs, StakeClaimArgs, StakeCommand, StakeDepositArgs, StakeMigrateArgs, StakeWithdrawArgs}, error::Error, send_and_confirm::ComputeBudget, utils::{amount_u64_to_f64, ask_confirm, format_timestamp, get_boost, get_boosts, get_legacy_stake, get_mint, get_pools, get_proof, get_share, get_stake, TableData, TableSectionTitle}, Miner
 };
+
+#[derive(Tabled)]
+pub struct StakeTableData {
+    #[tabled(rename = "Mint")]
+    pub mint: String,
+    // #[tabled(rename = "Symbol")]
+    // pub symbol: String,
+    #[tabled(rename = "Multiplier")]
+    pub multiplier: String,
+    #[tabled(rename = "Expires at")]
+    pub expires_at: String,
+    #[tabled(rename = "Stakers")]
+    pub total_stakers: String,
+    #[tabled(rename = "Deposits")]
+    pub total_deposits: String,
+    #[tabled(rename = "My deposits")]
+    pub my_deposits: String,
+    #[tabled(rename = "My pending deposits")]
+    pub my_pending_deposits: String,
+    #[tabled(rename = "My share")]
+    pub my_share: String,
+    #[tabled(rename = "My yield")]
+    pub my_yield: String,
+}
 
 impl Miner {
     pub async fn stake(&self, args: StakeArgs) {
         if let Some(subcommand) = args.command.clone() {
             match subcommand {
+                StakeCommand::Claim(subargs) => self.stake_claim(subargs, args).await.unwrap(),
                 StakeCommand::Deposit(subargs) => self.stake_deposit(subargs, args).await.unwrap(),
-                StakeCommand::Withdraw(subargs) => {
-                    self.stake_withdraw(subargs, args).await.unwrap()
-                }
+                StakeCommand::Withdraw(subargs) => self.stake_withdraw(subargs, args).await.unwrap(),
+                StakeCommand::Migrate(subargs) => self.stake_migrate(subargs, args).await.unwrap(),
             }
         } else {
-            self.stake_get(args).await.unwrap();
+            if let Some(mint) = args.mint {
+                self.stake_get(mint).await.unwrap();
+            } else {
+                self.stake_list().await.unwrap();
+            }
         }
     }
 
-    async fn stake_get(&self, args: StakeArgs) -> Result<(), Error> {
-        match args.pool_url.clone() {
-            None => self.stake_get_solo(args).await,
-            Some(ref pool_url) => self.stake_get_pool(args, pool_url).await,
-        }
-    }
-
-    async fn stake_get_solo(&self, args: StakeArgs) -> Result<(), Error> {
-        let mint_address = Pubkey::from_str(&args.mint).unwrap();
+    async fn stake_claim(&self, claim_args: StakeClaimArgs, stake_args: StakeArgs) -> Result<(), Error> {
+        let signer = self.signer();
+        let pubkey = signer.pubkey();
+        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
         let boost_address = boost_pda(mint_address).0;
-        let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
-        let Ok(boost_data) = self.rpc_client.get_account_data(&boost_address).await else {
-            println!("No boost found for mint: {}", mint_address);
-            return Ok(());
-        };
-        let Ok(boost) = Boost::try_from_bytes(&boost_data) else {
-            return Ok(());
-        };
-        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
-            return Ok(());
-        };
-        let Ok(mint) = Mint::unpack(&mint_data) else {
-            return Ok(());
-        };
-        let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
-        let Ok(metadata_data) = self.rpc_client.get_account_data(&metadata_address).await else {
-            return Ok(());
-        };
-        let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data)
-        else {
-            return Ok(());
-        };
-        if let Ok(stake_data) = self.rpc_client.get_account_data(&stake_address).await {
-            if let Ok(stake) = Stake::try_from_bytes(&stake_data) {
-                println!("{}", "Stake".bold());
-                println!("Address: {}", stake_address);
-                println!(
-                    "Balance: {} {} ({:.8}% of total)",
-                    amount_to_ui_amount(stake.balance, mint.decimals),
-                    metadata.symbol,
-                    (stake.balance as f64 / boost.total_stake as f64) * 100f64
+        let stake_address = stake_pda(pubkey, boost_address).0;
+
+        let mut ixs = vec![];
+        let beneficiary = match claim_args.to {
+            None => self.initialize_ata(pubkey).await,
+            Some(to) => {
+                let wallet = Pubkey::from_str(&to).expect("Failed to parse wallet address");
+                let beneficiary_tokens = spl_associated_token_account::get_associated_token_address(
+                    &wallet,
+                    &ore_api::consts::MINT_ADDRESS,
                 );
-                println!("Last deposit at: {}", stake.last_stake_at);
+                if self.rpc_client.get_token_account(&beneficiary_tokens).await.is_err() {
+                    ixs.push(
+                        spl_associated_token_account::instruction::create_associated_token_account(
+                            &pubkey,
+                            &wallet,
+                            &ore_api::consts::MINT_ADDRESS,
+                            &spl_token::id(),
+                        ),
+                    );
+                }
+                beneficiary_tokens
             }
         };
-        println!("\n{}", "Boost".bold());
-        println!("Mint: {}", mint_address);
-        println!(
-            "Balance: {} {}",
-            amount_to_ui_amount(boost.total_stake, mint.decimals),
-            metadata.symbol
-        );
-        println!("Multiplier: {}x", boost.multiplier);
-        println!("Expires at: {}", boost.expires_at);
+
+        // Get stake account data to check rewards balance
+        let stake = get_stake(&self.rpc_client, stake_address).await.unwrap();
+
+        // Build claim instruction with amount or max rewards
+        ixs.push(ore_boost_api::sdk::claim(
+            pubkey,
+            beneficiary,
+            mint_address,
+            claim_args.amount
+                .map(|a| crate::utils::amount_f64_to_u64(a))
+                .unwrap_or(stake.rewards),
+        ));
+
+        // Send and confirm transaction
+        println!("Claiming staking yield...");
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false).await.ok();
+
         Ok(())
     }
 
-    async fn stake_get_pool(&self, args: StakeArgs, pool_url: &String) -> Result<(), Error> {
-        let pool = Pool {
-            http_client: reqwest::Client::new(),
-            pool_url: pool_url.clone(),
-        };
-        let Ok(pool_address) = pool.get_pool_address().await else {
-            println!("Pool not found");
-            return Ok(());
-        };
-        let mint_address = Pubkey::from_str(&args.mint).unwrap();
+    async fn stake_get(&self, mint: String) -> Result<(), Error> {
+        // Fetch onchain data
+        let mint_address = Pubkey::from_str(&mint).unwrap();
         let boost_address = boost_pda(mint_address).0;
-        let stake_address = stake_pda(pool_address.address, boost_address).0;
-        let share_address = share_pda(self.signer().pubkey(), pool_address.address, mint_address).0;
-        let Ok(boost_data) = self.rpc_client.get_account_data(&boost_address).await else {
-            return Ok(());
-        };
-        let Ok(boost) = Boost::try_from_bytes(&boost_data) else {
-            return Ok(());
-        };
-        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
-            return Ok(());
-        };
-        let Ok(mint) = Mint::unpack(&mint_data) else {
-            return Ok(());
-        };
-        let Ok(stake_data) = self.rpc_client.get_account_data(&stake_address).await else {
-            return Ok(());
-        };
-        let Ok(stake) = Stake::try_from_bytes(&stake_data) else {
-            return Ok(());
-        };
+        let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
+        let boost = get_boost(&self.rpc_client, boost_address).await.unwrap();
+        let mint = get_mint(&self.rpc_client, mint_address).await.unwrap();
         let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
-        let Ok(metadata_data) = self.rpc_client.get_account_data(&metadata_address).await else {
-            return Ok(());
+        let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
+            Ok(metadata_data) => {
+                if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
+                    format!(" {} ", metadata.symbol)
+                } else {
+                    " ".to_string()
+                }
+            }
+            Err(_) => " ".to_string()
         };
-        let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data)
-        else {
-            return Ok(());
-        };
-        if let Ok(share_data) = self.rpc_client.get_account_data(&share_address).await {
-            if let Ok(share) = Share::try_from_bytes(&share_data) {
-                println!("{}", "Share".bold());
-                println!("Address: {}", share_address);
-                println!(
-                    "Balance: {} {} ({:.8}% of pool)",
-                    amount_to_ui_amount(share.balance, mint.decimals),
-                    metadata.symbol,
-                    (share.balance as f64 / stake.balance as f64) * 100f64
-                );
+
+        // Aggregate data
+        let mut data = vec![];
+        self.fetch_boost_data(boost_address, boost, mint, symbol.clone(), &mut data).await;
+        let len1 = data.len();
+        self.fetch_stake_data(stake_address, boost, mint, symbol.clone(), &mut data).await;
+        let _len2 = data.len();
+
+        // Build table
+        let mut table = Table::new(data);
+        table.with(Remove::row(Rows::first()));
+        table.modify(Columns::single(1), Alignment::right());
+        table.with(Style::blank());
+        table.section_title(0, "Boost");
+        table.section_title(len1, "Stake");
+        println!("{table}\n");
+        Ok(())
+    }
+
+    async fn fetch_stake_data(&self, address: Pubkey, boost: Boost, mint: Mint, symbol: String, data: &mut Vec<TableData>) {
+        let stake = get_stake(&self.rpc_client, address).await;
+        data.push(TableData {
+            key: "Address".to_string(),
+            value: address.to_string(),
+        });
+        if let Ok(stake) = stake {
+            data.push(TableData {
+                key: "Deposits".to_string(),
+                value: format!(
+                    "{:.11}{}({:.8}% of total)",
+                    amount_to_ui_amount(stake.balance, mint.decimals),
+                    symbol,
+                    (stake.balance as f64 / boost.total_deposits as f64) * 100f64
+                ),
+            });
+            data.push(TableData {
+                key: "Pending deposits".to_string(),
+                value: format!(
+                    "{}{}({:.8}% of total)",
+                    amount_to_ui_amount(stake.balance_pending, mint.decimals),
+                    symbol,
+                    (stake.balance_pending as f64 / boost.total_deposits as f64) * 100f64
+                ),
+            });
+            data.push(TableData {
+                key: "Last deposit at".to_string(),
+                value: format_timestamp(stake.last_deposit_at),
+            });
+            data.push(TableData {
+                key: "Yield".to_string(),
+                value: if stake.rewards > 0 {
+                    format!("{:.11} ORE", amount_u64_to_f64(stake.rewards)).yellow().bold().to_string()
+                } else {
+                    format!("{:.11} ORE", amount_u64_to_f64(stake.rewards))
+                },
+            });
+        } else {
+            data.push(TableData {
+                key: "Status".to_string(),
+                value: "Not found".red().bold().to_string(),
+            });
+        }
+    }
+
+    async fn fetch_boost_data(&self, address: Pubkey, boost: Boost, mint: Mint, symbol: String, data: &mut Vec<TableData>) {
+        let boost_proof_address = proof_pda(address).0;
+        let boost_proof: ore_api::prelude::Proof = get_proof(&self.rpc_client, boost_proof_address).await.unwrap();
+        data.push(TableData {
+            key: "Address".to_string(),
+            value: address.to_string(),
+        });
+        data.push(TableData {
+            key: "Expires at".to_string(),
+            value: format_timestamp(boost.expires_at),
+        });
+        data.push(TableData {
+            key: "Locked".to_string(),
+            value: boost.locked.to_string(),
+        });
+        data.push(TableData {
+            key: "Mint".to_string(),
+            value: boost.mint.to_string(),
+        });
+        data.push(TableData {
+            key: "Multiplier".to_string(),
+            value: format!(
+                "{}x",
+                boost.multiplier as f64 / BOOST_DENOMINATOR as f64
+            ),
+        });
+        data.push(TableData {
+            key: "Pending yield".to_string(),
+            value: format!(
+                "{:.11} ORE",
+                amount_to_ui_amount(boost_proof.balance, ore_api::consts::TOKEN_DECIMALS)
+            ),
+        });
+        data.push(TableData {
+            key: "Total deposits".to_string(),
+            value: format!(
+                "{}{}",
+                amount_to_ui_amount(boost.total_deposits, mint.decimals),
+                symbol.trim_end_matches(' ')
+            ),
+        });
+        data.push(TableData { 
+            key: "Total stakers".to_string(), 
+            value: boost.total_stakers.to_string()
+        });
+    }
+
+    async fn stake_list(&self) -> Result<(), Error> {
+        // Iterate over all boosts
+        let mut data = vec![];
+        let boosts = get_boosts(&self.rpc_client).await.unwrap();
+        for (address, boost) in boosts {
+
+            // Get relevant accounts
+            let stake_address = stake_pda(self.signer().pubkey(), address).0;
+            let stake = get_stake(&self.rpc_client, stake_address).await;
+            let mint = get_mint(&self.rpc_client, boost.mint).await.unwrap();
+            // let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&boost.mint).0;
+            // let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
+            //     Err(_) => "".to_string(),
+            //     Ok(metadata_data) => {
+            //         if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
+            //             format!("{}", metadata.symbol)
+            //         } else {
+            //             "".to_string()
+            //         }
+            //     }
+            // }.trim().to_string();
+
+            // Parse optional stake data
+            let (stake_balance, stake_balance_pending, stake_rewards) = if let Ok(stake) = stake {
+                (stake.balance, stake.balance_pending, stake.rewards)
+            } else {
+                (0, 0, 0)
             };
-        };
-        println!("\n{}", "Pool".bold());
-        println!("Address: {}", pool_address.address);
-        println!(
-            "Balance: {} {} ({:.8}% of total)",
-            amount_to_ui_amount(stake.balance, mint.decimals),
-            metadata.symbol,
-            (stake.balance as f64 / boost.total_stake as f64) * 100f64
-        );
-        println!("URL: {}", pool_url);
-        println!("Last deposit at: {}", stake.last_stake_at);
-        println!("\n{}", "Boost".bold());
-        println!(
-            "Balance: {} {}",
-            amount_to_ui_amount(boost.total_stake, mint.decimals),
-            metadata.symbol,
-        );
-        println!("Mint: {}", mint_address);
-        println!("Multiplier: {}x", boost.multiplier);
-        println!("Expires at: {}", boost.expires_at);
+
+
+            // Aggregate data
+            data.push(StakeTableData {
+                mint: boost.mint.to_string(),
+                // symbol,
+                multiplier: format!("{}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64),
+                expires_at: format_timestamp(boost.expires_at),
+                // total_deposits: format!("{:.11}{}", amount_to_ui_amount(boost.total_deposits, mint.decimals), symbol),
+                total_deposits: format!("{}", amount_to_ui_amount(boost.total_deposits, mint.decimals)),
+                total_stakers: boost.total_stakers.to_string(),
+                // my_deposits: format!("{:.11}{}", amount_to_ui_amount(stake_balance, mint.decimals), symbol),
+                my_deposits: format!("{}", amount_to_ui_amount(stake_balance, mint.decimals)),
+                my_pending_deposits: format!("{}", amount_to_ui_amount(stake_balance_pending, mint.decimals)),
+                my_share: if boost.total_deposits > 0 {
+                    format!("{:.8}%", (stake_balance as f64 / boost.total_deposits as f64) * 100f64)
+                } else {
+                    "NaN".to_string()
+                },
+                my_yield: if stake_rewards > 0 {
+                    format!("{:.11}", amount_u64_to_f64(stake_rewards)).yellow().bold().to_string()
+                } else {
+                    format!("{:.11}", amount_u64_to_f64(stake_rewards))
+                },
+            });
+        }
+
+        // Build table
+        let mut table = Table::new(data);
+        table.with(Style::blank());
+        table.modify(Rows::first(), Color::BOLD);
+        table.modify(Columns::new(1..), Alignment::right());
+        table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
+        println!("\n{table}\n");
         Ok(())
     }
 
@@ -166,18 +304,8 @@ impl Miner {
         args: StakeDepositArgs,
         stake_args: StakeArgs,
     ) -> Result<(), Error> {
-        match stake_args.pool_url.clone() {
-            None => self.stake_deposit_solo(args, stake_args).await,
-            Some(ref pool_url) => self.stake_deposit_pool(args, stake_args, pool_url).await,
-        }
-    }
-    async fn stake_deposit_solo(
-        &self,
-        args: StakeDepositArgs,
-        stake_args: StakeArgs,
-    ) -> Result<(), Error> {
         // Parse mint address
-        let mint_address = Pubkey::from_str(&stake_args.mint).unwrap();
+        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
 
         // Get signer
         let signer = self.signer();
@@ -192,16 +320,15 @@ impl Miner {
         };
 
         // Get token account
+        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
+            println!("Failed to fetch mint account");
+            return Ok(());
+        };
+        let mint = Mint::unpack(&mint_data).unwrap();
         let Ok(Some(token_account)) = self.rpc_client.get_token_account(&sender).await else {
             println!("Failed to fetch token account");
             return Ok(());
         };
-
-        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
-            println!("Failed to fetch mint address");
-            return Ok(());
-        };
-        let mint = Mint::unpack(&mint_data).unwrap();
 
         // Parse amount
         let amount: u64 = if let Some(amount) = args.amount {
@@ -214,93 +341,22 @@ impl Miner {
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(signer.pubkey(), boost_address).0;
-
-        // Fetch boost
-        let Ok(boost_account_data) = self.rpc_client.get_account_data(&boost_address).await else {
-            println!("Failed to fetch boost account");
+        if let Err(err) = get_boost(&self.rpc_client, boost_address).await {
+            println!("Failed to fetch boost account: {}", err);
             return Ok(());
-        };
-        let _ = Boost::try_from_bytes(&boost_account_data).unwrap();
+        }
 
         // Open stake account, if needed
         if let Err(_err) = self.rpc_client.get_account_data(&stake_address).await {
-            println!("Failed to fetch stake account");
+            println!("Initializing stake account...");
             let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
-            self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
-                .await
-                .ok();
+            self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await.ok();
         }
 
         // Send tx
+        println!("Depositing stake...");
         let ix = ore_boost_api::sdk::deposit(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
-            .await
-            .ok();
-
-        Ok(())
-    }
-
-    async fn stake_deposit_pool(
-        &self,
-        args: StakeDepositArgs,
-        stake_args: StakeArgs,
-        pool_url: &String,
-    ) -> Result<(), Error> {
-        let signer = self.signer();
-        // build pool client
-        let pool = Pool {
-            http_client: reqwest::Client::new(),
-            pool_url: pool_url.clone(),
-        };
-        // register member, if needed
-        let _ = pool.post_pool_register(self).await?;
-        // fetch pool address
-        let Ok(pool_address) = pool.get_pool_address().await else {
-            println!("Pool not found");
-            return Ok(());
-        };
-        // parse mint
-        let mint = Pubkey::from_str(stake_args.mint.as_str())?;
-        // get sender token account
-        let sender = match &args.token_account {
-            Some(address) => Pubkey::from_str(address.as_str())?,
-            None => {
-                spl_associated_token_account::get_associated_token_address(&signer.pubkey(), &mint)
-            }
-        };
-        // assert that sender exists
-        let Ok(Some(token_account)) = self.rpc_client.get_token_account(&sender).await else {
-            println!("Failed to fetch token account");
-            return Err(Error::Internal(
-                "sender token account does not exist".to_string(),
-            ));
-        };
-        // assert that mint exists
-        let mint_data = self.rpc_client.get_account_data(&mint).await?;
-        let mint_account = Mint::unpack(&mint_data)?;
-        // parse amount
-        let amount: u64 = if let Some(amount) = args.amount {
-            (amount * 10f64.powf(mint_account.decimals as f64)) as u64
-        } else {
-            u64::from_str(token_account.token_amount.amount.as_str())?
-        };
-        // derive pdas
-        let boost_address = boost_pda(mint).0;
-        let stake_address = stake_pda(pool_address.address, boost_address).0;
-        // assert that boost exists
-        let boost_data = self.rpc_client.get_account_data(&boost_address).await?;
-        let _ = Boost::try_from_bytes(boost_data.as_slice())?;
-        // assert that stake exists (belongs to pool account)
-        let stake_data = self.rpc_client.get_account_data(&stake_address).await?;
-        let _ = Stake::try_from_bytes(stake_data.as_slice())?;
-        // open share account, if needed
-        let _ = pool.post_pool_register_staker(self, &mint).await?;
-        // send tx
-        let ix =
-            ore_pool_api::sdk::stake(signer.pubkey(), mint, pool_address.address, sender, amount);
-        let _ = self
-            .send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
-            .await?;
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await.ok();
         Ok(())
     }
 
@@ -309,19 +365,8 @@ impl Miner {
         args: StakeWithdrawArgs,
         stake_args: StakeArgs,
     ) -> Result<(), Error> {
-        match stake_args.pool_url.clone() {
-            None => self.stake_withdraw_solo(args, stake_args).await,
-            Some(ref pool_url) => self.stake_withdraw_pool(args, stake_args, pool_url).await,
-        }
-    }
-
-    async fn stake_withdraw_solo(
-        &self,
-        args: StakeWithdrawArgs,
-        stake_args: StakeArgs,
-    ) -> Result<(), Error> {
         // Parse mint address
-        let mint_address = Pubkey::from_str(&stake_args.mint).unwrap();
+        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
 
         // Get signer
         let signer = self.signer();
@@ -350,21 +395,9 @@ impl Miner {
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(signer.pubkey(), boost_address).0;
-
-        // Fetch boost
-        let Ok(boost_account_data) = self.rpc_client.get_account_data(&boost_address).await else {
-            println!("Failed to fetch boost account");
-            return Ok(());
-        };
-        let _ = Boost::try_from_bytes(&boost_account_data).unwrap();
-
-        // Fetch stake account, if needed
-        let Ok(stake_account_data) = self.rpc_client.get_account_data(&stake_address).await else {
-            println!("Failed to fetch stake account");
-            return Ok(());
-        };
-        let stake = Stake::try_from_bytes(&stake_account_data).unwrap();
-
+        let _boost = get_boost(&self.rpc_client, boost_address).await;
+        let stake = get_stake(&self.rpc_client, stake_address).await.unwrap();
+        
         // Parse amount
         let amount: u64 = if let Some(amount) = args.amount {
             (amount * 10f64.powf(mint.decimals as f64)) as u64
@@ -375,71 +408,114 @@ impl Miner {
         // Send tx
         // TODO: benfeciary should be arg to ix builder
         let ix = ore_boost_api::sdk::withdraw(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false)
             .await
             .ok();
 
         Ok(())
     }
 
-    async fn stake_withdraw_pool(
-        &self,
-        args: StakeWithdrawArgs,
-        stake_args: StakeArgs,
-        pool_url: &String,
-    ) -> Result<(), Error> {
+}
+
+
+impl Miner {
+    async fn stake_migrate(&self, _args: StakeMigrateArgs, _stake_args: StakeArgs) -> Result<(), Error> {
         let signer = self.signer();
-        // build pool client
-        let pool = Pool {
-            http_client: reqwest::Client::new(),
-            pool_url: pool_url.clone(),
+        let pubkey = signer.pubkey();
+
+        // Get boost metadata
+        let boost_mints = [
+            Pubkey::from_str("8H8rPiWW4iTFCfEkSnf7jpqeNpFfvdH9gLouAL3Fe2Zx").unwrap(),
+            Pubkey::from_str("DrSS5RM7zUd9qjUEdDaf31vnDUSbCrMto6mjqTrHFifN").unwrap(),
+            Pubkey::from_str("7G3dfZkSk1HpDGnyL37LMBbPEgT4Ca6vZmZPUyi2syWt").unwrap(),
+            Pubkey::from_str("meUwDp23AaxhiNKaQCyJ2EAF2T4oe1gSkEkGXSRVdZb").unwrap(),
+            Pubkey::from_str("oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp").unwrap(),
+        ];
+        let mut boost_metadatas = HashMap::new();
+        for mint_address in boost_mints {   
+            let mint_account = get_mint(&self.rpc_client, mint_address).await.unwrap();
+            let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
+            let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
+                Ok(metadata_data) => {
+                    if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
+                        format!(" {}", metadata.symbol)
+                    } else {
+                        "".to_string()
+                    }
+                }
+                Err(_) => "".to_string()
+            };
+            boost_metadatas.insert(mint_address, (mint_account, symbol));
         };
-        // parse mint
-        let mint_address = Pubkey::from_str(stake_args.mint.as_str())?;
-        // get beneficiary
-        let beneficiary = match &args.token_account {
-            Some(address) => Pubkey::from_str(&address)?,
-            None => spl_associated_token_account::get_associated_token_address(
-                &signer.pubkey(),
-                &mint_address,
-            ),
-        };
-        // assert that token account exists
-        let Ok(Some(_token_account)) = self.rpc_client.get_token_account(&beneficiary).await else {
-            return Err(Error::Internal("failed to fetch token account".to_string()));
-        };
-        // fetch mint account
-        let mint_data = self.rpc_client.get_account_data(&mint_address).await?;
-        let mint = Mint::unpack(&mint_data)?;
-        // assert that boost account exists
-        let boost_address = boost_pda(mint_address).0;
-        let boost_account_data = self.rpc_client.get_account_data(&boost_address).await?;
-        let _boost = Boost::try_from_bytes(boost_account_data.as_slice())?;
-        // fetch share account
-        let Ok(pool_address) = pool.get_pool_address().await else {
-            println!("Pool not found");
-            return Ok(());
-        };
-        let share = pool
-            .get_staker_onchain(self, pool_address.address, mint_address)
-            .await?;
-        // parse amount
-        let amount: u64 = if let Some(amount) = args.amount {
-            (amount * 10f64.powf(mint.decimals as f64)) as u64
-        } else {
-            share.balance
-        };
-        // send tx
-        let ix = ore_pool_api::sdk::unstake(
-            signer.pubkey(),
-            mint_address,
-            pool_address.address,
-            beneficiary,
-            amount,
-        );
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(100_000), false)
-            .await
-            .ok();
+
+        // Migrate stake from solo accounts
+        let mut ixs = vec![];
+        println!("{}", "Scanning personal stake accounts...".bold().to_string());
+        for mint in boost_mints {
+            let legacy_boost_address = ore_boost_legacy_api::state::boost_pda(mint).0;
+            let legacy_stake_address = ore_boost_legacy_api::state::stake_pda(pubkey, legacy_boost_address).0;
+            let new_boost_address = boost_pda(mint).0;
+            let new_stake_address = stake_pda(pubkey, new_boost_address).0;
+            if let Ok(legacy_stake_account) = get_legacy_stake(&self.rpc_client, legacy_stake_address).await {
+                // println!("{} {}", mint, format!("{}{}", amount_to_ui_amount(legacy_stake_account.balance, boost_metadatas[&mint].0.decimals), boost_metadatas[&mint].1));
+                if legacy_stake_account.balance > 0 {
+                    if ask_confirm(
+                        format!(
+                            "\nFound {}{} tokens in legacy stake account.\nDo you want to migrate this stake to global boosts? [Y/n]",
+                            amount_to_ui_amount(legacy_stake_account.balance, boost_metadatas[&mint].0.decimals).to_string().bold(),
+                            boost_metadatas[&mint].1.bold()
+                        )
+                        .as_str(),
+                    ) {
+                        ixs.push(ore_boost_legacy_api::sdk::withdraw(pubkey, mint, legacy_stake_account.balance));
+                        if self.rpc_client.get_account_data(&new_stake_address).await.is_err() {
+                            ixs.push(ore_boost_api::sdk::open(pubkey, pubkey, mint));
+                        }
+                        ixs.push(ore_boost_api::sdk::deposit(pubkey, mint, legacy_stake_account.balance));
+                        println!("Migrating stake...");
+                        self.send_and_confirm(&ixs, ComputeBudget::Fixed(400_000), false).await.ok();
+                        println!("");
+                    }
+                }
+            }
+        }
+
+        // Migrate stake from pools
+        println!("\n{}", "Scanning pool stake accounts...".bold().to_string());
+        let pools = get_pools(&self.rpc_client).await.unwrap();
+        for (pool_address, pool) in pools {
+            let pool_url = String::from_utf8(pool.url.to_vec()).unwrap_or_default();
+            let pool_url = pool_url.trim_end_matches('\0');
+            for mint in boost_mints {
+                let boost_address = boost_pda(mint).0;
+                let share_address = ore_pool_api::state::share_pda(signer.pubkey(), pool_address, mint).0;
+                if let Ok(share) = get_share(&self.rpc_client, share_address).await {
+                    let new_stake_address = stake_pda(pubkey, boost_address).0;
+                    if share.balance > 0 {
+                        if ask_confirm(
+                            format!(
+                                "\nFound {}{} tokens in pool stake account ({}).\nDo you want to migrate this stake to global boosts? [Y/n]",
+                                amount_to_ui_amount(share.balance, boost_metadatas[&mint].0.decimals).to_string().bold(),
+                                boost_metadatas[&mint].1.bold(),
+                                pool_url
+                            )
+                            .as_str(),
+                        ) {
+                            let beneficiary_address = spl_associated_token_account::get_associated_token_address(&signer.pubkey(), &mint);
+                            ixs.push(ore_pool_api::sdk::unstake(signer.pubkey(), mint, pool_address, beneficiary_address, share.balance));
+                            if self.rpc_client.get_account_data(&new_stake_address).await.is_err() {
+                                ixs.push(ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint));
+                            }
+                            ixs.push(ore_boost_api::sdk::deposit(signer.pubkey(), mint, share.balance));
+                            println!("Migrating stake...");
+                            self.send_and_confirm(&ixs, ComputeBudget::Fixed(400_000), false).await.ok();
+                            println!("");
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
 }

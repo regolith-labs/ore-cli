@@ -8,7 +8,6 @@ use spl_token::amount_to_ui_amount;
 
 use crate::{
     args::ClaimArgs,
-    cu_limits::CU_LIMIT_CLAIM,
     pool::Pool,
     send_and_confirm::ComputeBudget,
     utils::{amount_f64_to_u64, ask_confirm, get_proof_with_authority},
@@ -36,7 +35,7 @@ impl Miner {
     pub async fn claim_from_proof(&self, args: ClaimArgs) {
         let signer = self.signer();
         let pubkey = signer.pubkey();
-        let proof = get_proof_with_authority(&self.rpc_client, pubkey).await;
+        let proof = get_proof_with_authority(&self.rpc_client, pubkey).await.unwrap();
         let mut ixs = vec![];
         let beneficiary = match args.to {
             None => self.initialize_ata(pubkey).await,
@@ -90,7 +89,7 @@ impl Miner {
 
         // Send and confirm
         ixs.push(ore_api::sdk::claim(pubkey, beneficiary, amount));
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(CU_LIMIT_CLAIM), false)
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false)
             .await
             .ok();
     }
@@ -105,10 +104,11 @@ impl Miner {
             .get_pool_member_onchain(self, pool_address.address)
             .await?;
         let mut ixs = vec![];
+
+        // Create beneficiary token account, if needed
         let beneficiary = match args.to {
             None => self.initialize_ata(self.signer().pubkey()).await,
             Some(to) => {
-                // Create beneficiary token account, if needed
                 let wallet = Pubkey::from_str(&to).expect("Failed to parse wallet address");
                 let benefiary_tokens = spl_associated_token_account::get_associated_token_address(
                     &wallet,
@@ -168,7 +168,7 @@ impl Miner {
             .map_err(From::from)
     }
 
-    async fn initialize_ata(&self, wallet: Pubkey) -> Pubkey {
+    pub async fn initialize_ata(&self, wallet: Pubkey) -> Pubkey {
         // Initialize client.
         let signer = self.signer();
         let client = self.rpc_client.clone();

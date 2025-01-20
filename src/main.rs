@@ -1,11 +1,10 @@
 mod args;
-mod balance;
+mod account;
 mod benchmark;
-mod busses;
+#[cfg(feature = "admin")]
+mod checkpoint;
 mod claim;
-mod close;
-mod config;
-mod cu_limits;
+mod program;
 mod dynamic_fee;
 mod error;
 #[cfg(feature = "admin")]
@@ -13,16 +12,13 @@ mod initialize;
 mod mine;
 mod open;
 mod pool;
-mod proof;
-mod rewards;
 mod send_and_confirm;
 mod stake;
 mod transfer;
-mod unstake;
-mod upgrade;
 mod utils;
 
 use futures::StreamExt;
+use mine::{SoloMiningData, PoolMiningData};
 use std::{sync::Arc, sync::RwLock};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
@@ -36,6 +32,11 @@ use solana_sdk::{
 };
 use utils::Tip;
 
+// TODO: Unify balance and proof into "account"
+// TODO: Move balance subcommands to "pool"
+// TODO: Make checkpoint an admin command
+// TODO: Remove boost command
+
 #[derive(Clone)]
 struct Miner {
     pub keypair_filepath: Option<String>,
@@ -46,45 +47,39 @@ struct Miner {
     pub fee_payer_filepath: Option<String>,
     pub jito_client: Arc<RpcClient>,
     pub tip: Arc<std::sync::RwLock<u64>>,
+    pub solo_mining_data: Arc<std::sync::RwLock<Vec<SoloMiningData>>>,
+    pub pool_mining_data: Arc<std::sync::RwLock<Vec<PoolMiningData>>>,
 }
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    #[command(about = "Fetch an account balance")]
-    Balance(BalanceArgs),
+    #[command(about = "Fetch your account details")]
+    Account(AccountArgs),
 
-    #[command(about = "Benchmark your hashpower")]
+    #[command(about = "Benchmark your machine's hashpower")]
     Benchmark(BenchmarkArgs),
 
-    #[command(about = "Fetch the bus account balances")]
-    Busses(BussesArgs),
-
-    #[command(about = "Claim your mining rewards")]
+    #[command(about = "Claim your mining yield")]
     Claim(ClaimArgs),
 
-    #[command(about = "Close your account to recover rent")]
-    Close(CloseArgs),
+    #[command(about = "Fetch onchain global program variables")]
+    Program(ProgramArgs),
 
-    #[command(about = "Fetch the program config")]
-    Config(ConfigArgs),
-
-    #[command(about = "Start mining")]
+    #[command(about = "Start mining on your local machine")]
     Mine(MineArgs),
 
-    #[command(about = "Fetch a proof account by address")]
-    Proof(ProofArgs),
+    #[command(about = "Connect to a mining pool")]
+    Pool(PoolArgs),
 
-    #[command(about = "Fetch the current reward rate for each difficulty level")]
-    Rewards(RewardsArgs),
-
-    #[command(about = "Manage your stake position")]
+    #[command(about = "Manage your stake positions")]
     Stake(StakeArgs),
 
-    #[command(about = "Send ORE to anyone, anywhere in the world")]
+    #[command(about = "Send ORE to another user")]
     Transfer(TransferArgs),
 
-    #[command(about = "Upgrade your ORE tokens from v1 to v2")]
-    Upgrade(UpgradeArgs),
+    #[cfg(feature = "admin")]
+    #[command(about = "Execute checkpoint operation for a boost")]
+    Checkpoint(CheckpointArgs),
 
     #[cfg(feature = "admin")]
     #[command(about = "Initialize the program")]
@@ -185,6 +180,8 @@ async fn main() {
 
     let tip = Arc::new(RwLock::new(0_u64));
     let tip_clone = Arc::clone(&tip);
+    let solo_mining_data = Arc::new(RwLock::new(Vec::new()));
+    let pool_mining_data = Arc::new(RwLock::new(Vec::new()));
 
     if args.jito {
         let url = "ws://bundles-api-rest.jito.wtf/api/v1/bundles/tip_stream";
@@ -214,40 +211,33 @@ async fn main() {
         Some(fee_payer_filepath),
         Arc::new(jito_client),
         tip,
+        solo_mining_data,
+        pool_mining_data,
     ));
 
     // Execute user command.
     match args.command {
-        Commands::Balance(args) => {
-            miner.balance(args).await;
+        Commands::Account(args) => {
+            miner.account(args).await;
         }
         Commands::Benchmark(args) => {
             miner.benchmark(args).await;
-        }
-        Commands::Busses(_) => {
-            miner.busses().await;
         }
         Commands::Claim(args) => {
             if let Err(err) = miner.claim(args).await {
                 println!("{:?}", err);
             }
         }
-        Commands::Close(_) => {
-            miner.close().await;
+        Commands::Pool(args) => {
+            miner.pool(args).await;
         }
-        Commands::Config(_) => {
-            miner.config().await;
+        Commands::Program(_) => {
+            miner.program().await;
         }
         Commands::Mine(args) => {
             if let Err(err) = miner.mine(args).await {
                 println!("{:?}", err);
             }
-        }
-        Commands::Proof(args) => {
-            miner.proof(args).await;
-        }
-        Commands::Rewards(_) => {
-            miner.rewards().await;
         }
         Commands::Stake(args) => {
             miner.stake(args).await;
@@ -255,8 +245,9 @@ async fn main() {
         Commands::Transfer(args) => {
             miner.transfer(args).await;
         }
-        Commands::Upgrade(args) => {
-            miner.upgrade(args).await;
+        #[cfg(feature = "admin")]
+        Commands::Checkpoint(args) => {
+            miner.checkpoint(args).await.unwrap();
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {
@@ -275,6 +266,8 @@ impl Miner {
         fee_payer_filepath: Option<String>,
         jito_client: Arc<RpcClient>,
         tip: Arc<std::sync::RwLock<u64>>,
+        solo_mining_data: Arc<std::sync::RwLock<Vec<SoloMiningData>>>,
+        pool_mining_data: Arc<std::sync::RwLock<Vec<PoolMiningData>>>,
     ) -> Self {
         Self {
             rpc_client,
@@ -285,6 +278,8 @@ impl Miner {
             fee_payer_filepath,
             jito_client,
             tip,
+            solo_mining_data,
+            pool_mining_data,
         }
     }
 

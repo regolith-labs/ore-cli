@@ -1,6 +1,5 @@
 use std::{str::FromStr, time::Duration};
 
-use chrono::Local;
 use colored::*;
 use indicatif::ProgressBar;
 use ore_api::error::OreError;
@@ -229,13 +228,6 @@ impl Miner {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
-                                                    let now = Local::now();
-                                                    let formatted_time =
-                                                        now.format("%Y-%m-%d %H:%M:%S").to_string();
-                                                    progress_bar.println(format!(
-                                                        "  Timestamp: {}",
-                                                        formatted_time
-                                                    ));
                                                     progress_bar.finish_with_message(format!(
                                                         "{} {}",
                                                         "OK".bold().green(),
@@ -266,7 +258,7 @@ impl Miner {
             // Retry
             tokio::time::sleep(Duration::from_millis(GATEWAY_DELAY)).await;
             if attempts > GATEWAY_RETRIES {
-                log_error(&progress_bar, "Max retries", true);
+                // log_error(&progress_bar, "Max retries", true);
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),
@@ -295,7 +287,6 @@ impl Miner {
 
     // TODO
     fn _simulate(&self) {
-
         // Simulate tx
         // let mut sim_attempts = 0;
         // 'simulate: loop {

@@ -1,24 +1,71 @@
 use std::{io::Read, time::Duration};
 
 use cached::proc_macro::cached;
+use chrono::{Local, TimeZone};
+use colored::Colorize;
 use ore_api::{
     consts::{
-        CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TOKEN_DECIMALS_V1, TREASURY_ADDRESS,
+        CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS,
     },
-    state::{Config, Proof, Treasury},
+    state::{Config, Proof, Treasury, Bus},
 };
-use ore_boost_api::state::{Boost, Stake};
+use ore_boost_api::state::{Boost, Stake, Reservation};
+use ore_pool_api::state::{Pool, Member, Share};
 use serde::Deserialize;
-use solana_client::client_error::{ClientError, ClientErrorKind};
+use solana_account_decoder::UiAccountEncoding;
+use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::{RpcProgramAccountsConfig, RpcAccountInfoConfig}};
 use solana_client::nonblocking::rpc_client::RpcClient;
-use solana_program::{pubkey::Pubkey, sysvar};
+use solana_program::{pubkey::Pubkey, sysvar, program_pack::Pack};
 use solana_sdk::{clock::Clock, hash::Hash};
 use spl_associated_token_account::get_associated_token_address;
-use steel::AccountDeserialize;
+use spl_token::state::Mint;
+use steel::{AccountDeserialize, Discriminator};
+use tabled::{Tabled, settings::{object::Rows, style::{BorderColor, LineText}, Color, Border, Highlight, Padding}, Table};
 use tokio::time::sleep;
+
+#[cfg(feature = "admin")]
+use ore_boost_api::state::Checkpoint;
 
 pub const BLOCKHASH_QUERY_RETRIES: usize = 5;
 pub const BLOCKHASH_QUERY_DELAY: u64 = 500;
+
+#[derive(Tabled)]
+pub struct TableData {
+    pub key: String,
+    pub value: String,
+}
+
+pub async fn get_program_accounts<T>(client: &RpcClient, program_id: Pubkey, filters: Vec<RpcFilterType>) -> Result<Vec<(Pubkey, T)>, anyhow::Error> 
+    where T: AccountDeserialize + Discriminator + Clone {
+    let mut all_filters = vec![
+        RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+            0,
+            T::discriminator().to_le_bytes().to_vec(),
+        )),
+    ];
+    all_filters.extend(filters);
+    let accounts = client
+        .get_program_accounts_with_config(
+            &program_id,
+            RpcProgramAccountsConfig {
+                filters: Some(all_filters),
+                account_config: RpcAccountInfoConfig {
+                    encoding: Some(UiAccountEncoding::Base64),
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .await?
+        .into_iter()
+        .map(|(pubkey, account)| {
+            let account = T::try_from_bytes(&account.data).unwrap().clone();
+            (pubkey, account)
+        })
+        .collect();
+
+    Ok(accounts)
+}
 
 pub async fn _get_treasury(client: &RpcClient) -> Treasury {
     let data = client
@@ -26,6 +73,12 @@ pub async fn _get_treasury(client: &RpcClient) -> Treasury {
         .await
         .expect("Failed to get treasury account");
     *Treasury::try_from_bytes(&data).expect("Failed to parse treasury account")
+}
+
+pub async fn get_mint(client: &RpcClient, address: Pubkey) -> Result<Mint, anyhow::Error> {
+    let mint_data = client.get_account_data(&address).await?;
+    let mint = Mint::unpack(&mint_data)?;
+    Ok(mint)
 }
 
 pub async fn get_config(client: &RpcClient) -> Config {
@@ -36,23 +89,87 @@ pub async fn get_config(client: &RpcClient) -> Config {
     *Config::try_from_bytes(&data).expect("Failed to parse config account")
 }
 
-pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Boost {
+pub async fn get_boost(client: &RpcClient, address: Pubkey) -> Result<Boost, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*Boost::try_from_bytes(&data).expect("Failed to parse boost account"))
+}
+
+pub async fn get_boosts(client: &RpcClient) -> Result<Vec<(Pubkey, Boost)>, anyhow::Error> {
+    get_program_accounts::<Boost>(client, ore_boost_api::ID, vec![]).await
+}
+
+pub async fn get_pools(client: &RpcClient) -> Result<Vec<(Pubkey, Pool)>, anyhow::Error> {
+    get_program_accounts::<Pool>(client, ore_pool_api::ID, vec![]).await
+}
+
+
+#[cfg(feature = "admin")]
+pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {
     let data = client
         .get_account_data(&address)
         .await
-        .expect("Failed to get boost account");
-    *Boost::try_from_bytes(&data).expect("Failed to parse boost account")
+        .expect("Failed to get checkpoint account");
+    *Checkpoint::try_from_bytes(&data).expect("Failed to parse checkpoint account")
 }
 
-pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Stake {
+pub async fn get_pool(client: &RpcClient, address: Pubkey) -> Result<Pool, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*Pool::try_from_bytes(&data)?)
+}
+
+pub async fn get_member(client: &RpcClient, address: Pubkey) -> Result<Member, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*Member::try_from_bytes(&data)?)
+}
+
+pub async fn get_stake(client: &RpcClient, address: Pubkey) -> Result<Stake, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*Stake::try_from_bytes(&data)?)
+}
+
+pub async fn get_share(client: &RpcClient, address: Pubkey) -> Result<Share, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*Share::try_from_bytes(&data)?)
+}
+
+pub async fn get_bus(client: &RpcClient, address: Pubkey) -> Bus {
     let data = client
         .get_account_data(&address)
         .await
         .expect("Failed to get stake account");
-    *Stake::try_from_bytes(&data).expect("Failed to parse stake account")
+    *Bus::try_from_bytes(&data).expect("Failed to parse bus account")
 }
 
-pub async fn get_proof_with_authority(client: &RpcClient, authority: Pubkey) -> Proof {
+pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> Result<ore_boost_legacy_api::state::Stake, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    Ok(*ore_boost_legacy_api::state::Stake::try_from_bytes(&data)?)
+}
+
+#[cfg(feature = "admin")]
+pub async fn get_boost_stake_accounts(
+    rpc_client: &RpcClient,
+    boost_address: Pubkey,
+) -> Result<Vec<(Pubkey, Stake)>, anyhow::Error> {
+    let filter =  RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+        48,
+        boost_address.to_bytes().to_vec(),
+    ));
+    get_program_accounts::<Stake>(rpc_client, ore_boost_api::ID, vec![filter]).await
+}
+
+pub async fn get_proof_with_authority(client: &RpcClient, authority: Pubkey) -> Result<Proof, anyhow::Error> {
     let proof_address = proof_pubkey(authority);
     get_proof(client, proof_address).await
 }
@@ -61,23 +178,32 @@ pub async fn get_updated_proof_with_authority(
     client: &RpcClient,
     authority: Pubkey,
     lash_hash_at: i64,
-) -> Proof {
+) -> Result<Proof, anyhow::Error> {
     loop {
-        let proof = get_proof_with_authority(client, authority).await;
-        if proof.last_hash_at.gt(&lash_hash_at) {
-            return proof;
+        if let Ok(proof) = get_proof_with_authority(client, authority).await {
+            if proof.last_hash_at.gt(&lash_hash_at) {
+                return Ok(proof);
+            }
         }
         tokio::time::sleep(Duration::from_millis(1_000)).await;
     }
 }
 
-pub async fn get_proof(client: &RpcClient, address: Pubkey) -> Proof {
+pub async fn get_proof(client: &RpcClient, address: Pubkey) -> Result<Proof, anyhow::Error> {
     let data = client
         .get_account_data(&address)
-        .await
-        .expect("Failed to get proof account");
-    *Proof::try_from_bytes(&data).expect("Failed to parse proof account")
+        .await?;
+    Ok(*Proof::try_from_bytes(&data)?)
 }
+
+pub async fn get_reservation(client: &RpcClient, address: Pubkey) -> Result<Reservation, anyhow::Error> {
+    let data = client
+        .get_account_data(&address)
+        .await?;
+    let reservation = Reservation::try_from_bytes(&data)?;
+    Ok(*reservation)
+}
+
 
 pub async fn get_clock(client: &RpcClient) -> Clock {
     let data = client
@@ -97,10 +223,6 @@ pub fn amount_u64_to_f64(amount: u64) -> f64 {
 
 pub fn amount_f64_to_u64(amount: f64) -> u64 {
     (amount * 10f64.powf(TOKEN_DECIMALS as f64)) as u64
-}
-
-pub fn amount_f64_to_u64_v1(amount: f64) -> u64 {
-    (amount * 10f64.powf(TOKEN_DECIMALS_V1 as f64)) as u64
 }
 
 pub fn ask_confirm(question: &str) -> bool {
@@ -143,6 +265,11 @@ pub async fn get_latest_blockhash_with_retries(
     }
 }
 
+pub fn format_timestamp(timestamp: i64) -> String {
+    let dt = Local.timestamp_opt(timestamp, 0).unwrap();
+    dt.format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
 #[cached]
 pub fn proof_pubkey(authority: Pubkey) -> Pubkey {
     Pubkey::find_program_address(&[PROOF, authority.as_ref()], &ore_api::ID).0
@@ -162,4 +289,20 @@ pub struct Tip {
     pub landed_tips_95th_percentile: f64,
     pub landed_tips_99th_percentile: f64,
     pub ema_landed_tips_50th_percentile: f64,
+}
+
+pub trait TableSectionTitle {
+    fn section_title(&mut self, row: usize, title: &str);
+}
+
+impl TableSectionTitle for Table {
+    fn section_title(&mut self, row: usize, title: &str) {
+        let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
+        self.with(Highlight::new(Rows::single(row)).color(BorderColor::default().top(Color::FG_WHITE)));
+        self.with(Highlight::new(Rows::single(row)).border(Border::new().top('━')));
+        self.with(LineText::new(title, Rows::single(row)).color(title_color.clone()));
+        if row > 0 {
+            self.modify(Rows::single(row - 1), Padding::new(1, 1, 0, 1));
+        }
+    }
 }
