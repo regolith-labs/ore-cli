@@ -163,7 +163,7 @@ pub async fn get_boost_stake_accounts(
     boost_address: Pubkey,
 ) -> Result<Vec<(Pubkey, Stake)>, anyhow::Error> {
     let filter =  RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
-        48,
+        56,
         boost_address.to_bytes().to_vec(),
     ));
     get_program_accounts::<Stake>(rpc_client, ore_boost_api::ID, vec![filter]).await

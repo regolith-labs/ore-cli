@@ -96,8 +96,8 @@ impl Miner {
 
         // Pack instructions for rebase
         let mut ixs = Vec::new();            
-        if checkpoint.total_stakers == 0 || remaining_accounts.is_empty() {
-            // If total stakers is zero, use default stake account
+        if remaining_accounts.is_empty() {
+            // If total stakers is zero, use default account
             ixs.push(ore_boost_api::sdk::rebase(
                 self.signer().pubkey(),
                 mint_address,
@@ -118,7 +118,7 @@ impl Miner {
                     ));
                 }
                 if !ixs.is_empty() {
-                    let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
+                    let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(1_400_000), false)
                         .await?;
                 }
             }

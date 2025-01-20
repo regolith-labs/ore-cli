@@ -16,12 +16,12 @@ use crate::{
 pub struct StakeTableData {
     #[tabled(rename = "Mint")]
     pub mint: String,
-    // #[tabled(rename = "Symbol")]
-    // pub symbol: String,
+    #[tabled(rename = "Symbol")]
+    pub symbol: String,
     #[tabled(rename = "Multiplier")]
     pub multiplier: String,
-    #[tabled(rename = "Expires at")]
-    pub expires_at: String,
+    // #[tabled(rename = "Expires at")]
+    // pub expires_at: String,
     #[tabled(rename = "Stakers")]
     pub total_stakers: String,
     #[tabled(rename = "Deposits")]
@@ -115,7 +115,7 @@ impl Miner {
         let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
             Ok(metadata_data) => {
                 if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
-                    format!(" {} ", metadata.symbol)
+                    format!(" {}", metadata.symbol.trim_end_matches('\0'))
                 } else {
                     " ".to_string()
                 }
@@ -151,7 +151,7 @@ impl Miner {
             data.push(TableData {
                 key: "Deposits".to_string(),
                 value: format!(
-                    "{:.11}{}({:.8}% of total)",
+                    "{}{} ({}% of total)",
                     amount_to_ui_amount(stake.balance, mint.decimals),
                     symbol,
                     (stake.balance as f64 / boost.total_deposits as f64) * 100f64
@@ -160,9 +160,9 @@ impl Miner {
             data.push(TableData {
                 key: "Pending deposits".to_string(),
                 value: format!(
-                    "{}{}({:.8}% of total)",
+                    "{}{} ({}% of total)",
                     amount_to_ui_amount(stake.balance_pending, mint.decimals),
-                    symbol,
+                    symbol.trim_end_matches(' '),
                     (stake.balance_pending as f64 / boost.total_deposits as f64) * 100f64
                 ),
             });
@@ -173,9 +173,9 @@ impl Miner {
             data.push(TableData {
                 key: "Yield".to_string(),
                 value: if stake.rewards > 0 {
-                    format!("{:.11} ORE", amount_u64_to_f64(stake.rewards)).yellow().bold().to_string()
+                    format!("{} ORE", amount_u64_to_f64(stake.rewards)).yellow().bold().to_string()
                 } else {
-                    format!("{:.11} ORE", amount_u64_to_f64(stake.rewards))
+                    format!("{} ORE", amount_u64_to_f64(stake.rewards))
                 },
             });
         } else {
@@ -215,7 +215,7 @@ impl Miner {
         data.push(TableData {
             key: "Pending yield".to_string(),
             value: format!(
-                "{:.11} ORE",
+                "{} ORE",
                 amount_to_ui_amount(boost_proof.balance, ore_api::consts::TOKEN_DECIMALS)
             ),
         });
@@ -243,17 +243,17 @@ impl Miner {
             let stake_address = stake_pda(self.signer().pubkey(), address).0;
             let stake = get_stake(&self.rpc_client, stake_address).await;
             let mint = get_mint(&self.rpc_client, boost.mint).await.unwrap();
-            // let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&boost.mint).0;
-            // let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
-            //     Err(_) => "".to_string(),
-            //     Ok(metadata_data) => {
-            //         if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
-            //             format!("{}", metadata.symbol)
-            //         } else {
-            //             "".to_string()
-            //         }
-            //     }
-            // }.trim().to_string();
+            let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&boost.mint).0;
+            let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
+                Err(_) => "".to_string(),
+                Ok(metadata_data) => {
+                    if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
+                        format!(" {}", metadata.symbol.trim_end_matches('\0'))
+                    } else {
+                        "".to_string()
+                    }
+                }
+            };
 
             // Parse optional stake data
             let (stake_balance, stake_balance_pending, stake_rewards) = if let Ok(stake) = stake {
@@ -266,13 +266,11 @@ impl Miner {
             // Aggregate data
             data.push(StakeTableData {
                 mint: boost.mint.to_string(),
-                // symbol,
+                symbol,
                 multiplier: format!("{}x", boost.multiplier as f64 / BOOST_DENOMINATOR as f64),
-                expires_at: format_timestamp(boost.expires_at),
-                // total_deposits: format!("{:.11}{}", amount_to_ui_amount(boost.total_deposits, mint.decimals), symbol),
+                // expires_at: format_timestamp(boost.expires_at),
                 total_deposits: format!("{}", amount_to_ui_amount(boost.total_deposits, mint.decimals)),
                 total_stakers: boost.total_stakers.to_string(),
-                // my_deposits: format!("{:.11}{}", amount_to_ui_amount(stake_balance, mint.decimals), symbol),
                 my_deposits: format!("{}", amount_to_ui_amount(stake_balance, mint.decimals)),
                 my_pending_deposits: format!("{}", amount_to_ui_amount(stake_balance_pending, mint.decimals)),
                 my_share: if boost.total_deposits > 0 {
@@ -281,9 +279,9 @@ impl Miner {
                     "NaN".to_string()
                 },
                 my_yield: if stake_rewards > 0 {
-                    format!("{:.11}", amount_u64_to_f64(stake_rewards)).yellow().bold().to_string()
+                    format!("{} ORE", amount_u64_to_f64(stake_rewards)).yellow().bold().to_string()
                 } else {
-                    format!("{:.11}", amount_u64_to_f64(stake_rewards))
+                    format!("{} ORE", amount_u64_to_f64(stake_rewards))
                 },
             });
         }
