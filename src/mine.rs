@@ -489,9 +489,8 @@ impl Miner {
     }
 
     async fn fetch_pool_mine_event(&self, pool: &Pool, last_hash_at: i64) {
-        if let Ok(event) = pool.get_latest_pool_event(self.signer().pubkey(), last_hash_at).await {
-            // Add loading row
-            let mining_data = PoolMiningData {
+        let mining_data = if let Ok(event) = pool.get_latest_pool_event(self.signer().pubkey(), last_hash_at).await {
+            PoolMiningData {
                 signature: event.signature.to_string(),
                 block: event.block.to_string(),
                 timestamp: format_timestamp(event.timestamp as i64),
@@ -502,16 +501,29 @@ impl Miner {
                 total_reward: amount_u64_to_string(event.net_reward),
                 my_difficulty: event.member_difficulty.to_string(),
                 my_reward: amount_u64_to_string(event.member_reward).bold().yellow().to_string(),
-            };
-
-            // Add loading row
-            let mut data = self.pool_mining_data.write().unwrap();
-            data.insert(0, mining_data); 
-            if data.len() >= 12 {
-                data.pop();
             }
-            drop(data);
+        } else {
+            PoolMiningData {
+                signature: "Pool server has not upgraded to provide events yet".to_string(),
+                block: "".to_string(),
+                timestamp: "".to_string(),
+                timing: "".to_string(),
+                difficulty: "".to_string(),
+                base_reward: "".to_string(),
+                boost_reward: "".to_string(),
+                total_reward: "".to_string(),
+                my_difficulty: "".to_string(),
+                my_reward: "".to_string(),
+            }
+        };
+
+        // Add row
+        let mut data = self.pool_mining_data.write().unwrap();
+        data.insert(0, mining_data); 
+        if data.len() >= 12 {
+            data.pop();
         }
+        drop(data);
     }
 
     fn update_solo_mining_table(&self) {

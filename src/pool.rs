@@ -168,8 +168,9 @@ impl Miner {
             table.section_title(10, "Member");
         }
         println!("\n{table}\n");
-        println!("Pool operators automatically commit pending rewards to the blockchain at regular intervals. To manually commit your pending rewards now, run the following command:\n\n`ore pool {} commit`\n", pool_url);
-
+        if member.is_ok() {
+            println!("Pool operators automatically commit pending rewards to the blockchain at regular intervals. To manually commit your pending rewards now, run the following command:\n\n`ore pool {} commit`\n", pool_url);
+        }
         Ok(())
     }
 
@@ -223,9 +224,17 @@ impl Pool {
         let get_url = format!("{}/address", self.pool_url);
         let resp = self.http_client.get(get_url).send().await?;
         match resp.error_for_status() {
-            Err(err) => {
-                println!("{:?}", err);
-                Err(err).map_err(From::from)
+            Err(_err) => {
+                // Backwards compatibility
+                let get_url = format!("{}/pool-address", self.pool_url);
+                let resp = self.http_client.get(get_url).send().await?;
+                match resp.error_for_status() {
+                    Err(err) => {
+                        println!("{:?}", err);
+                        Err(err).map_err(From::from)
+                    }
+                    Ok(resp) => resp.json::<PoolAddress>().await.map_err(From::from),
+                }
             }
             Ok(resp) => resp.json::<PoolAddress>().await.map_err(From::from),
         }
@@ -295,10 +304,16 @@ impl Pool {
         loop {
             // Parse pool event
             let resp = self.http_client.get(get_url.clone()).send().await?;
-            if let Ok(resp) = resp.error_for_status() {
-                if let Ok(event) = resp.json::<ore_pool_types::PoolMemberMiningEvent>().await {
-                    if event.last_hash_at as i64 >= last_hash_at {
-                        return Ok(event);
+            match resp.error_for_status() {
+                Err(err) => {
+                    println!("Pool server has not upgraded to provide events yet. {:?}", err);
+                    return Err(Error::Internal("Pool server has not upgraded to provide events yet".to_string())).map_err(From::from);
+                }
+                Ok(resp) => {
+                    if let Ok(event) = resp.json::<ore_pool_types::PoolMemberMiningEvent>().await {
+                        if event.last_hash_at as i64 >= last_hash_at {
+                            return Ok(event);
+                        }
                     }
                 }
             }
@@ -315,7 +330,6 @@ impl Pool {
     pub async fn post_update_balance(&self, miner: &Miner) -> Result<(), Error> {
         let signer = &miner.signer();
         let signer_pubkey = &signer.pubkey();
-        let post_url = format!("{}/commit", self.pool_url);
 
         // fetch offchain member balance
         let member = self.get_pool_member(miner).await?;
@@ -351,6 +365,7 @@ impl Pool {
         };
         
         // post
+        let post_url = format!("{}/commit", self.pool_url);
         let resp = self
             .http_client
             .post(post_url)
@@ -358,9 +373,26 @@ impl Pool {
             .send()
             .await?;
         match resp.error_for_status() {
-            Err(err) => {
-                println!("{:?}", err);
-                Err(err).map_err(From::from)
+            Err(_err) => {
+                // Backwards compatibility
+                let post_url = format!("{}/update-balance", self.pool_url);
+                let resp = self
+                    .http_client
+                    .post(post_url)
+                    .json(&paylaod)
+                    .send()
+                    .await?;
+                match resp.error_for_status() {
+                    Err(err) => {
+                        println!("{:?}", err);
+                        Err(err).map_err(From::from)
+                    }
+                    Ok(resp) => {
+                        let balance_update = resp.json::<BalanceUpdate>().await;
+                        println!("{:?}", balance_update);
+                        Ok(())
+                    },
+                }
             }
             Ok(resp) => {
                 let balance_update = resp.json::<BalanceUpdate>().await;
