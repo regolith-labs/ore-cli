@@ -171,7 +171,6 @@ impl Miner {
         if member.is_ok() {
             println!("Pool operators automatically commit pending rewards to the blockchain at regular intervals. To manually commit your pending rewards now, run the following command:\n\n`ore pool {} commit`\n", pool_url);
         }
-
         Ok(())
     }
 
