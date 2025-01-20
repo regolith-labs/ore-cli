@@ -157,7 +157,6 @@ pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> Result<ore
     Ok(*ore_boost_legacy_api::state::Stake::try_from_bytes(&data)?)
 }
 
-#[cfg(feature = "admin")]
 pub async fn get_boost_stake_accounts(
     rpc_client: &RpcClient,
     boost_address: Pubkey,

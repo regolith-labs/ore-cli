@@ -9,32 +9,10 @@ use spl_token::{amount_to_ui_amount, state::Mint};
 use tabled::{Table, settings::{Style, Color, Remove, object::{Rows, Columns}, Alignment, Highlight, style::BorderColor, Border}, Tabled};
 
 use crate::{
-    args::{StakeArgs, StakeClaimArgs, StakeCommand, StakeDepositArgs, StakeMigrateArgs, StakeWithdrawArgs}, error::Error, send_and_confirm::ComputeBudget, utils::{amount_u64_to_f64, ask_confirm, format_timestamp, get_boost, get_boosts, get_legacy_stake, get_mint, get_pools, get_proof, get_share, get_stake, TableData, TableSectionTitle}, Miner
+    args::{StakeArgs, StakeClaimArgs, StakeCommand, StakeDepositArgs, StakeMigrateArgs, StakeWithdrawArgs}, error::Error, send_and_confirm::ComputeBudget, utils::{amount_u64_to_f64, ask_confirm, format_timestamp, get_boost, get_boost_stake_accounts, get_boosts, get_legacy_stake, get_mint, get_pools, get_proof, get_share, get_stake, TableData, TableSectionTitle}, Miner, StakeAccountsArgs
 };
 
-#[derive(Tabled)]
-pub struct StakeTableData {
-    #[tabled(rename = "Mint")]
-    pub mint: String,
-    #[tabled(rename = "Symbol")]
-    pub symbol: String,
-    #[tabled(rename = "Multiplier")]
-    pub multiplier: String,
-    // #[tabled(rename = "Expires at")]
-    // pub expires_at: String,
-    #[tabled(rename = "Stakers")]
-    pub total_stakers: String,
-    #[tabled(rename = "Deposits")]
-    pub total_deposits: String,
-    #[tabled(rename = "My deposits")]
-    pub my_deposits: String,
-    #[tabled(rename = "My pending deposits")]
-    pub my_pending_deposits: String,
-    #[tabled(rename = "My share")]
-    pub my_share: String,
-    #[tabled(rename = "My yield")]
-    pub my_yield: String,
-}
+
 
 impl Miner {
     pub async fn stake(&self, args: StakeArgs) {
@@ -44,6 +22,7 @@ impl Miner {
                 StakeCommand::Deposit(subargs) => self.stake_deposit(subargs, args).await.unwrap(),
                 StakeCommand::Withdraw(subargs) => self.stake_withdraw(subargs, args).await.unwrap(),
                 StakeCommand::Migrate(subargs) => self.stake_migrate(subargs, args).await.unwrap(),
+                StakeCommand::Accounts(subargs) => self.stake_accounts(subargs, args).await.unwrap(),
             }
         } else {
             if let Some(mint) = args.mint {
@@ -115,7 +94,7 @@ impl Miner {
         let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
             Ok(metadata_data) => {
                 if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
-                    format!(" {}", metadata.symbol.trim_end_matches('\0'))
+                    format!(" {}", metadata.symbol.trim_matches('\0'))
                 } else {
                     " ".to_string()
                 }
@@ -248,7 +227,7 @@ impl Miner {
                 Err(_) => "".to_string(),
                 Ok(metadata_data) => {
                     if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
-                        format!(" {}", metadata.symbol.trim_end_matches('\0'))
+                        format!(" {}", metadata.symbol.trim_matches('\0'))
                     } else {
                         "".to_string()
                     }
@@ -436,7 +415,7 @@ impl Miner {
             let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
                 Ok(metadata_data) => {
                     if let Ok(metadata) = mpl_token_metadata::accounts::Metadata::from_bytes(&metadata_data) {
-                        format!(" {}", metadata.symbol)
+                        format!(" {}", metadata.symbol.trim_matches('\0'))
                     } else {
                         "".to_string()
                     }
@@ -455,7 +434,6 @@ impl Miner {
             let new_boost_address = boost_pda(mint).0;
             let new_stake_address = stake_pda(pubkey, new_boost_address).0;
             if let Ok(legacy_stake_account) = get_legacy_stake(&self.rpc_client, legacy_stake_address).await {
-                // println!("{} {}", mint, format!("{}{}", amount_to_ui_amount(legacy_stake_account.balance, boost_metadatas[&mint].0.decimals), boost_metadatas[&mint].1));
                 if legacy_stake_account.balance > 0 {
                     if ask_confirm(
                         format!(
@@ -516,4 +494,77 @@ impl Miner {
 
         Ok(())
     }
+
+    async fn stake_accounts(&self, _args: StakeAccountsArgs, stake_args: StakeArgs) -> Result<(), Error> {
+        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
+        let boost_address = boost_pda(mint_address).0;
+        let boost = get_boost(&self.rpc_client, boost_address).await.unwrap();
+        let mint_account = get_mint(&self.rpc_client, mint_address).await.unwrap();
+        let stake_accounts = get_boost_stake_accounts(&self.rpc_client, boost_address).await.unwrap();
+        let mut data = vec![];
+        for (stake_address, stake) in stake_accounts {
+            data.push(StakerTableData {
+                address: stake_address.to_string(),
+                authority: stake.authority.to_string(),
+                id: stake.id.to_string(),
+                deposits: format!("{}", amount_to_ui_amount(stake.balance, mint_account.decimals)),
+                deposits_pending: format!("{}", amount_to_ui_amount(stake.balance_pending, mint_account.decimals)),
+                share: if boost.total_deposits > 0 {
+                    format!("{:.8}%", stake.balance as f64 / boost.total_deposits as f64 * 100f64)
+                } else {
+                    "NaN".to_string()
+                },
+                rewards: format!("{} ORE", amount_to_ui_amount(stake.rewards, ore_api::consts::TOKEN_DECIMALS)),
+            });
+        }
+        let mut table = Table::new(data);
+        table.with(Style::blank());
+        table.modify(Rows::first(), Color::BOLD);
+        table.modify(Columns::new(1..), Alignment::right());
+        table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
+        println!("\n{table}\n");
+        Ok(())
+    }
+}
+
+
+#[derive(Tabled)]
+pub struct StakeTableData {
+    #[tabled(rename = "Mint")]
+    pub mint: String,
+    #[tabled(rename = "Symbol")]
+    pub symbol: String,
+    #[tabled(rename = "Multiplier")]
+    pub multiplier: String,
+    #[tabled(rename = "Stakers")]
+    pub total_stakers: String,
+    #[tabled(rename = "Deposits")]
+    pub total_deposits: String,
+    #[tabled(rename = "My deposits")]
+    pub my_deposits: String,
+    #[tabled(rename = "My pending deposits")]
+    pub my_pending_deposits: String,
+    #[tabled(rename = "My share")]
+    pub my_share: String,
+    #[tabled(rename = "My yield")]
+    pub my_yield: String,
+}
+
+#[derive(Tabled)]
+pub struct StakerTableData {
+    #[tabled(rename = "Address")]
+    pub address: String,
+    #[tabled(rename = "Authority")]
+    pub authority: String,
+    #[tabled(rename = "ID")]
+    pub id: String,
+    #[tabled(rename = "Deposits")]
+    pub deposits: String,
+    #[tabled(rename = "Pending deposits")]
+    pub deposits_pending: String,
+    #[tabled(rename = "Share")]
+    pub share: String,
+    #[tabled(rename = "Yield")]
+    pub rewards: String,
 }

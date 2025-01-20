@@ -193,6 +193,9 @@ pub enum StakeCommand {
 
     #[command(about = "Migrate stake from legacy boost accounts to global boosts.")]
     Migrate(StakeMigrateArgs),
+
+    #[command(about = "Get the list of stake accounts in a boost.")]
+    Accounts(StakeAccountsArgs),
 }
 
 #[derive(Parser, Clone, Debug)]
@@ -253,6 +256,11 @@ pub struct StakeMigrateArgs {
     // )]
     // pub pool_url: Option<String>,
 }
+
+#[derive(Parser, Clone, Debug)]
+pub struct StakeAccountsArgs {
+}
+
 
 #[derive(Parser, Debug)]
 pub struct TransferArgs {
