@@ -137,12 +137,11 @@ pub async fn get_share(client: &RpcClient, address: Pubkey) -> Result<Share, any
     Ok(*Share::try_from_bytes(&data)?)
 }
 
-pub async fn get_bus(client: &RpcClient, address: Pubkey) -> Bus {
+pub async fn get_bus(client: &RpcClient, address: Pubkey) -> Result<Bus, anyhow::Error> {
     let data = client
         .get_account_data(&address)
-        .await
-        .expect("Failed to get stake account");
-    *Bus::try_from_bytes(&data).expect("Failed to parse bus account")
+        .await?;
+    Ok(*Bus::try_from_bytes(&data)?)
 }
 
 pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> Result<ore_boost_legacy_api::state::Stake, anyhow::Error> {
@@ -198,15 +197,14 @@ pub async fn get_reservation(client: &RpcClient, address: Pubkey) -> Result<Rese
     Ok(*reservation)
 }
 
-
-pub async fn get_clock(client: &RpcClient) -> Clock {
-    let data = client
-        .get_account_data(&sysvar::clock::ID)
-        .await
-        .expect("Failed to get clock account");
-    bincode::deserialize::<Clock>(&data).expect("Failed to deserialize clock")
+pub async fn get_clock(client: &RpcClient) -> Result<Clock, anyhow::Error> {
+    retry(|| async {
+        let data = client
+            .get_account_data(&sysvar::clock::ID)
+            .await?;
+        Ok(bincode::deserialize::<Clock>(&data)?)
+    }).await
 }
-
 
 pub async fn get_latest_blockhash_with_retries(
     client: &RpcClient,
@@ -235,7 +233,33 @@ pub async fn get_latest_blockhash_with_retries(
     }
 }
 
+pub async fn retry<F, Fut, T>(f: F) -> Result<T, anyhow::Error>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<T, anyhow::Error>>,
+{
+    const MAX_RETRIES: u32 = 8;
+    const INITIAL_BACKOFF: Duration = Duration::from_millis(200);
+    const TIMEOUT: Duration = Duration::from_secs(8);
+    let mut backoff = INITIAL_BACKOFF;
+    for attempt in 0..MAX_RETRIES {
+        match tokio::time::timeout(TIMEOUT, f()).await {
+            Ok(Ok(result)) => return Ok(result),
+            Ok(Err(_)) if attempt < MAX_RETRIES - 1 => {
+                tokio::time::sleep(backoff).await;
+                backoff *= 2; // Exponential backoff
+            }
+            Ok(Err(e)) => return Err(e),
+            Err(_) if attempt < MAX_RETRIES - 1 => {
+                tokio::time::sleep(backoff).await;
+                backoff *= 2; // Exponential backoff
+            }
+            Err(_) => return Err(anyhow::anyhow!("Retry failed")),
+        }
+    }
 
+    Err(anyhow::anyhow!("Retry failed"))
+}
 
 #[derive(Debug, Deserialize)]
 pub struct Tip {

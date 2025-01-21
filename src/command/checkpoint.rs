@@ -35,7 +35,7 @@ impl Miner {
         let checkpoint_address = checkpoint_pda(boost_address).0;
         loop {
             // Get current time and checkpoint data
-            let clock = get_clock(&self.rpc_client).await;
+            let clock = get_clock(&self.rpc_client).await.unwrap();
             let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
             let time_since_last = clock.unix_timestamp - checkpoint.ts;
 
@@ -65,7 +65,7 @@ impl Miner {
         let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
 
         // TODO Check if enough time has passed since last checkpoint
-        let clock = get_clock(&self.rpc_client).await;
+        let clock = get_clock(&self.rpc_client).await.unwrap();
         let time_since_last = clock.unix_timestamp - checkpoint.ts;
         if time_since_last < CHECKPOINT_INTERVAL {
             progress_bar.finish_with_message(format!(

@@ -389,7 +389,7 @@ impl Miner {
     }
 
     async fn should_reset(&self, config: Config) -> bool {
-        let clock = get_clock(&self.rpc_client).await;
+        let clock = get_clock(&self.rpc_client).await.unwrap();
         config
             .last_reset_at
             .saturating_add(EPOCH_DURATION)
@@ -398,7 +398,7 @@ impl Miner {
     }
 
     async fn get_cutoff(&self, last_hash_at: i64, buffer_time: u64) -> u64 {
-        let clock = get_clock(&self.rpc_client).await;
+        let clock = get_clock(&self.rpc_client).await.unwrap();
         last_hash_at
             .saturating_add(60)
             .saturating_sub(buffer_time as i64)

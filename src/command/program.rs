@@ -46,7 +46,7 @@ impl Miner {
 
     async fn fetch_busses_data(&self, data: &mut Vec<TableData>) {
         for address in BUS_ADDRESSES.iter() {
-            let bus = get_bus(&self.rpc_client, *address).await;
+            let bus = get_bus(&self.rpc_client, *address).await.unwrap();
             let rewards = amount_u64_to_f64(bus.rewards);
             data.push(TableData {
                 key: format!("{}", bus.id),
