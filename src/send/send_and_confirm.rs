@@ -1,6 +1,5 @@
 use std::{str::FromStr, time::Duration};
 
-use chrono::Local;
 use colored::*;
 use indicatif::ProgressBar;
 use ore_api::error::OreError;
