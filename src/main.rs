@@ -1,24 +1,10 @@
 mod args;
-mod account;
-mod benchmark;
-#[cfg(feature = "admin")]
-mod checkpoint;
-mod claim;
-mod program;
-mod dynamic_fee;
+mod command;
 mod error;
-#[cfg(feature = "admin")]
-mod initialize;
-mod mine;
-mod open;
-mod pool;
-mod send_and_confirm;
-mod stake;
-mod transfer;
+mod send;
 mod utils;
 
 use futures::StreamExt;
-use mine::{SoloMiningData, PoolMiningData};
 use std::{sync::Arc, sync::RwLock};
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::protocol::Message;
@@ -30,7 +16,7 @@ use solana_sdk::{
     commitment_config::CommitmentConfig,
     signature::{read_keypair_file, Keypair},
 };
-use utils::Tip;
+use utils::{PoolMiningData, SoloMiningData, Tip};
 
 // TODO: Unify balance and proof into "account"
 // TODO: Move balance subcommands to "pool"
@@ -73,6 +59,9 @@ enum Commands {
 
     #[command(about = "Manage your stake positions")]
     Stake(StakeArgs),
+
+    #[command(about = "Fetch details about an ORE transaction")]
+    Transaction(TransactionArgs),
 
     #[command(about = "Send ORE to another user")]
     Transfer(TransferArgs),
@@ -244,6 +233,9 @@ async fn main() {
         }
         Commands::Transfer(args) => {
             miner.transfer(args).await;
+        }
+        Commands::Transaction(args) => {
+            miner.transaction(args).await.unwrap();
         }
         #[cfg(feature = "admin")]
         Commands::Checkpoint(args) => {

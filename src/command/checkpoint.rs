@@ -1,5 +1,4 @@
-use std::str::FromStr;
-use std::time::Duration;
+use std::{str::FromStr, time::Duration};
 
 use anyhow::Error;
 use solana_program::pubkey::Pubkey;
@@ -12,11 +11,12 @@ use tokio::time::sleep;
 
 use crate::{
     args::CheckpointArgs,
-    send_and_confirm::ComputeBudget,
-    Miner, utils::{get_clock, get_boost, get_checkpoint, get_boost_stake_accounts},
+    Miner, 
+    utils::{get_clock, get_boost, get_boost_stake_accounts, get_checkpoint, ComputeBudget},
 };
 
 const MAX_ACCOUNTS_PER_TX: usize = 10;
+const COMPUTE_BUDGET: u32 = 100_000;
 
 impl Miner {
     pub async fn checkpoint(&self, args: CheckpointArgs) -> Result<(), Error> {
@@ -29,11 +29,16 @@ impl Miner {
     }
 
     async fn checkpoint_continuous(&self, args: &CheckpointArgs) -> Result<(), Error> {
+        let mut progress_bar = spinner::new_progress_bar();
         let mint_address = Pubkey::from_str(&args.mint)?;
         let boost_address = boost_pda(mint_address).0;
         let checkpoint_address = checkpoint_pda(boost_address).0;
-        let progress_bar = spinner::new_progress_bar();
         loop {
+            // Restart progress bar
+            if progress_bar.is_finished() {
+                progress_bar = spinner::new_progress_bar();
+            }
+            
             // Get current time and checkpoint data
             let clock = get_clock(&self.rpc_client).await;
             let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
@@ -41,21 +46,20 @@ impl Miner {
 
             // Call checkpoint if needed
             if time_since_last >= CHECKPOINT_INTERVAL {
-                progress_bar.set_message("Checkpointing...");
+                progress_bar.finish_and_clear();
                 let _ = self.checkpoint_once(args).await;
             }
 
             // Sleep for 60 seconds
-            progress_bar.set_message("Waiting...");
+            let mins_remaining = (CHECKPOINT_INTERVAL - time_since_last) / 60;
+            progress_bar.set_message(format!("Waiting... ({} min remaining)", mins_remaining));
             sleep(Duration::from_secs(60)).await;
         }
     }
 
     async fn checkpoint_once(&self, args: &CheckpointArgs) -> Result<(), Error> {
-        let progress_bar = spinner::new_progress_bar();
-        progress_bar.set_message("Checkpointing...");
-
         // Parse mint address
+        let progress_bar = spinner::new_progress_bar();
         let mint_address = Pubkey::from_str(&args.mint)?;
         let boost_address = boost_pda(mint_address).0;
         let checkpoint_address = checkpoint_pda(boost_address).0;
@@ -103,7 +107,8 @@ impl Miner {
                 mint_address,
                 Pubkey::default(),
             ));
-            let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
+            progress_bar.finish_and_clear();
+            let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(COMPUTE_BUDGET), false)
                 .await?;
         } else {
             // Chunk stake accounts into batches
@@ -118,16 +123,12 @@ impl Miner {
                     ));
                 }
                 if !ixs.is_empty() {
-                    let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(1_400_000), false)
+                    progress_bar.finish_and_clear();
+                    let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(COMPUTE_BUDGET), false)
                         .await?;
                 }
             }
         }
-
-        progress_bar.finish_with_message(format!(
-            "{} Checkpoint complete",
-            "SUCCESS".green().bold()
-        ));
 
         Ok(())
     }

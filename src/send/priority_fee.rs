@@ -19,7 +19,7 @@ enum FeeStrategy {
 }
 
 impl Miner {
-    pub async fn dynamic_fee(&self) -> Result<u64, String> {
+    pub async fn get_dynamic_priority_fee(&self) -> Result<u64, String> {
         // Get url
         let rpc_url = self
             .dynamic_fee_url
@@ -136,7 +136,7 @@ impl Miner {
             FeeStrategy::Triton => {
                 serde_json::from_value::<Vec<RpcPrioritizationFee>>(response["result"].clone())
                     .map(|prioritization_fees| {
-                        estimate_prioritization_fee_micro_lamports(prioritization_fees)
+                        estimate_prioritization_fee_microlamports(prioritization_fees)
                     })
                     .or_else(|error: serde_json::Error| {
                         Err(format!(
@@ -215,7 +215,7 @@ impl Miner {
 }
 
 /// Our estimate is the average over the last 20 slots
-pub fn estimate_prioritization_fee_micro_lamports(
+fn estimate_prioritization_fee_microlamports(
     prioritization_fees: Vec<RpcPrioritizationFee>,
 ) -> u64 {
     let prioritization_fees = prioritization_fees

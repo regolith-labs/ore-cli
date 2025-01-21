@@ -9,7 +9,7 @@ use spl_token::{amount_to_ui_amount, state::Mint};
 use tabled::{Table, settings::{Style, Color, Remove, object::{Rows, Columns}, Alignment, Highlight, style::BorderColor, Border}, Tabled};
 
 use crate::{
-    args::{StakeArgs, StakeClaimArgs, StakeCommand, StakeDepositArgs, StakeMigrateArgs, StakeWithdrawArgs}, error::Error, send_and_confirm::ComputeBudget, utils::{amount_u64_to_f64, ask_confirm, format_timestamp, get_boost, get_boost_stake_accounts, get_boosts, get_legacy_stake, get_mint, get_pools, get_proof, get_share, get_stake, TableData, TableSectionTitle}, Miner, StakeAccountsArgs
+    args::{StakeArgs, StakeClaimArgs, StakeCommand, StakeDepositArgs, StakeMigrateArgs, StakeWithdrawArgs}, error::Error, utils::{amount_u64_to_f64, ask_confirm, format_timestamp, get_boost, get_boost_stake_accounts, get_boosts, get_legacy_stake, get_mint, get_pools, get_proof, get_share, get_stake, ComputeBudget, TableData, TableSectionTitle}, Miner, StakeAccountsArgs
 };
 
 
@@ -327,13 +327,13 @@ impl Miner {
         if let Err(_err) = self.rpc_client.get_account_data(&stake_address).await {
             println!("Initializing stake account...");
             let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
-            self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await.ok();
+            self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false).await.ok();
         }
 
         // Send tx
         println!("Depositing stake...");
         let ix = ore_boost_api::sdk::deposit(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false).await.ok();
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false).await.ok();
         Ok(())
     }
 
@@ -385,7 +385,7 @@ impl Miner {
         // Send tx
         // TODO: benfeciary should be arg to ix builder
         let ix = ore_boost_api::sdk::withdraw(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(32_000), false)
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false)
             .await
             .ok();
 

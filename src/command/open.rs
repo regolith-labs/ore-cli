@@ -1,7 +1,8 @@
+use ore_api::state::proof_pda;
 use ore_boost_api::state::reservation_pda;
 use solana_sdk::signature::Signer;
 
-use crate::{send_and_confirm::ComputeBudget, utils::proof_pubkey, Miner};
+use crate::{utils::ComputeBudget, Miner};
 
 impl Miner {
     pub async fn open(&self) {
@@ -9,7 +10,7 @@ impl Miner {
         let mut ixs = Vec::new();
         let signer = self.signer();
         let fee_payer = self.fee_payer();
-        let proof_address = proof_pubkey(signer.pubkey());
+        let proof_address = proof_pda(signer.pubkey()).0;
         if self.rpc_client.get_account(&proof_address).await.is_err() {
             let ix = ore_api::sdk::open(signer.pubkey(), signer.pubkey(), fee_payer.pubkey());
             ixs.push(ix);

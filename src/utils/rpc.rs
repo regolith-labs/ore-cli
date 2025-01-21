@@ -1,13 +1,10 @@
-use std::{io::Read, time::Duration};
+use std::time::Duration;
 
-use cached::proc_macro::cached;
-use chrono::{Local, TimeZone};
-use colored::Colorize;
 use ore_api::{
     consts::{
-        CONFIG_ADDRESS, MINT_ADDRESS, PROOF, TOKEN_DECIMALS, TREASURY_ADDRESS,
+        CONFIG_ADDRESS, TREASURY_ADDRESS,
     },
-    state::{Config, Proof, Treasury, Bus},
+    state::{proof_pda, Bus, Config, Proof, Treasury},
 };
 use ore_boost_api::state::{Boost, Stake, Reservation};
 use ore_pool_api::state::{Pool, Member, Share};
@@ -17,10 +14,8 @@ use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{R
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar, program_pack::Pack};
 use solana_sdk::{clock::Clock, hash::Hash};
-use spl_associated_token_account::get_associated_token_address;
 use spl_token::state::Mint;
 use steel::{AccountDeserialize, Discriminator};
-use tabled::{Tabled, settings::{object::Rows, style::{BorderColor, LineText}, Color, Border, Highlight, Padding}, Table};
 use tokio::time::sleep;
 
 #[cfg(feature = "admin")]
@@ -29,10 +24,10 @@ use ore_boost_api::state::Checkpoint;
 pub const BLOCKHASH_QUERY_RETRIES: usize = 5;
 pub const BLOCKHASH_QUERY_DELAY: u64 = 500;
 
-#[derive(Tabled)]
-pub struct TableData {
-    pub key: String,
-    pub value: String,
+pub enum ComputeBudget {
+    #[allow(dead_code)]
+    Dynamic,
+    Fixed(u32),
 }
 
 pub async fn get_program_accounts<T>(client: &RpcClient, program_id: Pubkey, filters: Vec<RpcFilterType>) -> Result<Vec<(Pubkey, T)>, anyhow::Error> 
@@ -169,7 +164,7 @@ pub async fn get_boost_stake_accounts(
 }
 
 pub async fn get_proof_with_authority(client: &RpcClient, authority: Pubkey) -> Result<Proof, anyhow::Error> {
-    let proof_address = proof_pubkey(authority);
+    let proof_address = proof_pda(authority).0;
     get_proof(client, proof_address).await
 }
 
@@ -212,30 +207,6 @@ pub async fn get_clock(client: &RpcClient) -> Clock {
     bincode::deserialize::<Clock>(&data).expect("Failed to deserialize clock")
 }
 
-pub fn amount_u64_to_string(amount: u64) -> String {
-    amount_u64_to_f64(amount).to_string()
-}
-
-pub fn amount_u64_to_f64(amount: u64) -> f64 {
-    (amount as f64) / 10f64.powf(TOKEN_DECIMALS as f64)
-}
-
-pub fn amount_f64_to_u64(amount: f64) -> u64 {
-    (amount * 10f64.powf(TOKEN_DECIMALS as f64)) as u64
-}
-
-pub fn ask_confirm(question: &str) -> bool {
-    println!("{}", question);
-    loop {
-        let mut input = [0];
-        let _ = std::io::stdin().read(&mut input);
-        match input[0] as char {
-            'y' | 'Y' => return true,
-            'n' | 'N' => return false,
-            _ => println!("y/n only please."),
-        }
-    }
-}
 
 pub async fn get_latest_blockhash_with_retries(
     client: &RpcClient,
@@ -264,20 +235,7 @@ pub async fn get_latest_blockhash_with_retries(
     }
 }
 
-pub fn format_timestamp(timestamp: i64) -> String {
-    let dt = Local.timestamp_opt(timestamp, 0).unwrap();
-    dt.format("%Y-%m-%d %H:%M:%S").to_string()
-}
 
-#[cached]
-pub fn proof_pubkey(authority: Pubkey) -> Pubkey {
-    Pubkey::find_program_address(&[PROOF, authority.as_ref()], &ore_api::ID).0
-}
-
-#[cached]
-pub fn treasury_tokens_pubkey() -> Pubkey {
-    get_associated_token_address(&TREASURY_ADDRESS, &MINT_ADDRESS)
-}
 
 #[derive(Debug, Deserialize)]
 pub struct Tip {
@@ -288,20 +246,4 @@ pub struct Tip {
     pub landed_tips_95th_percentile: f64,
     pub landed_tips_99th_percentile: f64,
     pub ema_landed_tips_50th_percentile: f64,
-}
-
-pub trait TableSectionTitle {
-    fn section_title(&mut self, row: usize, title: &str);
-}
-
-impl TableSectionTitle for Table {
-    fn section_title(&mut self, row: usize, title: &str) {
-        let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
-        self.with(Highlight::new(Rows::single(row)).color(BorderColor::default().top(Color::FG_WHITE)));
-        self.with(Highlight::new(Rows::single(row)).border(Border::new().top('━')));
-        self.with(LineText::new(title, Rows::single(row)).color(title_color.clone()));
-        if row > 0 {
-            self.modify(Rows::single(row - 1), Padding::new(1, 1, 0, 1));
-        }
-    }
 }

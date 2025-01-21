@@ -14,7 +14,7 @@ use solana_sdk::{
 use steel::AccountDeserialize;
 use tabled::{Table, settings::{Remove, object::{Rows, Columns}, Alignment, Style, Color, Highlight, style::BorderColor, Border}, Tabled};
 
-use crate::{error::Error, send_and_confirm::ComputeBudget, Miner, args::{PoolArgs, PoolCommitArgs, PoolCommand}, utils::{self, get_pool, TableData, format_timestamp, get_member, get_proof, amount_u64_to_f64, TableSectionTitle, get_pools}};
+use crate::{args::{PoolArgs, PoolCommand, PoolCommitArgs}, error::Error, utils::{self, amount_u64_to_f64, format_timestamp, get_member, get_pool, get_pools, get_proof, ComputeBudget, TableData, TableSectionTitle}, Miner};
 
 impl Miner {
     // TODO

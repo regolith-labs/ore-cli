@@ -1,5 +1,6 @@
 use std::{str::FromStr, time::Duration};
 
+use chrono::Local;
 use colored::*;
 use indicatif::ProgressBar;
 use ore_api::error::OreError;
@@ -23,7 +24,7 @@ use solana_sdk::{
 };
 use solana_transaction_status::{TransactionConfirmationStatus, UiTransactionEncoding};
 
-use crate::utils::get_latest_blockhash_with_retries;
+use crate::utils::{get_latest_blockhash_with_retries, ComputeBudget};
 use crate::Miner;
 
 const MIN_SOL_BALANCE: f64 = 0.005;
@@ -35,12 +36,6 @@ const CONFIRM_RETRIES: usize = 8;
 
 const CONFIRM_DELAY: u64 = 500;
 const GATEWAY_DELAY: u64 = 0;
-
-pub enum ComputeBudget {
-    #[allow(dead_code)]
-    Dynamic,
-    Fixed(u32),
-}
 
 impl Miner {
     pub async fn send_and_confirm(
@@ -126,7 +121,7 @@ impl Miner {
             if attempts % 10 == 0 {
                 // Reset the compute unit price
                 if self.dynamic_fee {
-                    let fee = match self.dynamic_fee().await {
+                    let fee = match self.get_dynamic_priority_fee().await {
                         Ok(fee) => {
                             progress_bar.println(format!("  Priority fee: {} microlamports", fee));
                             fee
@@ -228,6 +223,13 @@ impl Miner {
                                                 TransactionConfirmationStatus::Processed => {}
                                                 TransactionConfirmationStatus::Confirmed
                                                 | TransactionConfirmationStatus::Finalized => {
+                                                    let now = Local::now();
+                                                    let formatted_time =
+                                                        now.format("%Y-%m-%d %H:%M:%S").to_string();
+                                                    progress_bar.println(format!(
+                                                        "  Timestamp: {}",
+                                                        formatted_time
+                                                    ));
                                                     progress_bar.finish_with_message(format!(
                                                         "{} {}",
                                                         "OK".bold().green(),
@@ -258,7 +260,7 @@ impl Miner {
             // Retry
             tokio::time::sleep(Duration::from_millis(GATEWAY_DELAY)).await;
             if attempts > GATEWAY_RETRIES {
-                // log_error(&progress_bar, "Max retries", true);
+                log_error(&progress_bar, "Max retries", true);
                 return Err(ClientError {
                     request: None,
                     kind: ClientErrorKind::Custom("Max retries".into()),
@@ -287,6 +289,7 @@ impl Miner {
 
     // TODO
     fn _simulate(&self) {
+
         // Simulate tx
         // let mut sim_attempts = 0;
         // 'simulate: loop {

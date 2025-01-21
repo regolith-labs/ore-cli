@@ -179,7 +179,6 @@ pub struct StakeArgs {
     pub mint: Option<String>,
 }
 
-// TODO Rename to boost?
 #[derive(Subcommand, Clone, Debug)]
 pub enum StakeCommand {
     #[command(about = "Claim rewards from a stake account.")]
@@ -247,20 +246,19 @@ pub struct StakeWithdrawArgs {
 }
 
 #[derive(Parser, Clone, Debug)]
-pub struct StakeMigrateArgs {
-    // #[arg(
-    //     long,
-    //     short,
-    //     value_name = "POOL_URL",
-    //     help = "The pool to migrate stake from."
-    // )]
-    // pub pool_url: Option<String>,
-}
+pub struct StakeMigrateArgs {}
 
 #[derive(Parser, Clone, Debug)]
-pub struct StakeAccountsArgs {
-}
+pub struct StakeAccountsArgs {}
 
+#[derive(Parser, Debug)]
+pub struct TransactionArgs {
+    #[arg(
+        value_name = "SIGNATURE",
+        help = "The signature of the transaction."
+    )]
+    pub signature: String,
+}
 
 #[derive(Parser, Debug)]
 pub struct TransferArgs {

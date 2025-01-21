@@ -8,9 +8,9 @@ use spl_token::amount_to_ui_amount;
 use tabled::{Table, settings::{Style, Remove, object::{Rows, Columns}, Alignment}};
 
 use crate::{
-    args::{AccountArgs, AccountCommand, ClaimArgs, AccountCloseArgs},
-    utils::{get_proof, format_timestamp, get_proof_with_authority, ask_confirm, TableData, TableSectionTitle, amount_u64_to_f64},
-    Miner, send_and_confirm::ComputeBudget,
+    args::{AccountArgs, AccountCloseArgs, AccountCommand, ClaimArgs},
+    utils::{amount_u64_to_f64, ask_confirm, format_timestamp, get_proof, get_proof_with_authority, ComputeBudget, TableData, TableSectionTitle},
+    Miner,
 };
 
 impl Miner {

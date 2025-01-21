@@ -8,11 +8,11 @@ use spl_token::amount_to_ui_amount;
 
 use crate::{
     args::ClaimArgs,
-    pool::Pool,
-    send_and_confirm::ComputeBudget,
-    utils::{amount_f64_to_u64, ask_confirm, get_proof_with_authority},
+    utils::{amount_f64_to_u64, ask_confirm, get_proof_with_authority, ComputeBudget},
     Miner,
 };
+
+use super::pool::Pool;
 
 impl Miner {
     pub async fn claim(&self, args: ClaimArgs) -> Result<(), crate::error::Error> {

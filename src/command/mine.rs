@@ -22,19 +22,18 @@ use solana_rpc_client::spinner;
 use solana_sdk::{signer::Signer, signature::Signature};
 use solana_transaction_status::{UiTransactionEncoding, option_serializer::OptionSerializer};
 use steel::AccountDeserialize;
-use tabled::{Table, Tabled, settings::{Style, Color, object::{Columns, Rows}, Alignment, Highlight, style::BorderColor, Border}};
+use tabled::{Table, settings::{Style, Color, object::{Columns, Rows}, Alignment, Highlight, style::BorderColor, Border}};
 
 use crate::{
     args::MineArgs,
     error::Error,
-    pool::Pool,
-    send_and_confirm::ComputeBudget,
     utils::{
-        amount_u64_to_string, get_clock, get_config,
-        get_updated_proof_with_authority, proof_pubkey, get_reservation, format_timestamp,
+        amount_u64_to_string, format_duration, format_timestamp, get_clock, get_config, get_reservation, get_updated_proof_with_authority, ComputeBudget, PoolMiningData, SoloMiningData
     },
     Miner,
 };
+
+use super::pool::Pool;
 
 impl Miner {
     pub async fn mine(&self, args: MineArgs) -> Result<(), Error> {
@@ -105,7 +104,7 @@ impl Miner {
             .await;
 
             // Build instruction set
-            let mut ixs = vec![ore_api::sdk::auth(proof_pubkey(signer.pubkey()))];
+            let mut ixs = vec![ore_api::sdk::auth(proof_pda(signer.pubkey()).0)];
             let mut compute_budget = 750_000;
 
             // Check for reset
@@ -553,87 +552,4 @@ impl Miner {
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
         println!("\n{}\n", table);
     }
-}
-
-fn format_duration(seconds: u32) -> String {
-    let minutes = seconds / 60;
-    let remaining_seconds = seconds % 60;
-    format!("{:02}:{:02}", minutes, remaining_seconds)
-}
-
-#[derive(Clone, Tabled)]
-pub struct SoloMiningData {
-    #[tabled(rename = "Signature")]
-    signature: String,
-    #[tabled(rename = "Block")]
-    block: String,
-    #[tabled(rename = "Timestamp")]
-    timestamp: String,
-    #[tabled(rename = "Timing")]
-    timing: String,
-    #[tabled(rename = "Score")]
-    difficulty: String,
-    #[tabled(rename = "Base Reward")]
-    base_reward: String,
-    #[tabled(rename = "Boost Reward")]
-    boost_reward: String,
-    #[tabled(rename = "Total Reward")]
-    total_reward: String,
-    #[tabled(rename = "Status")]
-    status: String,
-}
-
-impl SoloMiningData {
-    fn fetching(sig: Signature) -> Self {
-        Self {
-            signature: sig.to_string(),
-            block: "–".to_string(),
-            timestamp: "–".to_string(),
-            difficulty: "–".to_string(),
-            base_reward: "–".to_string(),
-            boost_reward: "–".to_string(),
-            total_reward: "–".to_string(),
-            timing: "–".to_string(),
-            status: "Fetching".to_string(),
-        }
-    }
-
-    fn failed() -> Self {
-        Self {
-            signature: "–".to_string(),
-            block: "–".to_string(),
-            timestamp: "–".to_string(),
-            difficulty: "–".to_string(),
-            base_reward: "–".to_string(),
-            boost_reward: "–".to_string(),
-            total_reward: "–".to_string(),
-            timing: "–".to_string(),
-            status: "Failed".bold().red().to_string(),
-        }
-    }
-}
-
-
-#[derive(Clone, Tabled)]
-pub struct PoolMiningData {
-    #[tabled(rename = "Signature")]
-    signature: String,
-    #[tabled(rename = "Block")]
-    block: String,
-    #[tabled(rename = "Timestamp")]
-    timestamp: String,
-    #[tabled(rename = "Timing")]
-    timing: String,
-    #[tabled(rename = "Score")]
-    difficulty: String,
-    #[tabled(rename = "Pool Base Reward")]
-    base_reward: String,
-    #[tabled(rename = "Pool Boost Reward")]
-    boost_reward: String,
-    #[tabled(rename = "Pool Total Reward")]
-    total_reward: String,
-    #[tabled(rename = "My Score")]
-    my_difficulty: String,
-    #[tabled(rename = "My Reward")]
-    my_reward: String,
 }
