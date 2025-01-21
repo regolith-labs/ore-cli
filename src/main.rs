@@ -45,17 +45,25 @@ enum Commands {
     #[command(about = "Benchmark your machine's hashpower")]
     Benchmark(BenchmarkArgs),
 
+    #[cfg(feature = "admin")]
+    #[command(about = "Execute checkpoint operation for a boost")]
+    Checkpoint(CheckpointArgs),
+
     #[command(about = "Claim your mining yield")]
     Claim(ClaimArgs),
 
-    #[command(about = "Fetch onchain global program variables")]
-    Program(ProgramArgs),
+    #[cfg(feature = "admin")]
+    #[command(about = "Initialize the program")]
+    Initialize(InitializeArgs),
 
     #[command(about = "Start mining on your local machine")]
     Mine(MineArgs),
 
     #[command(about = "Connect to a mining pool")]
     Pool(PoolArgs),
+
+    #[command(about = "Fetch onchain global program variables")]
+    Program(ProgramArgs),
 
     #[command(about = "Manage your stake positions")]
     Stake(StakeArgs),
@@ -65,14 +73,6 @@ enum Commands {
 
     #[command(about = "Send ORE to another user")]
     Transfer(TransferArgs),
-
-    #[cfg(feature = "admin")]
-    #[command(about = "Execute checkpoint operation for a boost")]
-    Checkpoint(CheckpointArgs),
-
-    #[cfg(feature = "admin")]
-    #[command(about = "Initialize the program")]
-    Initialize(InitializeArgs),
 }
 
 #[derive(Parser, Debug)]
