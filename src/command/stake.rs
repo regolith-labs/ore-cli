@@ -347,6 +347,8 @@ impl Miner {
 
         // Get signer
         let signer = self.signer();
+
+        // Get beneficiary token account
         let beneficiary = match &args.token_account {
             Some(address) => {
                 Pubkey::from_str(&address).expect("Failed to parse token account address")
@@ -357,12 +359,20 @@ impl Miner {
             ),
         };
 
-        // Get token account
-        let Ok(Some(_token_account)) = self.rpc_client.get_token_account(&beneficiary).await else {
-            println!("Failed to fetch token account");
-            return Ok(());
+        // Create token account if necessary
+        let mut ixs = vec![];
+        if self.rpc_client.get_token_account(&beneficiary).await.is_err() {
+            ixs.push(
+                spl_associated_token_account::instruction::create_associated_token_account(
+                    &signer.pubkey(),
+                    &signer.pubkey(),
+                    &mint_address,
+                    &spl_token::id(),
+                ),
+            );
         };
 
+        // Get mint account
         let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
             println!("Failed to fetch mint address");
             return Ok(());
@@ -383,9 +393,8 @@ impl Miner {
         };
 
         // Send tx
-        // TODO: benfeciary should be arg to ix builder
-        let ix = ore_boost_api::sdk::withdraw(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false)
+        ixs.push(ore_boost_api::sdk::withdraw(signer.pubkey(), mint_address, amount));
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
             .await
             .ok();
 
