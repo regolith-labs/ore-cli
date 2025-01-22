@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use colored::Colorize;
 use ore_api::{
     consts::{
         CONFIG_ADDRESS, TREASURY_ADDRESS,
@@ -10,7 +11,7 @@ use ore_boost_api::state::{Boost, Stake, Reservation};
 use ore_pool_api::state::{Pool, Member, Share};
 use serde::Deserialize;
 use solana_account_decoder::UiAccountEncoding;
-use solana_client::{client_error::{ClientError, ClientErrorKind}, rpc_filter::{RpcFilterType, Memcmp}, rpc_config::{RpcProgramAccountsConfig, RpcAccountInfoConfig}};
+use solana_client::{client_error::{reqwest::StatusCode, ClientError, ClientErrorKind}, rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig}, rpc_filter::{Memcmp, RpcFilterType}};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar, program_pack::Pack};
 use solana_sdk::{clock::Clock, hash::Hash};
@@ -39,7 +40,7 @@ pub async fn get_program_accounts<T>(client: &RpcClient, program_id: Pubkey, fil
         )),
     ];
     all_filters.extend(filters);
-    let accounts = client
+    let result = client
         .get_program_accounts_with_config(
             &program_id,
             RpcProgramAccountsConfig {
@@ -51,15 +52,38 @@ pub async fn get_program_accounts<T>(client: &RpcClient, program_id: Pubkey, fil
                 ..Default::default()
             },
         )
-        .await?
-        .into_iter()
-        .map(|(pubkey, account)| {
-            let account = T::try_from_bytes(&account.data).unwrap().clone();
-            (pubkey, account)
-        })
-        .collect();
+        .await;
 
-    Ok(accounts)
+
+    match result {
+        Ok(accounts) => {
+            let accounts = accounts.into_iter()
+                .map(|(pubkey, account)| {
+                    let account = T::try_from_bytes(&account.data).unwrap().clone();
+                    (pubkey, account)
+                })
+                .collect();
+            Ok(accounts)
+        },
+        Err(err) => {
+            match err.kind {
+                ClientErrorKind::Reqwest(err) => {
+                    if let Some(status_code) = err.status() {
+                        if status_code == StatusCode::GONE {
+                            panic!(
+                                "\n{} Your RPC provider does not support the getProgramAccounts endpoint, needed to execute this command. Please use a different RPC provider.\n",
+                                "ERROR".bold().red().to_string()
+                            );
+                        }
+                    }
+                    return Err(anyhow::anyhow!("Failed to get program accounts: {}", err));
+                }
+                _ => return Err(anyhow::anyhow!("Failed to get program accounts: {}", err)),
+            }
+        }
+    }
+
+    
 }
 
 pub async fn _get_treasury(client: &RpcClient) -> Treasury {
