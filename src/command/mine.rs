@@ -168,6 +168,9 @@ impl Miner {
         let pool_member = pool.post_pool_register(self).await?;
         let nonce_index = pool_member.id as u64;
 
+        // Get device id
+        let device_id = args.device_id.unwrap_or(0);
+
         // Check num threads
         self.check_num_cores(args.cores);
 
@@ -211,11 +214,12 @@ impl Miner {
             let member_search_space_size = u64::MAX.saturating_div(num_total_members);
             let device_search_space_size = member_search_space_size.saturating_div(member_challenge.num_devices as u64);
 
-            // Calculate bounds on 
-            if member_challenge.device_id.gt(&member_challenge.num_devices) {
+            // Check device id doesn't go beyond pool limit
+            if (device_id as u8) > member_challenge.num_devices {
                 return Err(Error::TooManyDevices);
             }
-            let device_id = member_challenge.device_id.saturating_sub(1) as u64;
+
+            // Calculate bounds on nonce space
             let left_bound =
                 member_search_space_size.saturating_mul(nonce_index) + device_id.saturating_mul(device_search_space_size);
 
