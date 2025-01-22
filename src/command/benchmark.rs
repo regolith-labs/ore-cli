@@ -19,7 +19,7 @@ impl Miner {
             "Benchmarking. This will take {} sec...",
             TEST_DURATION
         ));
-        let core_ids = core_affinity::get_core_ids().unwrap();
+        let core_ids = core_affinity::get_core_ids().expect("Failed to fetch core count");
         let handles: Vec<_> = core_ids
             .into_iter()
             .map(|i| {

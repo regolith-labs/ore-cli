@@ -33,7 +33,7 @@ impl Miner {
     }
 
     async fn list_pools(&self, _args: PoolArgs) -> Result<(), Error> {
-        let pools = get_pools(&self.rpc_client).await.unwrap();
+        let pools = get_pools(&self.rpc_client).await.expect("Failed to fetch pool accounts");
         let mut data = vec![];
         for (pool_address, pool) in pools {
             let url = String::from_utf8(pool.url.to_vec()).unwrap_or_default();
@@ -82,7 +82,7 @@ impl Miner {
 
         // Fetch pool account
         let pool_address = pool.get_pool_address().await?.address;
-        let pool_account = get_pool(&self.rpc_client, pool_address).await.unwrap();
+        let pool_account = get_pool(&self.rpc_client, pool_address).await.expect("Failed to fetch pool account");
 
         // Aggregate table data
         let mut data = vec![];
@@ -101,7 +101,7 @@ impl Miner {
 
         // Get proof account
         let proof_address = proof_pda(pool_address).0;
-        let proof = get_proof(&self.rpc_client, proof_address).await.unwrap();
+        let proof = get_proof(&self.rpc_client, proof_address).await.expect("Failed to fetch proof account");
         data.push(TableData {
             key: "Address".to_string(),
             value: proof_address.to_string(),

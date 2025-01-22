@@ -12,7 +12,7 @@ use crate::{error::Error, utils::{amount_u64_to_string, format_timestamp, TableD
 impl Miner {
     pub async fn transaction(&self, args: TransactionArgs) -> Result<(), Error> {
         let signature = args.signature;
-        let signature = Signature::from_str(&signature).unwrap();
+        let signature = Signature::from_str(&signature).expect("Failed to parse signature");
         match self.rpc_client.get_transaction(&signature, UiTransactionEncoding::Json).await {
             Ok(tx) => {
                 let mut data = vec![];

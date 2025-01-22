@@ -46,7 +46,7 @@ impl Miner {
 
     async fn fetch_busses_data(&self, data: &mut Vec<TableData>) {
         for address in BUS_ADDRESSES.iter() {
-            let bus = get_bus(&self.rpc_client, *address).await.unwrap();
+            let bus = get_bus(&self.rpc_client, *address).await.expect("Failed to fetch bus account");
             let rewards = amount_u64_to_f64(bus.rewards);
             data.push(TableData {
                 key: format!("{}", bus.id),
@@ -74,7 +74,9 @@ impl Miner {
         let token_balance =  self
             .rpc_client
             .get_token_account(&TREASURY_TOKENS_ADDRESS)
-            .await.unwrap().unwrap();
+            .await
+            .expect("Failed to fetch treasury tokens account")
+            .expect("Failed to fetch treasury tokens account");
         data.push(TableData {
             key: "Address".to_string(),
             value: TREASURY_ADDRESS.to_string(),

@@ -35,7 +35,7 @@ impl Miner {
     pub async fn claim_from_proof(&self, args: ClaimArgs) {
         let signer = self.signer();
         let pubkey = signer.pubkey();
-        let proof = get_proof_with_authority(&self.rpc_client, pubkey).await.unwrap();
+        let proof = get_proof_with_authority(&self.rpc_client, pubkey).await.expect("Failed to fetch proof account");
         let mut ixs = vec![];
         let beneficiary = match args.to {
             None => self.initialize_ata(pubkey).await,

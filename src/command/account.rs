@@ -71,7 +71,7 @@ impl Miner {
         };
 
         // Get SOL balance
-        let sol_balance = self.rpc_client.get_balance(&authority).await.unwrap();
+        let sol_balance = self.rpc_client.get_balance(&authority).await.expect("Failed to fetch SOL balance");
 
         // Aggregate data
         data.push(TableData {
@@ -138,7 +138,7 @@ impl Miner {
     async fn close(&self, _args: AccountCloseArgs) {
         // Confirm proof exists
         let signer = self.signer();
-        let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await.unwrap();
+        let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await.expect("Failed to fetch proof account");
 
         // Confirm the user wants to close.
         if !ask_confirm(

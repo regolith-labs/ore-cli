@@ -73,7 +73,7 @@ impl Miner {
                 &self.rpc_client, 
                 signer.pubkey(), 
                 last_hash_at
-            ).await.unwrap();
+            ).await.expect("Failed to fetch proof account");
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
             // Log mining table
@@ -268,7 +268,7 @@ impl Miner {
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
 
         progress_bar.set_message("Mining...");
-        let core_ids = core_affinity::get_core_ids().unwrap();
+        let core_ids = core_affinity::get_core_ids().expect("Failed to fetch core count");
         let core_ids = core_ids.into_iter().filter(|id| id.id < (cores as usize));
         let handles: Vec<_> = core_ids
             .map(|i| {
@@ -393,7 +393,7 @@ impl Miner {
     }
 
     async fn should_reset(&self, config: Config) -> bool {
-        let clock = get_clock(&self.rpc_client).await.unwrap();
+        let clock = get_clock(&self.rpc_client).await.expect("Failed to fetch clock account");
         config
             .last_reset_at
             .saturating_add(EPOCH_DURATION)
@@ -402,7 +402,7 @@ impl Miner {
     }
 
     async fn get_cutoff(&self, last_hash_at: i64, buffer_time: u64) -> u64 {
-        let clock = get_clock(&self.rpc_client).await.unwrap();
+        let clock = get_clock(&self.rpc_client).await.expect("Failed to fetch clock account");
         last_hash_at
             .saturating_add(60)
             .saturating_sub(buffer_time as i64)

@@ -11,15 +11,8 @@ impl Miner {
         }
 
         // Submit initialize tx
-        let blockhash = self.rpc_client.get_latest_blockhash().await.unwrap();
         let ix = ore_api::sdk::initialize(self.signer().pubkey());
-        let tx = Transaction::new_signed_with_payer(
-            &[ix],
-            Some(&self.signer().pubkey()),
-            &[&self.signer()],
-            blockhash,
-        );
-        let res = self.rpc_client.send_and_confirm_transaction(&tx).await;
-        println!("{:?}", res);
+        let _ = self.send_and_confirm(&[ix], ComputeBudget::Fixed(500_000), false)
+                        .await?;
     }
 }
