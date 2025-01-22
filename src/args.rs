@@ -133,6 +133,14 @@ pub struct MineArgs {
     #[arg(
         long,
         short,
+        value_name = "DEVICE_ID",
+        help = "An optional device id to use for pool mining (max 5 devices per keypair)."
+    )]
+    pub device_id: Option<u64>,
+
+    #[arg(
+        long,
+        short,
         value_name = "POOL_URL",
         help = "The optional pool url to join and forward solutions to."
     )]
