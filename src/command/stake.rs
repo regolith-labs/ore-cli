@@ -36,7 +36,8 @@ impl Miner {
     async fn stake_claim(&self, claim_args: StakeClaimArgs, stake_args: StakeArgs) -> Result<(), Error> {
         let signer = self.signer();
         let pubkey = signer.pubkey();
-        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
+        let mint_str= stake_args.mint.expect("Mint address is required");
+        let mint_address = Pubkey::from_str(&mint_str).expect("Failed to parse mint address");
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(pubkey, boost_address).0;
 
@@ -64,7 +65,7 @@ impl Miner {
         };
 
         // Get stake account data to check rewards balance
-        let stake = get_stake(&self.rpc_client, stake_address).await.unwrap();
+        let stake = get_stake(&self.rpc_client, stake_address).await.expect("Failed to fetch stake account");
 
         // Build claim instruction with amount or max rewards
         ixs.push(ore_boost_api::sdk::claim(
@@ -85,11 +86,11 @@ impl Miner {
 
     async fn stake_get(&self, mint: String) -> Result<(), Error> {
         // Fetch onchain data
-        let mint_address = Pubkey::from_str(&mint).unwrap();
+        let mint_address = Pubkey::from_str(&mint).expect("Failed to parse mint address");
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
-        let boost = get_boost(&self.rpc_client, boost_address).await.unwrap();
-        let mint = get_mint(&self.rpc_client, mint_address).await.unwrap();
+        let boost = get_boost(&self.rpc_client, boost_address).await.expect("Failed to fetch boost account");
+        let mint = get_mint(&self.rpc_client, mint_address).await.expect("Failed to fetch mint account");
         let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
         let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
             Ok(metadata_data) => {
@@ -167,7 +168,7 @@ impl Miner {
 
     async fn fetch_boost_data(&self, address: Pubkey, boost: Boost, mint: Mint, symbol: String, data: &mut Vec<TableData>) {
         let boost_proof_address = proof_pda(address).0;
-        let boost_proof: ore_api::prelude::Proof = get_proof(&self.rpc_client, boost_proof_address).await.unwrap();
+        let boost_proof: ore_api::prelude::Proof = get_proof(&self.rpc_client, boost_proof_address).await.expect("Failed to fetch proof account");
         data.push(TableData {
             key: "Address".to_string(),
             value: address.to_string(),
@@ -215,13 +216,12 @@ impl Miner {
     async fn stake_list(&self) -> Result<(), Error> {
         // Iterate over all boosts
         let mut data = vec![];
-        let boosts = get_boosts(&self.rpc_client).await.unwrap();
+        let boosts = get_boosts(&self.rpc_client).await.expect("Failed to fetch boosts");
         for (address, boost) in boosts {
-
             // Get relevant accounts
             let stake_address = stake_pda(self.signer().pubkey(), address).0;
             let stake = get_stake(&self.rpc_client, stake_address).await;
-            let mint = get_mint(&self.rpc_client, boost.mint).await.unwrap();
+            let mint = get_mint(&self.rpc_client, boost.mint).await.expect("Failed to fetch mint account");
             let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&boost.mint).0;
             let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
                 Err(_) => "".to_string(),
@@ -282,7 +282,8 @@ impl Miner {
         stake_args: StakeArgs,
     ) -> Result<(), Error> {
         // Parse mint address
-        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
+        let mint_str= stake_args.mint.expect("Mint address is required");
+        let mint_address = Pubkey::from_str(&mint_str).expect("Failed to parse mint address");
 
         // Get signer
         let signer = self.signer();
@@ -297,15 +298,14 @@ impl Miner {
         };
 
         // Get token account
-        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
-            println!("Failed to fetch mint account");
-            return Ok(());
-        };
-        let mint = Mint::unpack(&mint_data).unwrap();
-        let Ok(Some(token_account)) = self.rpc_client.get_token_account(&sender).await else {
-            println!("Failed to fetch token account");
-            return Ok(());
-        };
+        let mint_data = self.rpc_client.get_account_data(&mint_address).await.expect("Failed to fetch mint account");
+        let mint = Mint::unpack(&mint_data).expect("Failed to parse mint account");
+        let token_account = self
+            .rpc_client
+            .get_token_account(&sender)
+            .await
+            .expect("Failed to fetch token account")
+            .expect("Token account not found");
 
         // Parse amount
         let amount: u64 = if let Some(amount) = args.amount {
@@ -318,13 +318,10 @@ impl Miner {
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(signer.pubkey(), boost_address).0;
-        if let Err(err) = get_boost(&self.rpc_client, boost_address).await {
-            println!("Failed to fetch boost account: {}", err);
-            return Ok(());
-        }
+        let _boost = get_boost(&self.rpc_client, boost_address).await.expect("Failed to fetch boost account");
 
         // Open stake account, if needed
-        if let Err(_err) = self.rpc_client.get_account_data(&stake_address).await {
+        if self.rpc_client.get_account_data(&stake_address).await.is_err() {
             println!("Initializing stake account...");
             let ix = ore_boost_api::sdk::open(signer.pubkey(), signer.pubkey(), mint_address);
             self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false).await.ok();
@@ -343,7 +340,8 @@ impl Miner {
         stake_args: StakeArgs,
     ) -> Result<(), Error> {
         // Parse mint address
-        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
+        let mint_str= stake_args.mint.expect("Mint address is required");
+        let mint_address = Pubkey::from_str(&mint_str).expect("Failed to parse mint address");
 
         // Get signer
         let signer = self.signer();
@@ -373,17 +371,14 @@ impl Miner {
         };
 
         // Get mint account
-        let Ok(mint_data) = self.rpc_client.get_account_data(&mint_address).await else {
-            println!("Failed to fetch mint address");
-            return Ok(());
-        };
-        let mint = Mint::unpack(&mint_data).unwrap();
+        let mint_data = self.rpc_client.get_account_data(&mint_address).await.expect("Failed to fetch mint account");
+        let mint = Mint::unpack(&mint_data).expect("Failed to parse mint account");
 
         // Get addresses
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(signer.pubkey(), boost_address).0;
-        let _boost = get_boost(&self.rpc_client, boost_address).await;
-        let stake = get_stake(&self.rpc_client, stake_address).await.unwrap();
+        let _boost = get_boost(&self.rpc_client, boost_address).await.expect("Failed to fetch boost account");
+        let stake = get_stake(&self.rpc_client, stake_address).await.expect("Failed to fetch stake account");
         
         // Parse amount
         let amount: u64 = if let Some(amount) = args.amount {
@@ -419,7 +414,7 @@ impl Miner {
         ];
         let mut boost_metadatas = HashMap::new();
         for mint_address in boost_mints {   
-            let mint_account = get_mint(&self.rpc_client, mint_address).await.unwrap();
+            let mint_account = get_mint(&self.rpc_client, mint_address).await.expect("Failed to fetch mint account");
             let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&mint_address).0;
             let symbol = match self.rpc_client.get_account_data(&metadata_address).await {
                 Ok(metadata_data) => {
@@ -467,7 +462,7 @@ impl Miner {
 
         // Migrate stake from pools
         println!("\n{}", "Scanning pool stake accounts...".bold().to_string());
-        let pools = get_pools(&self.rpc_client).await.unwrap();
+        let pools = get_pools(&self.rpc_client).await.expect("Failed to fetch pool accounts");
         for (pool_address, pool) in pools {
             let pool_url = String::from_utf8(pool.url.to_vec()).unwrap_or_default();
             let pool_url = pool_url.trim_end_matches('\0');
@@ -505,11 +500,12 @@ impl Miner {
     }
 
     async fn stake_accounts(&self, _args: StakeAccountsArgs, stake_args: StakeArgs) -> Result<(), Error> {
-        let mint_address = Pubkey::from_str(&stake_args.mint.unwrap()).unwrap();
+        let mint_str= stake_args.mint.expect("Mint address is required");
+        let mint_address = Pubkey::from_str(&mint_str).expect("Failed to parse mint address");
         let boost_address = boost_pda(mint_address).0;
-        let boost = get_boost(&self.rpc_client, boost_address).await.unwrap();
-        let mint_account = get_mint(&self.rpc_client, mint_address).await.unwrap();
-        let stake_accounts = get_boost_stake_accounts(&self.rpc_client, boost_address).await.unwrap();
+        let boost = get_boost(&self.rpc_client, boost_address).await.expect("Failed to fetch boost account");
+        let mint_account = get_mint(&self.rpc_client, mint_address).await.expect("Failed to fetch mint account");
+        let stake_accounts = get_boost_stake_accounts(&self.rpc_client, boost_address).await.expect("Failed to fetch stake accounts");
         let mut data = vec![];
         for (stake_address, stake) in stake_accounts {
             data.push(StakerTableData {
