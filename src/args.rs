@@ -8,6 +8,14 @@ pub struct AccountArgs {
     )]
     pub address: Option<String>,
 
+    #[arg(
+        short,
+        long,
+        value_name = "PROOF_ADDRESS",
+        help = "The address of the proof to fetch."
+    )]
+    pub proof: Option<String>,
+
     #[command(subcommand)]
     pub command: Option<AccountCommand>,
 }
@@ -59,7 +67,7 @@ pub struct BenchmarkArgs {
         help = "The number of cores to use during the benchmark",
         default_value = "1"
     )]
-    pub cores: u64,
+    pub cores: String,
 }
 
 #[derive(Parser, Debug)]
@@ -119,7 +127,7 @@ pub struct MineArgs {
         help = "The number of CPU cores to allocate to mining.",
         default_value = "1"
     )]
-    pub cores: u64,
+    pub cores: String,
 
     #[arg(
         long,

@@ -10,7 +10,8 @@ const TEST_DURATION: i64 = 30;
 impl Miner {
     pub async fn benchmark(&self, args: BenchmarkArgs) {
         // Check num threads
-        self.check_num_cores(args.cores);
+        let cores = self.parse_cores(args.cores);
+        self.check_num_cores(cores);
 
         // Dispatch job to each thread
         let challenge = [0; 32];
@@ -27,13 +28,13 @@ impl Miner {
                     move || {
                         let timer = Instant::now();
                         let first_nonce = u64::MAX
-                            .saturating_div(args.cores)
+                            .saturating_div(cores)
                             .saturating_mul(i.id as u64);
                         let mut nonce = first_nonce;
                         let mut memory = equix::SolverMemory::new();
                         loop {
                             // Return if core should not be used
-                            if (i.id as u64).ge(&args.cores) {
+                            if (i.id as u64).ge(&cores) {
                                 return 0;
                             }
 

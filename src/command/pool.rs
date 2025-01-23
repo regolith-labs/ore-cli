@@ -7,6 +7,7 @@ use ore_pool_api::state::member_pda;
 use ore_pool_types::{
     BalanceUpdate, ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload, UpdateBalancePayload,
 };
+use reqwest::StatusCode;
 use solana_rpc_client::spinner;
 use solana_sdk::{
     compute_budget, pubkey::Pubkey, signature::Signature, signer::Signer, transaction::Transaction,
@@ -301,17 +302,29 @@ impl Pool {
     pub async fn get_latest_pool_event(&self, authority: Pubkey, last_hash_at: i64) -> Result<ore_pool_types::PoolMemberMiningEvent, Error> {
         let get_url = format!("{}/event/latest/{}", self.pool_url, authority);
         let mut attempts = 0;
+        let progress_bar = Arc::new(spinner::new_progress_bar());
+        progress_bar.set_message(format!("Fetching mining event... (retry {})", attempts));
         loop {
             // Parse pool event
             let resp = self.http_client.get(get_url.clone()).send().await?;
             match resp.error_for_status() {
                 Err(err) => {
-                    println!("Pool server has not upgraded to provide events yet. {:?}", err);
-                    return Err(Error::Internal("Pool server has not upgraded to provide events yet".to_string())).map_err(From::from);
+                    if let Some(status) = err.status() {
+                        match status {
+                            StatusCode::NOT_FOUND | StatusCode::BAD_GATEWAY => {
+                                // No op. Retry.       
+                            }
+                            _ => {
+                                progress_bar.finish_and_clear();
+                                return Err(Error::Internal(status.to_string())).map_err(From::from);
+                            }
+                        }
+                    }
                 }
                 Ok(resp) => {
                     if let Ok(event) = resp.json::<ore_pool_types::PoolMemberMiningEvent>().await {
                         if event.last_hash_at as i64 >= last_hash_at {
+                            progress_bar.finish_and_clear();
                             return Ok(event);
                         }
                     }
@@ -321,8 +334,10 @@ impl Pool {
             // Retry
             attempts += 1;
             if attempts > 10 {
-                return Err(Error::Internal("Failed to get latest event from pool server".to_string())).map_err(From::from);
+                progress_bar.finish_with_message("Retry limit exceeded");
+                return Err(Error::Internal("Retry limit exceeded".to_string())).map_err(From::from);
             }
+            progress_bar.set_message(format!("Fetching mining event... (retry {})", attempts));
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         }
     }

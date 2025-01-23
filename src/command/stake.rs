@@ -533,7 +533,6 @@ impl Miner {
     }
 }
 
-
 #[derive(Tabled)]
 pub struct StakeTableData {
     #[tabled(rename = "Mint")]

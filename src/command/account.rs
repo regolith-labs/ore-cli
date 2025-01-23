@@ -24,7 +24,7 @@ impl Miner {
         }
     }
 
-    pub async fn get_account(&self, args: AccountArgs) {
+    async fn get_account(&self, args: AccountArgs) {
         // Parse account address
         let signer = self.signer();
         let address = if let Some(address) = &args.address {
@@ -34,6 +34,8 @@ impl Miner {
                 println!("Invalid address: {:?}", address);
                 return;
             }
+        } else if args.proof.is_some() {
+            return self.get_proof_account(args).await;
         } else {
             signer.pubkey()
         };
@@ -42,6 +44,36 @@ impl Miner {
         let mut data = vec![];
         self.get_account_data(address, &mut data).await;
         self.get_proof_data(address, &mut data).await;
+
+        // Build table
+        let mut table = Table::new(data);
+        table.with(Remove::row(Rows::first()));
+        table.modify(Columns::single(1), Alignment::right());
+        table.with(Style::blank());
+        table.section_title(0, "Account");
+        table.section_title(3, "Proof");
+ 
+        println!("{table}\n");
+    }
+
+    async fn get_proof_account(&self, args: AccountArgs) {
+        // Parse account address
+        let proof_address = if let Some(address) = &args.proof {
+            if let Ok(address) = Pubkey::from_str(&address) {
+                address
+            } else {
+                println!("Invalid address: {:?}", address);
+                return;
+            }
+        } else {
+            return;
+        };
+
+        // Aggregate data   
+        let proof = get_proof(&self.rpc_client, proof_address).await.expect("Failed to fetch proof account");
+        let mut data = vec![];
+        self.get_account_data(proof.authority, &mut data).await;
+        self.get_proof_data(proof.authority, &mut data).await;
 
         // Build table
         let mut table = Table::new(data);
@@ -99,6 +131,10 @@ impl Miner {
             value: proof_address.to_string(),
         });
         if let Ok(proof) = proof {
+            data.push(TableData {
+                key: "Authority".to_string(),
+                value: authority.to_string(),
+            });
             data.push(TableData {
                 key: "Balance".to_string(),
                 value: if proof.balance > 0 {

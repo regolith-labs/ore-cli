@@ -57,7 +57,13 @@ impl Miner {
         self.open().await;
 
         // Check num threads
-        self.check_num_cores(args.cores);
+        let cores_str = args.cores;
+        let cores = if cores_str == "ALL" {
+            num_cpus::get() as u64
+        } else {
+            cores_str.parse::<u64>().unwrap()
+        };
+        self.check_num_cores(cores);
 
         // Generate addresses
         let signer = self.signer();
@@ -86,9 +92,9 @@ impl Miner {
             let cutoff_time = self.get_cutoff(proof.last_hash_at, args.buffer_time).await;
 
             // Build nonce indices
-            let mut nonce_indices = Vec::with_capacity(args.cores as usize);
-            for n in 0..(args.cores) {
-                let nonce = u64::MAX.saturating_div(args.cores).saturating_mul(n);
+            let mut nonce_indices = Vec::with_capacity(cores as usize);
+            for n in 0..(cores) {
+                let nonce = u64::MAX.saturating_div(cores).saturating_mul(n);
                 nonce_indices.push(nonce);
             }
 
@@ -96,7 +102,7 @@ impl Miner {
             let solution = Self::find_hash_par(
                 proof.challenge,
                 cutoff_time,
-                args.cores,
+                cores,
                 config.min_difficulty as u32,
                 nonce_indices.as_slice(),
                 None,
@@ -172,7 +178,8 @@ impl Miner {
         let device_id = args.device_id.unwrap_or(0);
 
         // Check num threads
-        self.check_num_cores(args.cores);
+        let cores = self.parse_cores(args.cores);
+        self.check_num_cores(cores);
 
         // Init channel for continuous submission
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<Solution>();
@@ -224,9 +231,9 @@ impl Miner {
                 member_search_space_size.saturating_mul(nonce_index) + device_id.saturating_mul(device_search_space_size);
 
             // Split nonce-device space for muliple cores
-            let range_per_core = device_search_space_size.saturating_div(args.cores);
-            let mut nonce_indices = Vec::with_capacity(args.cores as usize);
-            for n in 0..(args.cores) {
+            let range_per_core = device_search_space_size.saturating_div(cores);
+            let mut nonce_indices = Vec::with_capacity(cores as usize);
+            for n in 0..(cores) {
                 let index = left_bound + n * range_per_core;
                 nonce_indices.push(index);
             }
@@ -235,7 +242,7 @@ impl Miner {
             let solution = Self::find_hash_par(
                 member_challenge.challenge.challenge,
                 cutoff_time,
-                args.cores,
+                cores,
                 member_challenge.challenge.min_difficulty as u32,
                 nonce_indices.as_slice(),
                 Some(tx.clone()),
@@ -381,6 +388,14 @@ impl Miner {
         Solution::new(best_hash.d, best_nonce.to_le_bytes())
     }
 
+    pub fn parse_cores(&self, cores: String) -> u64 {
+        if cores == "ALL" {
+            num_cpus::get() as u64
+        } else {
+            cores.parse::<u64>().unwrap()
+        }
+    }
+
     pub fn check_num_cores(&self, cores: u64) {
         let num_cores = num_cpus::get() as u64;
         if cores.gt(&num_cores) {
@@ -492,31 +507,34 @@ impl Miner {
     }
 
     async fn fetch_pool_mine_event(&self, pool: &Pool, last_hash_at: i64) {
-        let mining_data = if let Ok(event) = pool.get_latest_pool_event(self.signer().pubkey(), last_hash_at).await {
-            PoolMiningData {
-                signature: event.signature.to_string(),
-                block: event.block.to_string(),
-                timestamp: format_timestamp(event.timestamp as i64),
-                timing: format!("{}s", event.timing),
-                difficulty: event.difficulty.to_string(),
-                base_reward: amount_u64_to_string(event.net_base_reward),
-                boost_reward: amount_u64_to_string(event.net_miner_boost_reward),
-                total_reward: amount_u64_to_string(event.net_reward),
-                my_difficulty: event.member_difficulty.to_string(),
-                my_reward: amount_u64_to_string(event.member_reward).bold().yellow().to_string(),
+        let mining_data = match pool.get_latest_pool_event(self.signer().pubkey(), last_hash_at).await {
+            Ok(event) => {
+                PoolMiningData {
+                    signature: event.signature.to_string(),
+                    block: event.block.to_string(),
+                    timestamp: format_timestamp(event.timestamp as i64),
+                    timing: format!("{}s", event.timing),
+                    difficulty: event.difficulty.to_string(),
+                    base_reward: amount_u64_to_string(event.net_base_reward),
+                    boost_reward: amount_u64_to_string(event.net_miner_boost_reward),
+                    total_reward: amount_u64_to_string(event.net_reward),
+                    my_difficulty: event.member_difficulty.to_string(),
+                    my_reward: amount_u64_to_string(event.member_reward).bold().yellow().to_string(),
+                }
             }
-        } else {
-            PoolMiningData {
-                signature: "Pool server has not upgraded to provide events yet".to_string(),
-                block: "".to_string(),
-                timestamp: "".to_string(),
-                timing: "".to_string(),
-                difficulty: "".to_string(),
-                base_reward: "".to_string(),
-                boost_reward: "".to_string(),
-                total_reward: "".to_string(),
-                my_difficulty: "".to_string(),
-                my_reward: "".to_string(),
+            Err(err) => {
+                PoolMiningData {
+                    signature: format!("Failed to fetch event: {:?}", err),
+                    block: "".to_string(),
+                    timestamp: "".to_string(),
+                    timing: "".to_string(),
+                    difficulty: "".to_string(),
+                    base_reward: "".to_string(),
+                    boost_reward: "".to_string(),
+                    total_reward: "".to_string(),
+                    my_difficulty: "".to_string(),
+                    my_reward: "".to_string(),
+                }
             }
         };
 
