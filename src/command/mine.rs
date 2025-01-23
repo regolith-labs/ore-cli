@@ -22,7 +22,7 @@ use solana_rpc_client::spinner;
 use solana_sdk::{signer::Signer, signature::Signature};
 use solana_transaction_status::{UiTransactionEncoding, option_serializer::OptionSerializer};
 use steel::AccountDeserialize;
-use tabled::{Table, settings::{Style, Color, object::{Columns, Rows}, Alignment, Highlight, style::BorderColor, Border}};
+use tabled::{settings::{object::{Columns, Rows}, style::BorderColor, Alignment, Border, Color, Highlight, Remove, Style}, Table};
 
 use crate::{
     args::MineArgs,
@@ -65,6 +65,9 @@ impl Miner {
         };
         self.check_num_cores(cores);
 
+        // Get verbose flag
+        let verbose = args.verbose;
+
         // Generate addresses
         let signer = self.signer();
         let proof_address = proof_pda(signer.pubkey()).0;
@@ -83,7 +86,7 @@ impl Miner {
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
             // Log mining table
-            self.update_solo_mining_table();
+            self.update_solo_mining_table(verbose);
 
             // Track timestamp
             last_hash_at = proof.last_hash_at;
@@ -150,7 +153,7 @@ impl Miner {
             // Submit transaction
             match self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false).await {
                 Ok(sig) => {
-                    self.fetch_solo_mine_event(sig).await
+                    self.fetch_solo_mine_event(sig, verbose).await
                 },
                 Err(err) => {
                     let mining_data = SoloMiningData::failed();
@@ -160,7 +163,7 @@ impl Miner {
                     drop(data);
 
                     // Log mining table
-                    self.update_solo_mining_table();
+                    self.update_solo_mining_table(verbose);
                     println!("{}: {}", "ERROR".bold().red(), err);
 
                     return;
@@ -176,6 +179,9 @@ impl Miner {
 
         // Get device id
         let device_id = args.device_id.unwrap_or(0);
+
+        // Get verbose flag
+        let verbose = args.verbose;
 
         // Check num threads
         let cores = self.parse_cores(args.cores);
@@ -208,7 +214,7 @@ impl Miner {
             };
 
             // Log mining table
-            self.update_pool_mining_table();
+            self.update_pool_mining_table(verbose);
 
             // Increment last balance and hash
             last_hash_at = member_challenge.challenge.lash_hash_at;
@@ -256,7 +262,7 @@ impl Miner {
                     continue;
                 }
                 Ok(()) => {
-                    self.fetch_pool_mine_event(pool, last_hash_at).await;
+                    self.fetch_pool_mine_event(pool, last_hash_at, verbose).await;
                 }
             }
         }
@@ -448,7 +454,7 @@ impl Miner {
         BUS_ADDRESSES[i]
     }
 
-    async fn fetch_solo_mine_event(&self, sig: Signature) {        
+    async fn fetch_solo_mine_event(&self, sig: Signature, verbose: bool) {        
         // Add loading row
         let mining_data = SoloMiningData::fetching(sig);
         let mut data = self.solo_mining_data.write().unwrap();
@@ -459,7 +465,7 @@ impl Miner {
         drop(data);
 
         // Update table
-        self.update_solo_mining_table();
+        self.update_solo_mining_table(verbose);
         
         // Poll for transaction
         let mut tx;
@@ -486,7 +492,7 @@ impl Miner {
                                 let mut data = self.solo_mining_data.write().unwrap();
                                 let event = MineEvent::from_bytes(&return_data);
                                 let mining_data = SoloMiningData {
-                                    signature: sig.to_string(),
+                                    signature: if verbose { sig.to_string() } else { format!("{}...", sig.to_string()[..8].to_string()) },
                                     block: tx.slot.to_string(),
                                     timestamp: format_timestamp(tx.block_time.unwrap_or_default()),
                                     difficulty: event.difficulty.to_string(),
@@ -506,11 +512,11 @@ impl Miner {
         }
     }
 
-    async fn fetch_pool_mine_event(&self, pool: &Pool, last_hash_at: i64) {
+    async fn fetch_pool_mine_event(&self, pool: &Pool, last_hash_at: i64, verbose: bool) {
         let mining_data = match pool.get_latest_pool_event(self.signer().pubkey(), last_hash_at).await {
             Ok(event) => {
                 PoolMiningData {
-                    signature: event.signature.to_string(),
+                    signature: if verbose { event.signature.to_string() } else { format!("{}...", event.signature.to_string()[..8].to_string()) },
                     block: event.block.to_string(),
                     timestamp: format_timestamp(event.timestamp as i64),
                     timing: format!("{}s", event.timing),
@@ -547,7 +553,7 @@ impl Miner {
         drop(data);
     }
 
-    fn update_solo_mining_table(&self) {
+    fn update_solo_mining_table(&self, verbose: bool) {
         execute!(stdout(), Clear(ClearType::All), MoveTo(0, 0)).unwrap();
         let mut rows: Vec<SoloMiningData>  = vec![];
         let data = self.solo_mining_data.read().unwrap();
@@ -558,10 +564,13 @@ impl Miner {
         table.modify(Rows::first(), Color::BOLD);
         table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
+        if !verbose {
+            table.with(Remove::column(Columns::new(1..3)));
+        }
         println!("\n{}\n", table);
     }
 
-    fn update_pool_mining_table(&self) {
+    fn update_pool_mining_table(&self, verbose: bool) {
         execute!(stdout(), Clear(ClearType::All), MoveTo(0, 0)).unwrap();
         let mut rows: Vec<PoolMiningData>  = vec![];
         let data = self.pool_mining_data.read().unwrap();
@@ -572,6 +581,9 @@ impl Miner {
         table.modify(Rows::first(), Color::BOLD);
         table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
+        if !verbose {
+            table.with(Remove::column(Columns::new(1..3)));
+        }
         println!("\n{}\n", table);
     }
 

@@ -153,6 +153,14 @@ pub struct MineArgs {
         help = "The optional pool url to join and forward solutions to."
     )]
     pub pool_url: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        help = "Flag indicating whether or not to run in verbose mode.",
+        default_value = "false"
+    )]
+    pub verbose: bool,
 }
 
 #[derive(Parser, Debug)]
