@@ -201,6 +201,14 @@ pub struct StakeArgs {
 
     #[arg(value_name = "MINT_ADDRESS", help = "The mint to stake with.")]
     pub mint: Option<String>,
+
+    #[arg(
+        long,
+        short,
+        value_name = "ACCOUNT_ADDRESS",
+        help = "List the stake accounts of another authority."
+    )]
+    pub authority: Option<String>,
 }
 
 #[derive(Subcommand, Clone, Debug)]

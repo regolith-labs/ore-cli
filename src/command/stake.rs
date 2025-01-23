@@ -28,7 +28,7 @@ impl Miner {
             if let Some(mint) = args.mint {
                 self.stake_get(mint).await.unwrap();
             } else {
-                self.stake_list().await.unwrap();
+                self.stake_list(args).await.unwrap();
             }
         }
     }
@@ -213,13 +213,19 @@ impl Miner {
         });
     }
 
-    async fn stake_list(&self) -> Result<(), Error> {
+    async fn stake_list(&self, args: StakeArgs) -> Result<(), Error> {
+        // Get the account address
+        let authority = match &args.authority {
+            Some(authority) => Pubkey::from_str(&authority).expect("Failed to parse account address"),
+            None => self.signer().pubkey(),
+        };
+
         // Iterate over all boosts
         let mut data = vec![];
         let boosts = get_boosts(&self.rpc_client).await.expect("Failed to fetch boosts");
         for (address, boost) in boosts {
             // Get relevant accounts
-            let stake_address = stake_pda(self.signer().pubkey(), address).0;
+            let stake_address = stake_pda(authority, address).0;
             let stake = get_stake(&self.rpc_client, stake_address).await;
             let mint = get_mint(&self.rpc_client, boost.mint).await.expect("Failed to fetch mint account");
             let metadata_address = mpl_token_metadata::accounts::Metadata::find_pda(&boost.mint).0;
@@ -505,21 +511,20 @@ impl Miner {
         let boost_address = boost_pda(mint_address).0;
         let boost = get_boost(&self.rpc_client, boost_address).await.expect("Failed to fetch boost account");
         let mint_account = get_mint(&self.rpc_client, mint_address).await.expect("Failed to fetch mint account");
-        let stake_accounts = get_boost_stake_accounts(&self.rpc_client, boost_address).await.expect("Failed to fetch stake accounts");
+        let mut stake_accounts = get_boost_stake_accounts(&self.rpc_client, boost_address).await.expect("Failed to fetch stake accounts");
+        stake_accounts.sort_by(|(_addr1, stake1), (_addr2, stake2)| stake2.balance.cmp(&stake1.balance));
         let mut data = vec![];
-        for (stake_address, stake) in stake_accounts {
+        for (_stake_address, stake) in stake_accounts {
             data.push(StakerTableData {
-                address: stake_address.to_string(),
                 authority: stake.authority.to_string(),
-                id: stake.id.to_string(),
-                deposits: format!("{}", amount_to_ui_amount(stake.balance, mint_account.decimals)),
-                deposits_pending: format!("{}", amount_to_ui_amount(stake.balance_pending, mint_account.decimals)),
+                deposits: format!("{:.11}", amount_to_ui_amount(stake.balance, mint_account.decimals)),
+                deposits_pending: format!("{:.11}", amount_to_ui_amount(stake.balance_pending, mint_account.decimals)),
                 share: if boost.total_deposits > 0 {
-                    format!("{}%", stake.balance as f64 / boost.total_deposits as f64 * 100f64)
+                    format!("{:.5}%", stake.balance as f64 / boost.total_deposits as f64 * 100f64)
                 } else {
                     "NaN".to_string()
                 },
-                rewards: format!("{} ORE", amount_to_ui_amount(stake.rewards, ore_api::consts::TOKEN_DECIMALS)),
+                rewards: format!("{:.11} ORE", amount_to_ui_amount(stake.rewards, ore_api::consts::TOKEN_DECIMALS)),
             });
         }
         let mut table = Table::new(data);
@@ -557,12 +562,8 @@ pub struct StakeTableData {
 
 #[derive(Tabled)]
 pub struct StakerTableData {
-    #[tabled(rename = "Address")]
-    pub address: String,
     #[tabled(rename = "Authority")]
     pub authority: String,
-    #[tabled(rename = "ID")]
-    pub id: String,
     #[tabled(rename = "Deposits")]
     pub deposits: String,
     #[tabled(rename = "Pending deposits")]
