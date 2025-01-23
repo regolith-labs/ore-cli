@@ -515,7 +515,7 @@ impl Miner {
                 deposits: format!("{}", amount_to_ui_amount(stake.balance, mint_account.decimals)),
                 deposits_pending: format!("{}", amount_to_ui_amount(stake.balance_pending, mint_account.decimals)),
                 share: if boost.total_deposits > 0 {
-                    format!("{:.8}%", stake.balance as f64 / boost.total_deposits as f64 * 100f64)
+                    format!("{}%", stake.balance as f64 / boost.total_deposits as f64 * 100f64)
                 } else {
                     "NaN".to_string()
                 },
