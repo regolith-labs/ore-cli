@@ -50,7 +50,7 @@ impl Miner {
             let rewards = amount_u64_to_f64(bus.rewards);
             data.push(TableData {
                 key: format!("{}", bus.id),
-                value: format!("{:.11} ORE", rewards),
+                value: format!("{:#.11} ORE", rewards),
             });
         }
     }
@@ -62,7 +62,7 @@ impl Miner {
             let amount = amount_u64_to_f64(reward_rate).min(1.0);
             data.push(TableData {
                 key: format!("{}{}", config.min_difficulty as u32 + i, if amount >= 1.0 { "+" } else { "" }),
-                value: format!("{:.11} ORE", amount),
+                value: format!("{:#.11} ORE", amount),
             });
             if amount >= 1.0 {
                 break;

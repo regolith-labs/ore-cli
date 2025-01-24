@@ -517,14 +517,14 @@ impl Miner {
         for (_stake_address, stake) in stake_accounts {
             data.push(StakerTableData {
                 authority: stake.authority.to_string(),
-                deposits: format!("{:.11}", amount_to_ui_amount(stake.balance, mint_account.decimals)),
-                deposits_pending: format!("{:.11}", amount_to_ui_amount(stake.balance_pending, mint_account.decimals)),
+                deposits: format!("{:#.11}", amount_to_ui_amount(stake.balance, mint_account.decimals)),
+                deposits_pending: format!("{:#.11}", amount_to_ui_amount(stake.balance_pending, mint_account.decimals)),
                 share: if boost.total_deposits > 0 {
                     format!("{:.5}%", stake.balance as f64 / boost.total_deposits as f64 * 100f64)
                 } else {
                     "NaN".to_string()
                 },
-                rewards: format!("{:.11} ORE", amount_to_ui_amount(stake.rewards, ore_api::consts::TOKEN_DECIMALS)),
+                rewards: format!("{:#.11} ORE", amount_to_ui_amount(stake.rewards, ore_api::consts::TOKEN_DECIMALS)),
             });
         }
         let mut table = Table::new(data);

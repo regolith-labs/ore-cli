@@ -7,7 +7,7 @@ use ore_api::{
     },
     state::{proof_pda, Bus, Config, Proof, Treasury},
 };
-use ore_boost_api::state::{Boost, Stake, Reservation};
+use ore_boost_api::state::{Boost, Reservation, Stake};
 use ore_pool_api::state::{Pool, Member, Share};
 use serde::Deserialize;
 use solana_account_decoder::UiAccountEncoding;
@@ -122,7 +122,6 @@ pub async fn get_boosts(client: &RpcClient) -> Result<Vec<(Pubkey, Boost)>, anyh
 pub async fn get_pools(client: &RpcClient) -> Result<Vec<(Pubkey, Pool)>, anyhow::Error> {
     get_program_accounts::<Pool>(client, ore_pool_api::ID, vec![]).await
 }
-
 
 #[cfg(feature = "admin")]
 pub async fn get_checkpoint(client: &RpcClient, address: Pubkey) -> Checkpoint {

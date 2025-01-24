@@ -28,7 +28,7 @@ use crate::{
     args::MineArgs,
     error::Error,
     utils::{
-        amount_u64_to_f64, amount_u64_to_string, format_duration, format_timestamp, get_clock, get_config, get_reservation, get_updated_proof_with_authority, ComputeBudget, PoolMiningData, SoloMiningData
+        amount_u64_to_f64, format_duration, format_timestamp, get_clock, get_config, get_reservation, get_updated_proof_with_authority, ComputeBudget, PoolMiningData, SoloMiningData
     },
     Miner,
 };
@@ -497,17 +497,17 @@ impl Miner {
                                     timestamp: format_timestamp(tx.block_time.unwrap_or_default()),
                                     difficulty: event.difficulty.to_string(),
                                     base_reward: if event.net_base_reward > 0 { 
-                                        format!("{:.11}", amount_u64_to_f64(event.net_base_reward)) 
+                                        format!("{:#.11}", amount_u64_to_f64(event.net_base_reward)) 
                                     } else {
                                         "0".to_string()
                                     },
                                     boost_reward: if event.net_miner_boost_reward > 0 { 
-                                        format!("{:.11}", amount_u64_to_f64(event.net_miner_boost_reward)) 
+                                        format!("{:#.11}", amount_u64_to_f64(event.net_miner_boost_reward)) 
                                     } else {
                                         "0".to_string()
                                     },
                                     total_reward: if event.net_reward > 0 { 
-                                        format!("{:.11}", amount_u64_to_f64(event.net_reward)) 
+                                        format!("{:#.11}", amount_u64_to_f64(event.net_reward)) 
                                     } else {
                                         "0".to_string()
                                     },
@@ -534,23 +534,23 @@ impl Miner {
                     timing: format!("{}s", event.timing),
                     difficulty: event.difficulty.to_string(),
                     base_reward: if event.net_base_reward > 0 { 
-                        format!("{:.11}", amount_u64_to_f64(event.net_base_reward)) 
+                        format!("{:#.11}", amount_u64_to_f64(event.net_base_reward)) 
                     } else {
                         "0".to_string()
                     },
                     boost_reward: if event.net_miner_boost_reward > 0 { 
-                        format!("{:.11}", amount_u64_to_f64(event.net_miner_boost_reward)) 
+                        format!("{:#.11}", amount_u64_to_f64(event.net_miner_boost_reward)) 
                     } else {
                         "0".to_string()
                     },
                     total_reward: if event.net_reward > 0 { 
-                        format!("{:.11}", amount_u64_to_f64(event.net_reward)) 
+                        format!("{:#.11}", amount_u64_to_f64(event.net_reward)) 
                     } else {
                         "0".to_string()
                     },
                     my_difficulty: event.member_difficulty.to_string(),
                     my_reward: if event.member_reward > 0 { 
-                        format!("{:.11}", amount_u64_to_f64(event.member_reward)) 
+                        format!("{:#.11}", amount_u64_to_f64(event.member_reward)) 
                     } else {
                         "0".to_string()
                     },
