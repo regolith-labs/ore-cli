@@ -2962,6 +2962,24 @@ dependencies = [
 [[package]]
 name = "ore-api"
 version = "3.0.0"
+dependencies = [
+ "array-const-fn-init",
+ "bytemuck",
+ "const-crypto",
+ "drillx",
+ "mpl-token-metadata",
+ "num_enum 0.7.3",
+ "solana-program",
+ "spl-associated-token-account",
+ "spl-token",
+ "static_assertions",
+ "steel",
+ "thiserror",
+]
+
+[[package]]
+name = "ore-api"
+version = "3.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fe81730f32cc3e75a1dda6ed6aa824d6bab2622867a135d4173851fda40f14a"
 dependencies = [
@@ -3007,7 +3025,7 @@ dependencies = [
  "bytemuck",
  "const-crypto",
  "num_enum 0.7.3",
- "ore-api",
+ "ore-api 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "solana-program",
  "spl-associated-token-account",
  "spl-token",
@@ -3036,7 +3054,7 @@ dependencies = [
  "indicatif",
  "mpl-token-metadata",
  "num_cpus",
- "ore-api",
+ "ore-api 3.0.0",
  "ore-boost-api 0.3.0",
  "ore-boost-api 1.1.0",
  "ore-pool-api",
@@ -3074,7 +3092,7 @@ dependencies = [
  "drillx",
  "mpl-token-metadata",
  "num_enum 0.7.3",
- "ore-api",
+ "ore-api 3.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "ore-boost-api 0.3.0",
  "ore-boost-api 1.1.0",
  "solana-program",

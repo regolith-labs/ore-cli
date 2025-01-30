@@ -35,7 +35,7 @@ futures = "0.3.30"
 indicatif = "0.17.8"
 mpl-token-metadata = "4.1.2"
 num_cpus = "1.16.0"
-ore-api = "3.0"
+ore-api = { path = "../ore/api" }
 ore-boost-api = "1.1"
 ore-boost-legacy-api = { version = "0.3", package = "ore-boost-api" }
 ore-pool-api = "1.2"
@@ -52,7 +52,9 @@ solana-sdk = "^1.18"
 solana-transaction-status = "^1.18"
 serde_json = "1.0"
 spl-token = { version = "^4", features = ["no-entrypoint"] }
-spl-associated-token-account = { version = "^2.3", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "^2.3", features = [
+  "no-entrypoint",
+] }
 serde = { version = "1.0", features = ["derive"] }
 steel = "2.0"
 thiserror = "1.0.63"
