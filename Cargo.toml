@@ -36,7 +36,7 @@ indicatif = "0.17.8"
 mpl-token-metadata = "4.1.2"
 num_cpus = "1.16.0"
 ore-api = { path = "../ore/api" }
-ore-boost-api = "1.1"
+ore-boost-api = { path = "../ore-boost/api" }
 ore-boost-legacy-api = { version = "0.3", package = "ore-boost-api" }
 ore-pool-api = "1.2"
 ore-pool-types = "1.2"

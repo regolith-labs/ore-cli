@@ -16,6 +16,7 @@ use solana_program::{
 };
 use solana_rpc_client::spinner;
 use solana_sdk::{
+    address_lookup_table::AddressLookupTableAccount,
     commitment_config::CommitmentLevel,
     compute_budget::ComputeBudgetInstruction,
     signature::{Signature, Signer},
@@ -37,6 +38,39 @@ const CONFIRM_DELAY: u64 = 500;
 const GATEWAY_DELAY: u64 = 0;
 
 impl Miner {
+    pub async fn send_v2(
+        &self,
+        ixs: &[Instruction],
+        luts: &[AddressLookupTableAccount],
+        compute_budget: ComputeBudget,
+    ) -> Result<Signature, anyhow::Error> {
+        // add compute budget
+        let mut final_ixs = vec![];
+        match compute_budget {
+            ComputeBudget::Dynamic => {
+                todo!("simulate tx")
+            }
+            ComputeBudget::Fixed(cus) => {
+                final_ixs.push(ComputeBudgetInstruction::set_compute_unit_limit(cus))
+            }
+        }
+        // add priority fee
+        final_ixs.push(ComputeBudgetInstruction::set_compute_unit_price(
+            self.priority_fee.unwrap_or(0),
+        ));
+        // add user instructions
+        final_ixs.extend_from_slice(ixs);
+        // build transaction
+        let hash = self.rpc_client.as_ref().get_latest_blockhash().await?;
+        let msg =
+            solana_sdk::message::v0::Message::try_compile(&self.signer().pubkey(), ixs, luts, hash)
+                .map_err(|err| anyhow::anyhow!(err))?;
+        let msg = solana_sdk::message::VersionedMessage::V0(msg);
+        let tx = solana_sdk::transaction::VersionedTransaction::try_new(msg, &[&self.signer()])?;
+        // submit
+        let sig = self.rpc_client.as_ref().send_transaction(&tx).await?;
+        Ok(sig)
+    }
     pub async fn send_and_confirm(
         &self,
         ixs: &[Instruction],

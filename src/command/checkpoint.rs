@@ -1,18 +1,19 @@
 use std::{str::FromStr, time::Duration};
 
 use anyhow::Error;
-use solana_program::pubkey::Pubkey;
-use solana_sdk::signature::Signer;
-use ore_boost_api::consts::CHECKPOINT_INTERVAL;  
-use ore_boost_api::state::{boost_pda, checkpoint_pda};
-use solana_rpc_client::spinner;
 use colored::*;
+use ore_boost_api::consts::CHECKPOINT_INTERVAL;
+use ore_boost_api::state::{boost_pda, checkpoint_pda};
+use solana_program::pubkey::Pubkey;
+use solana_rpc_client::spinner;
+use solana_sdk::signature::Signer;
 use tokio::time::sleep;
 
+use crate::utils::get_boost_stake_lookup_tables;
 use crate::{
     args::CheckpointArgs,
-    Miner, 
-    utils::{get_clock, get_boost, get_boost_stake_accounts, get_checkpoint, ComputeBudget},
+    utils::{get_boost, get_boost_stake_accounts, get_checkpoint, get_clock, ComputeBudget},
+    Miner,
 };
 
 const MAX_ACCOUNTS_PER_TX: usize = 10;
@@ -35,8 +36,10 @@ impl Miner {
         let checkpoint_address = checkpoint_pda(boost_address).0;
         loop {
             // Get current time and checkpoint data
-            let clock = get_clock(&self.rpc_client).await.expect("Failed to fetch clock account");
-            let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
+            let clock = get_clock(&self.rpc_client)
+                .await
+                .expect("Failed to fetch clock account");
+            let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await?;
             let time_since_last = clock.unix_timestamp - checkpoint.ts;
 
             // Call checkpoint if needed
@@ -61,11 +64,13 @@ impl Miner {
         let checkpoint_address = checkpoint_pda(boost_address).0;
 
         // Get boost account data
-        let _boost = get_boost(&self.rpc_client, boost_address).await;
-        let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await;
+        let boost = get_boost(&self.rpc_client, boost_address).await?;
+        let checkpoint = get_checkpoint(&self.rpc_client, checkpoint_address).await?;
 
-        // TODO Check if enough time has passed since last checkpoint
-        let clock = get_clock(&self.rpc_client).await.expect("Failed to fetch clock account");
+        // Check if enough time has passed since last checkpoint
+        let clock = get_clock(&self.rpc_client)
+            .await
+            .expect("Failed to fetch clock account");
         let time_since_last = clock.unix_timestamp - checkpoint.ts;
         if time_since_last < CHECKPOINT_INTERVAL {
             progress_bar.finish_with_message(format!(
@@ -83,10 +88,13 @@ impl Miner {
             return Ok(());
         }
 
+        // Get lookup tables for this boost
+        let lookup_tables =
+            get_boost_stake_lookup_tables(&self.rpc_client, boost_address, boost.total_stakers)
+                .await?;
+
         // Sort accounts by stake ID
-        accounts.sort_by(|(_, stake_a), (_, stake_b)| {
-            stake_a.id.cmp(&stake_b.id)
-        });
+        accounts.sort_by(|(_, stake_a), (_, stake_b)| stake_a.id.cmp(&stake_b.id));
 
         // Filter accounts starting from checkpoint.current_id
         let remaining_accounts: Vec<_> = accounts
@@ -95,7 +103,7 @@ impl Miner {
             .collect();
 
         // Pack instructions for rebase
-        let mut ixs = Vec::new();            
+        let mut ixs = Vec::new();
         if remaining_accounts.is_empty() {
             // If total stakers is zero, use default account
             ixs.push(ore_boost_api::sdk::rebase(
@@ -103,9 +111,15 @@ impl Miner {
                 mint_address,
                 Pubkey::default(),
             ));
-            progress_bar.finish_and_clear();
-            let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(COMPUTE_BUDGET), false)
+            let sig = self
+                .send_v2(
+                    ixs.as_slice(),
+                    lookup_tables.as_slice(),
+                    ComputeBudget::Fixed(COMPUTE_BUDGET),
+                )
                 .await?;
+            progress_bar.finish_and_clear();
+            println!("sig: {:?}", sig);
         } else {
             // Chunk stake accounts into batches
             let chunks = remaining_accounts.chunks(MAX_ACCOUNTS_PER_TX);
@@ -119,14 +133,19 @@ impl Miner {
                     ));
                 }
                 if !ixs.is_empty() {
-                    progress_bar.finish_and_clear();
-                    let _ = self.send_and_confirm(&ixs, ComputeBudget::Fixed(COMPUTE_BUDGET), false)
+                    let sig = self
+                        .send_v2(
+                            ixs.as_slice(),
+                            lookup_tables.as_slice(),
+                            ComputeBudget::Fixed(COMPUTE_BUDGET),
+                        )
                         .await?;
+                    progress_bar.finish_and_clear();
+                    println!("sig: {:?}", sig);
                 }
             }
         }
 
         Ok(())
     }
-} 
-
+}
