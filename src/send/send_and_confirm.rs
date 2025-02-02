@@ -71,6 +71,7 @@ impl Miner {
         let sig = self.rpc_client.as_ref().send_transaction(&tx).await?;
         Ok(sig)
     }
+
     pub async fn send_and_confirm(
         &self,
         ixs: &[Instruction],
