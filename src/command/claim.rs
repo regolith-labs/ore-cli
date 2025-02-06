@@ -160,7 +160,6 @@ impl Miner {
             self.signer().pubkey(),
             beneficiary,
             pool_address.address,
-            pool_address.bump,
             amount,
         ));
         self.send_and_confirm(&ixs, ComputeBudget::Fixed(50_000), false)
