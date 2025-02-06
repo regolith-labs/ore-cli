@@ -56,6 +56,10 @@ enum Commands {
     #[command(about = "Initialize the program")]
     Initialize(InitializeArgs),
 
+    #[cfg(feature = "admin")]
+    #[command(about = "Create a lookup table for a Kamino strategy")]
+    Lut(LutArgs),
+
     #[command(about = "Start mining on your local machine")]
     Mine(MineArgs),
 
@@ -237,6 +241,8 @@ async fn main() {
         Commands::Transaction(args) => {
             miner.transaction(args).await.unwrap();
         }
+
+        // Admin commands
         #[cfg(feature = "admin")]
         Commands::Checkpoint(args) => {
             miner.checkpoint(args).await.unwrap();
@@ -244,6 +250,10 @@ async fn main() {
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {
             miner.initialize().await;
+        }
+        #[cfg(feature = "admin")]
+        Commands::Lut(args) => {
+            miner.lut_kamino(args).await;
         }
     }
 }

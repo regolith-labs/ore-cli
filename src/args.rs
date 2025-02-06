@@ -118,6 +118,18 @@ pub struct ClaimArgs {
 #[derive(Parser, Debug)]
 pub struct InitializeArgs {}
 
+#[cfg(feature = "admin")]
+#[derive(Parser, Debug)]
+pub struct LutArgs {
+    #[arg(
+        long,
+        short,
+        value_name = "ADDRESS",
+        help = "The address of the strategy to create a lookup table for."
+    )]
+    pub strategy: String,
+}
+
 #[derive(Parser, Debug)]
 pub struct MineArgs {
     #[arg(

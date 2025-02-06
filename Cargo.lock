@@ -374,7 +374,7 @@ dependencies = [
  "nom",
  "num-traits",
  "rusticata-macros",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
 ]
 
@@ -822,7 +822,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "instant",
  "once_cell",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -850,7 +850,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "190baaad529bcfbde9e1a19022c42781bdb6ff9de25721abdb8fd98c0807730b"
 dependencies = [
  "libc",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -1601,7 +1601,7 @@ dependencies = [
  "arrayvec 0.7.6",
  "hashx",
  "num-traits",
- "thiserror",
+ "thiserror 1.0.69",
  "visibility",
 ]
 
@@ -1931,7 +1931,7 @@ dependencies = [
  "fixed-capacity-vec",
  "hex",
  "rand_core 0.6.4",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2473,6 +2473,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57d8d8ce877200136358e0bbff3a77965875db3af755a11e1fa6b1b3e2df13ea"
 
 [[package]]
+name = "kliquidity-sdk"
+version = "0.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55fa60a927e0bb97cb867cfbe877f26975c077a5e1d1ababfb280c42389f0a69"
+dependencies = [
+ "borsh 0.10.4",
+ "num-derive 0.4.2",
+ "num-traits",
+ "solana-program",
+ "thiserror 2.0.11",
+]
+
+[[package]]
 name = "lazy_static"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2551,7 +2564,7 @@ dependencies = [
  "ark-bn254",
  "ark-ff",
  "num-bigint 0.4.6",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2670,7 +2683,7 @@ dependencies = [
  "num-derive 0.3.3",
  "num-traits",
  "solana-program",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2976,7 +2989,7 @@ dependencies = [
  "spl-token",
  "static_assertions",
  "steel",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -2994,7 +3007,7 @@ dependencies = [
  "spl-token",
  "static_assertions",
  "steel",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3013,7 +3026,7 @@ dependencies = [
  "spl-token",
  "static_assertions",
  "steel",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3034,6 +3047,7 @@ dependencies = [
  "drillx",
  "futures",
  "indicatif",
+ "kliquidity-sdk",
  "mpl-token-metadata",
  "num_cpus",
  "ore-api",
@@ -3056,7 +3070,7 @@ dependencies = [
  "spl-token",
  "steel",
  "tabled",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-tungstenite 0.16.1",
  "url",
@@ -3082,7 +3096,7 @@ dependencies = [
  "spl-token",
  "static_assertions",
  "steel",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3369,7 +3383,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash",
  "rustls",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tracing",
 ]
@@ -3387,7 +3401,7 @@ dependencies = [
  "rustls",
  "rustls-native-certs",
  "slab",
- "thiserror",
+ "thiserror 1.0.69",
  "tinyvec",
  "tracing",
 ]
@@ -3543,7 +3557,7 @@ checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
 dependencies = [
  "getrandom 0.2.15",
  "libredox",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4172,7 +4186,7 @@ dependencies = [
  "spl-token-2022",
  "spl-token-group-interface",
  "spl-token-metadata-interface",
- "thiserror",
+ "thiserror 1.0.69",
  "zstd",
 ]
 
@@ -4187,7 +4201,7 @@ dependencies = [
  "rpassword",
  "solana-remote-wallet",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
  "tiny-bip39",
  "uriparse",
  "url",
@@ -4238,7 +4252,7 @@ dependencies = [
  "solana-thin-client",
  "solana-tpu-client",
  "solana-udp-client",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -4274,7 +4288,7 @@ dependencies = [
  "solana-measure",
  "solana-metrics",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -4300,7 +4314,7 @@ dependencies = [
  "sha2 0.10.8",
  "solana-frozen-abi-macro",
  "subtle",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4348,7 +4362,7 @@ dependencies = [
  "log",
  "reqwest 0.11.27",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4451,7 +4465,7 @@ dependencies = [
  "solana-frozen-abi",
  "solana-frozen-abi-macro",
  "solana-sdk-macro",
- "thiserror",
+ "thiserror 1.0.69",
  "tiny-bip39",
  "wasm-bindgen",
  "zeroize",
@@ -4482,7 +4496,7 @@ dependencies = [
  "solana-metrics",
  "solana-sdk",
  "solana_rbpf",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4502,7 +4516,7 @@ dependencies = [
  "solana-account-decoder",
  "solana-rpc-client-api",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "tokio-stream",
  "tokio-tungstenite 0.20.1",
@@ -4533,7 +4547,7 @@ dependencies = [
  "solana-rpc-client-api",
  "solana-sdk",
  "solana-streamer",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -4562,7 +4576,7 @@ dependencies = [
  "qstring",
  "semver",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
  "uriparse",
 ]
 
@@ -4611,7 +4625,7 @@ dependencies = [
  "solana-transaction-status",
  "solana-version",
  "spl-token-2022",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4624,7 +4638,7 @@ dependencies = [
  "solana-clap-utils",
  "solana-rpc-client",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4677,7 +4691,7 @@ dependencies = [
  "solana-logger",
  "solana-program",
  "solana-sdk-macro",
- "thiserror",
+ "thiserror 1.0.69",
  "uriparse",
  "wasm-bindgen",
 ]
@@ -4729,7 +4743,7 @@ dependencies = [
  "solana-metrics",
  "solana-perf",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
  "x509-parser",
 ]
@@ -4769,7 +4783,7 @@ dependencies = [
  "solana-rpc-client",
  "solana-rpc-client-api",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -4795,7 +4809,7 @@ dependencies = [
  "spl-memo",
  "spl-token",
  "spl-token-2022",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4809,7 +4823,7 @@ dependencies = [
  "solana-net-utils",
  "solana-sdk",
  "solana-streamer",
- "thiserror",
+ "thiserror 1.0.69",
  "tokio",
 ]
 
@@ -4848,7 +4862,7 @@ dependencies = [
  "solana-program",
  "solana-program-runtime",
  "solana-sdk",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4876,7 +4890,7 @@ dependencies = [
  "solana-program",
  "solana-sdk",
  "subtle",
- "thiserror",
+ "thiserror 1.0.69",
  "zeroize",
 ]
 
@@ -4895,7 +4909,7 @@ dependencies = [
  "rand 0.8.5",
  "rustc-demangle",
  "scroll",
- "thiserror",
+ "thiserror 1.0.69",
  "winapi",
 ]
 
@@ -4934,7 +4948,7 @@ dependencies = [
  "solana-program",
  "spl-token",
  "spl-token-2022",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -4969,7 +4983,7 @@ dependencies = [
  "quote",
  "sha2 0.10.8",
  "syn 2.0.95",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -5004,7 +5018,7 @@ dependencies = [
  "num-traits",
  "solana-program",
  "spl-program-error-derive",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -5045,7 +5059,7 @@ dependencies = [
  "num-traits",
  "num_enum 0.6.1",
  "solana-program",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -5069,7 +5083,7 @@ dependencies = [
  "spl-token-metadata-interface",
  "spl-transfer-hook-interface",
  "spl-type-length-value",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -5151,7 +5165,7 @@ dependencies = [
  "solana-program",
  "spl-associated-token-account",
  "spl-token",
- "thiserror",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -5341,7 +5355,16 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl",
+ "thiserror-impl 1.0.69",
+]
+
+[[package]]
+name = "thiserror"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
+dependencies = [
+ "thiserror-impl 2.0.11",
 ]
 
 [[package]]
@@ -5349,6 +5372,17 @@ name = "thiserror-impl"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.95",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "2.0.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5399,7 +5433,7 @@ dependencies = [
  "rand 0.7.3",
  "rustc-hash",
  "sha2 0.9.9",
- "thiserror",
+ "thiserror 1.0.69",
  "unicode-normalization",
  "wasm-bindgen",
  "zeroize",
@@ -5625,7 +5659,7 @@ dependencies = [
  "log",
  "rand 0.8.5",
  "sha-1",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "utf-8",
 ]
@@ -5645,7 +5679,7 @@ dependencies = [
  "rand 0.8.5",
  "rustls",
  "sha1",
- "thiserror",
+ "thiserror 1.0.69",
  "url",
  "utf-8",
  "webpki-roots 0.24.0",
@@ -6203,7 +6237,7 @@ dependencies = [
  "nom",
  "oid-registry",
  "rusticata-macros",
- "thiserror",
+ "thiserror 1.0.69",
  "time",
 ]
 
