@@ -16,7 +16,7 @@ path = "src/main.rs"
 
 [features]
 default = []
-admin = []
+admin = ["kliquidity-sdk"]
 
 [dependencies]
 anyhow = "1.0"
@@ -33,6 +33,7 @@ crossterm = "0.28.1"
 drillx = "2.1.0"
 futures = "0.3.30"
 indicatif = "0.17.8"
+kliquidity-sdk = { version = "0.0.1", optional = true }
 mpl-token-metadata = "4.1.2"
 num_cpus = "1.16.0"
 ore-api = "3.0"

@@ -5,6 +5,8 @@ mod checkpoint;
 mod claim;
 #[cfg(feature = "admin")]
 mod initialize;
+#[cfg(feature = "admin")]
+mod lut;
 mod mine;
 mod pool;
 mod program;
