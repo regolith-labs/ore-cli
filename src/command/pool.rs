@@ -5,7 +5,8 @@ use drillx::Solution;
 use ore_api::state::proof_pda;
 use ore_pool_api::state::member_pda;
 use ore_pool_types::{
-    BalanceUpdate, ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload, UpdateBalancePayload,
+    BalanceUpdate, ContributePayload, Member, MemberChallenge, PoolAddress, RegisterPayload,
+    UpdateBalancePayload,
 };
 use reqwest::StatusCode;
 use solana_rpc_client::spinner;
@@ -13,28 +14,45 @@ use solana_sdk::{
     compute_budget, pubkey::Pubkey, signature::Signature, signer::Signer, transaction::Transaction,
 };
 use steel::AccountDeserialize;
-use tabled::{Table, settings::{Remove, object::{Rows, Columns}, Alignment, Style, Color, Highlight, style::BorderColor, Border}, Tabled};
+use tabled::{
+    settings::{
+        object::{Columns, Rows},
+        style::BorderColor,
+        Alignment, Border, Color, Highlight, Remove, Style,
+    },
+    Table, Tabled,
+};
 
-use crate::{args::{PoolArgs, PoolCommand, PoolCommitArgs}, error::Error, utils::{self, amount_u64_to_f64, format_timestamp, get_member, get_pool, get_pools, get_proof, ComputeBudget, TableData, TableSectionTitle}, Miner};
+use crate::{
+    args::{PoolArgs, PoolCommand, PoolCommitArgs},
+    error::Error,
+    utils::{
+        self, amount_u64_to_f64, format_timestamp, get_member, get_pool, get_pools, get_proof,
+        ComputeBudget, TableData, TableSectionTitle,
+    },
+    Miner,
+};
 
 impl Miner {
     // TODO
     pub async fn pool(&self, args: PoolArgs) {
         if let Some(subcommand) = args.command.clone() {
             match subcommand {
-                PoolCommand::Commit(commit_args) => self.pool_commit(args, commit_args).await.unwrap(),
+                PoolCommand::Commit(commit_args) => {
+                    self.pool_commit(args, commit_args).await.unwrap()
+                }
             }
+        } else if let Some(pool_url) = args.pool_url {
+            self.get_pool(pool_url).await.unwrap();
         } else {
-            if let Some(pool_url) = args.pool_url {
-                self.get_pool(pool_url).await.unwrap();
-            } else {
-                self.list_pools(args).await.unwrap();
-            }
+            self.list_pools(args).await.unwrap();
         }
     }
 
     async fn list_pools(&self, _args: PoolArgs) -> Result<(), Error> {
-        let pools = get_pools(&self.rpc_client).await.expect("Failed to fetch pool accounts");
+        let pools = get_pools(&self.rpc_client)
+            .await
+            .expect("Failed to fetch pool accounts");
         let mut data = vec![];
         for (pool_address, pool) in pools {
             let url = String::from_utf8(pool.url.to_vec()).unwrap_or_default();
@@ -58,7 +76,7 @@ impl Miner {
                 point.lifetime_rewards = format!("{} ORE", amount_u64_to_f64(proof.total_rewards));
             }
 
-            // Push data 
+            // Push data
             data.push(point);
         }
 
@@ -67,7 +85,9 @@ impl Miner {
         table.with(Style::blank());
         table.modify(Columns::new(1..), Alignment::right());
         table.modify(Rows::first(), Color::BOLD);
-        table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(
+            Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)),
+        );
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
         println!("\n{}\n", table);
 
@@ -83,7 +103,9 @@ impl Miner {
 
         // Fetch pool account
         let pool_address = pool.get_pool_address().await?.address;
-        let pool_account = get_pool(&self.rpc_client, pool_address).await.expect("Failed to fetch pool account");
+        let pool_account = get_pool(&self.rpc_client, pool_address)
+            .await
+            .expect("Failed to fetch pool account");
 
         // Aggregate table data
         let mut data = vec![];
@@ -102,14 +124,16 @@ impl Miner {
 
         // Get proof account
         let proof_address = proof_pda(pool_address).0;
-        let proof = get_proof(&self.rpc_client, proof_address).await.expect("Failed to fetch proof account");
+        let proof = get_proof(&self.rpc_client, proof_address)
+            .await
+            .expect("Failed to fetch proof account");
         data.push(TableData {
             key: "Address".to_string(),
             value: proof_address.to_string(),
         });
         data.push(TableData {
             key: "Balance".to_string(),
-            value: format!("{} ORE", amount_u64_to_f64(proof.balance))
+            value: format!("{} ORE", amount_u64_to_f64(proof.balance)),
         });
         data.push(TableData {
             key: "Last hash".to_string(),
@@ -142,10 +166,13 @@ impl Miner {
             });
             data.push(TableData {
                 key: "Balance".to_string(),
-                value: format!("{} ORE", utils::amount_u64_to_string(member.balance)).bold().yellow().to_string(),
+                value: format!("{} ORE", utils::amount_u64_to_string(member.balance))
+                    .bold()
+                    .yellow()
+                    .to_string(),
             });
             // Get offchain data from pool server
-            if let Ok(member_offchain) = pool.get_pool_member(&self).await {
+            if let Ok(member_offchain) = pool.get_pool_member(self).await {
                 let pending_rewards = (member_offchain.total_balance as u64) - member.total_balance;
                 data.push(TableData {
                     key: "Pending rewards".to_string(),
@@ -187,7 +214,6 @@ impl Miner {
     }
 }
 
-
 #[derive(Clone)]
 pub struct Pool {
     pub http_client: reqwest::Client,
@@ -215,7 +241,7 @@ impl Pool {
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
-                Err(err).map_err(From::from)
+                Err(From::from(err))
             }
             Ok(resp) => resp.json::<Member>().await.map_err(From::from),
         }
@@ -232,7 +258,7 @@ impl Pool {
                 match resp.error_for_status() {
                     Err(err) => {
                         println!("{:?}", err);
-                        Err(err).map_err(From::from)
+                        Err(From::from(err))
                     }
                     Ok(resp) => resp.json::<PoolAddress>().await.map_err(From::from),
                 }
@@ -260,7 +286,7 @@ impl Pool {
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
-                Err(err).map_err(From::from)
+                Err(From::from(err))
             }
             Ok(resp) => resp.json::<Member>().await.map_err(From::from),
         }
@@ -299,7 +325,11 @@ impl Pool {
         }
     }
 
-    pub async fn get_latest_pool_event(&self, authority: Pubkey, last_hash_at: i64) -> Result<ore_pool_types::PoolMemberMiningEvent, Error> {
+    pub async fn get_latest_pool_event(
+        &self,
+        authority: Pubkey,
+        last_hash_at: i64,
+    ) -> Result<ore_pool_types::PoolMemberMiningEvent, Error> {
         let get_url = format!("{}/event/latest/{}", self.pool_url, authority);
         let mut attempts = 0;
         let progress_bar = Arc::new(spinner::new_progress_bar());
@@ -312,18 +342,18 @@ impl Pool {
                     if let Some(status) = err.status() {
                         match status {
                             StatusCode::NOT_FOUND | StatusCode::BAD_GATEWAY => {
-                                // No op. Retry.       
+                                // No op. Retry.
                             }
                             _ => {
                                 progress_bar.finish_and_clear();
-                                return Err(Error::Internal(status.to_string())).map_err(From::from);
+                                return Err(Error::Internal(status.to_string()));
                             }
                         }
                     }
                 }
                 Ok(resp) => {
                     if let Ok(event) = resp.json::<ore_pool_types::PoolMemberMiningEvent>().await {
-                        if event.last_hash_at as i64 >= last_hash_at {
+                        if event.last_hash_at >= last_hash_at {
                             progress_bar.finish_and_clear();
                             return Ok(event);
                         }
@@ -335,7 +365,7 @@ impl Pool {
             attempts += 1;
             if attempts > 10 {
                 progress_bar.finish_with_message("Retry limit exceeded");
-                return Err(Error::Internal("Retry limit exceeded".to_string())).map_err(From::from);
+                return Err(Error::Internal("Retry limit exceeded".to_string()));
             }
             progress_bar.set_message(format!("Fetching mining event... (retry {})", attempts));
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
@@ -378,7 +408,7 @@ impl Pool {
             transaction: tx,
             hash,
         };
-        
+
         // post
         let post_url = format!("{}/commit", self.pool_url);
         let resp = self
@@ -400,13 +430,13 @@ impl Pool {
                 match resp.error_for_status() {
                     Err(err) => {
                         println!("{:?}", err);
-                        Err(err).map_err(From::from)
+                        Err(From::from(err))
                     }
                     Ok(resp) => {
                         let balance_update = resp.json::<BalanceUpdate>().await;
                         println!("{:?}", balance_update);
                         Ok(())
-                    },
+                    }
                 }
             }
             Ok(resp) => {
@@ -424,7 +454,7 @@ impl Pool {
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
-                Err(err).map_err(From::from)
+                Err(From::from(err))
             }
             Ok(resp) => resp.json::<MemberChallenge>().await.map_err(From::from),
         }
@@ -452,7 +482,7 @@ impl Pool {
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
-                Err(err).map_err(From::from)
+                Err(From::from(err))
             }
             Ok(_) => Ok(()),
         }

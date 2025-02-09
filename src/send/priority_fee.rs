@@ -13,7 +13,7 @@ use url::Url;
 enum FeeStrategy {
     Helius,
     Triton,
-    LOCAL,
+    Local,
     Alchemy,
     Quiknode,
 }
@@ -26,7 +26,7 @@ impl Miner {
             .clone()
             .unwrap_or(self.rpc_client.url());
 
-        // Select fee estiamte strategy
+        // Select fee estimate strategy
         let host = Url::parse(&rpc_url)
             .unwrap()
             .host_str()
@@ -41,7 +41,7 @@ impl Miner {
         } else if host.contains("rpcpool.com") {
             FeeStrategy::Triton
         } else {
-            FeeStrategy::LOCAL
+            FeeStrategy::Local
         };
 
         // Build fee estimate request
@@ -89,7 +89,7 @@ impl Miner {
                     }
                 ]
             })),
-            FeeStrategy::LOCAL => None,
+            FeeStrategy::Local => None,
         };
 
         // Send rpc request
@@ -117,20 +117,19 @@ impl Miner {
             FeeStrategy::Quiknode => response["result"]["per_compute_unit"]["medium"]
                 .as_f64()
                 .map(|fee| fee as u64)
-                .ok_or_else(|| format!("Please enable the Solana Priority Fee API add-on in your QuickNode account.")),
+                .ok_or_else(|| {
+                    "Please enable the Solana Priority Fee API add-on in your QuickNode account."
+                        .to_string()
+                }),
             FeeStrategy::Alchemy => response["result"]
                 .as_array()
-                .and_then(|arr| {
-                    Some(
-                        arr.into_iter()
-                            .map(|v| v["prioritizationFee"].as_u64().unwrap())
-                            .collect::<Vec<u64>>(),
-                    )
+                .map(|arr| {
+                    arr.iter()
+                        .map(|v| v["prioritizationFee"].as_u64().unwrap())
+                        .collect::<Vec<u64>>()
                 })
-                .and_then(|fees| {
-                    Some(
-                        ((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil() * 1.2) as u64,
-                    )
+                .map(|fees| {
+                    ((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil() * 1.2) as u64
                 })
                 .ok_or_else(|| format!("Failed to parse priority fee response: {:?}", response)),
             FeeStrategy::Triton => {
@@ -138,17 +137,16 @@ impl Miner {
                     .map(|prioritization_fees| {
                         estimate_prioritization_fee_microlamports(prioritization_fees)
                     })
-                    .or_else(|error: serde_json::Error| {
-                        Err(format!(
+                    .map_err(|error: serde_json::Error| {
+                        format!(
                             "Failed to parse priority fee response: {response:?}, error: {error}"
-                        ))
+                        )
                     })
-            },
-            FeeStrategy::LOCAL => {
-                self.local_dynamic_fee().await.or_else(|err| {
-                    Err(format!("Failed to parse priority fee response: {err}"))
-                })
-            },
+            }
+            FeeStrategy::Local => self
+                .local_dynamic_fee()
+                .await
+                .map_err(|err| format!("Failed to parse priority fee response: {err}")),
         };
 
         // Check if the calculated fee is higher than max
@@ -189,7 +187,7 @@ impl Miner {
         let chunk_size = 150;
         let chunks: Vec<_> = sorted_fees.chunks(chunk_size).take(3).collect();
         let mut percentiles: HashMap<u8, u64> = HashMap::new();
-        for (_, chunk) in chunks.iter().enumerate() {
+        for chunk in chunks.iter() {
             let fees: Vec<u64> = chunk.iter().map(|fee| fee.prioritization_fee).collect();
             percentiles = Self::calculate_percentiles(&fees);
         }

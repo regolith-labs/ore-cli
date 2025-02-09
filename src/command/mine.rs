@@ -3,7 +3,6 @@ use std::{
     sync::{Arc, RwLock},
     thread::sleep,
     time::{Duration, Instant},
-    usize,
 };
 
 use b64::FromBase64;
@@ -446,13 +445,12 @@ impl Miner {
         if let Ok(accounts) = self.rpc_client.get_multiple_accounts(&BUS_ADDRESSES).await {
             let mut top_bus_balance: u64 = 0;
             let mut top_bus = BUS_ADDRESSES[0];
-            for account in accounts {
-                if let Some(account) = account {
-                    if let Ok(bus) = Bus::try_from_bytes(&account.data) {
-                        if bus.rewards.gt(&top_bus_balance) {
-                            top_bus_balance = bus.rewards;
-                            top_bus = BUS_ADDRESSES[bus.id as usize];
-                        }
+            for account in accounts.into_iter().flatten() {
+                // Applied `.flatten()`
+                if let Ok(bus) = Bus::try_from_bytes(&account.data) {
+                    if bus.rewards.gt(&top_bus_balance) {
+                        top_bus_balance = bus.rewards;
+                        top_bus = BUS_ADDRESSES[bus.id as usize];
                     }
                 }
             }
@@ -467,12 +465,13 @@ impl Miner {
     async fn fetch_solo_mine_event(&self, sig: Signature, verbose: bool) {
         // Add loading row
         let mining_data = SoloMiningData::fetching(sig);
-        let mut data = self.solo_mining_data.write().unwrap();
-        data.insert(0, mining_data);
-        if data.len() >= 12 {
-            data.pop();
-        }
-        drop(data);
+        {
+            let mut data = self.solo_mining_data.write().unwrap();
+            data.insert(0, mining_data);
+            if data.len() >= 12 {
+                data.pop();
+            }
+        } // MutexGuard is dropped here
 
         // Update table
         self.update_solo_mining_table(verbose);
@@ -513,7 +512,7 @@ impl Miner {
                                     signature: if verbose {
                                         sig.to_string()
                                     } else {
-                                        format!("{}...", sig.to_string()[..8].to_string())
+                                        format!("{}...", &sig.to_string()[..8])
                                     },
                                     block: tx.slot.to_string(),
                                     timestamp: format_timestamp(tx.block_time.unwrap_or_default()),
@@ -558,7 +557,7 @@ impl Miner {
                 signature: if verbose {
                     event.signature.to_string()
                 } else {
-                    format!("{}...", event.signature.to_string()[..8].to_string())
+                    format!("{}...", &event.signature.to_string()[..8])
                 },
                 block: event.block.to_string(),
                 timestamp: format_timestamp(event.timestamp as i64),
@@ -659,7 +658,7 @@ impl Miner {
         }
 
         // Submit transaction
-        if ixs.len() > 0 {
+        if !ixs.is_empty() {
             self.send_and_confirm(&ixs, ComputeBudget::Fixed(400_000), false)
                 .await
                 .ok();

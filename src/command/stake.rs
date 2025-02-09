@@ -42,12 +42,10 @@ impl Miner {
                     self.stake_accounts(subargs, args).await.unwrap()
                 }
             }
+        } else if let Some(mint) = args.mint {
+            self.stake_get(mint).await.unwrap();
         } else {
-            if let Some(mint) = args.mint {
-                self.stake_get(mint).await.unwrap();
-            } else {
-                self.stake_list(args).await.unwrap();
-            }
+            self.stake_list(args).await.unwrap();
         }
     }
 
@@ -103,7 +101,7 @@ impl Miner {
             mint_address,
             claim_args
                 .amount
-                .map(|a| crate::utils::amount_f64_to_u64(a))
+                .map(crate::utils::amount_f64_to_u64)
                 .unwrap_or(stake.rewards),
         ));
 
@@ -276,7 +274,7 @@ impl Miner {
         // Get the account address
         let authority = match &args.authority {
             Some(authority) => {
-                Pubkey::from_str(&authority).expect("Failed to parse account address")
+                Pubkey::from_str(authority).expect("Failed to parse account address")
             }
             None => self.signer().pubkey(),
         };
@@ -382,7 +380,7 @@ impl Miner {
         let signer = self.signer();
         let sender = match &args.token_account {
             Some(address) => {
-                Pubkey::from_str(&address).expect("Failed to parse token account address")
+                Pubkey::from_str(address).expect("Failed to parse token account address")
             }
             None => spl_associated_token_account::get_associated_token_address(
                 &signer.pubkey(),
@@ -457,7 +455,7 @@ impl Miner {
         // Get beneficiary token account
         let beneficiary = match &args.token_account {
             Some(address) => {
-                Pubkey::from_str(&address).expect("Failed to parse token account address")
+                Pubkey::from_str(address).expect("Failed to parse token account address")
             }
             None => spl_associated_token_account::get_associated_token_address(
                 &signer.pubkey(),
