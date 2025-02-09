@@ -89,13 +89,7 @@ impl Miner {
             ];
             final_ixs.push(transfer(
                 &signer.pubkey(),
-                &Pubkey::from_str(
-                    &tip_accounts
-                        .choose(&mut rand::thread_rng())
-                        .unwrap()
-                        .to_string(),
-                )
-                .unwrap(),
+                &Pubkey::from_str(tip_accounts.choose(&mut rand::thread_rng()).unwrap()).unwrap(),
                 jito_tip,
             ));
             progress_bar.println(format!("  Jito tip: {} SOL", lamports_to_sol(jito_tip)));

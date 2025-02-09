@@ -2,10 +2,7 @@ use clap::{arg, command, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 pub struct AccountArgs {
-    #[arg(
-        value_name = "ADDRESS",
-        help = "The address to the account to fetch."
-    )]
+    #[arg(value_name = "ADDRESS", help = "The address to the account to fetch.")]
     pub address: Option<String>,
 
     #[arg(
@@ -72,13 +69,19 @@ pub struct BenchmarkArgs {
 
 #[derive(Parser, Debug)]
 pub struct BoostArgs {
-    #[arg(value_name = "MINT_ADDRESS", help = "The mint address of the boost to get.")]
+    #[arg(
+        value_name = "MINT_ADDRESS",
+        help = "The mint address of the boost to get."
+    )]
     pub mint: Option<String>,
 }
 
 #[derive(Parser, Debug)]
 pub struct CheckpointArgs {
-    #[arg(value_name = "MINT_ADDRESS", help = "The mint address of the boost to checkpoint")]
+    #[arg(
+        value_name = "MINT_ADDRESS",
+        help = "The mint address of the boost to checkpoint"
+    )]
     pub mint: String,
 
     #[arg(
@@ -165,10 +168,7 @@ pub struct MineArgs {
 
 #[derive(Parser, Debug)]
 pub struct PoolArgs {
-    #[arg(
-        value_name = "POOL_URL",
-        help = "The pool url to connect to."
-    )]
+    #[arg(value_name = "POOL_URL", help = "The pool url to connect to.")]
     pub pool_url: Option<String>,
 
     #[command(subcommand)]
@@ -183,7 +183,6 @@ pub enum PoolCommand {
 
 #[derive(Parser, Clone, Debug)]
 pub struct PoolCommitArgs {}
-
 
 #[derive(Parser, Debug)]
 pub struct ProgramArgs {}
@@ -285,10 +284,7 @@ pub struct StakeAccountsArgs {}
 
 #[derive(Parser, Debug)]
 pub struct TransactionArgs {
-    #[arg(
-        value_name = "SIGNATURE",
-        help = "The signature of the transaction."
-    )]
+    #[arg(value_name = "SIGNATURE", help = "The signature of the transaction.")]
     pub signature: String,
 }
 
