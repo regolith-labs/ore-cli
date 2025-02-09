@@ -270,7 +270,7 @@ impl Miner {
     pub fn signer(&self) -> Keypair {
         match self.keypair_filepath.clone() {
             Some(filepath) => read_keypair_file(filepath.clone())
-                .expect(format!("No keypair found at {}", filepath).as_str()),
+                .unwrap_or_else(|_| panic!("No keypair found at {}", filepath)),
             None => panic!("No keypair provided"),
         }
     }
@@ -278,7 +278,7 @@ impl Miner {
     pub fn fee_payer(&self) -> Keypair {
         match self.fee_payer_filepath.clone() {
             Some(filepath) => read_keypair_file(filepath.clone())
-                .expect(format!("No fee payer keypair found at {}", filepath).as_str()),
+                .unwrap_or_else(|_| panic!("No fee payer keypair found at {}", filepath)),
             None => panic!("No fee payer keypair provided"),
         }
     }
