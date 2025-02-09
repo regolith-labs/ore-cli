@@ -2,14 +2,23 @@ use std::str::FromStr;
 
 use colored::Colorize;
 use ore_api::state::proof_pda;
-use solana_program::{pubkey::Pubkey, native_token::lamports_to_sol};
+use solana_program::{native_token::lamports_to_sol, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::amount_to_ui_amount;
-use tabled::{Table, settings::{Style, Remove, object::{Rows, Columns}, Alignment}};
+use tabled::{
+    settings::{
+        object::{Columns, Rows},
+        Alignment, Remove, Style,
+    },
+    Table,
+};
 
 use crate::{
     args::{AccountArgs, AccountCloseArgs, AccountCommand, ClaimArgs},
-    utils::{amount_u64_to_f64, ask_confirm, format_timestamp, get_proof, get_proof_with_authority, ComputeBudget, TableData, TableSectionTitle},
+    utils::{
+        amount_u64_to_f64, ask_confirm, format_timestamp, get_proof, get_proof_with_authority,
+        ComputeBudget, TableData, TableSectionTitle,
+    },
     Miner,
 };
 
@@ -28,7 +37,7 @@ impl Miner {
         // Parse account address
         let signer = self.signer();
         let address = if let Some(address) = &args.address {
-            if let Ok(address) = Pubkey::from_str(&address) {
+            if let Ok(address) = Pubkey::from_str(address) {
                 address
             } else {
                 println!("Invalid address: {:?}", address);
@@ -40,7 +49,7 @@ impl Miner {
             signer.pubkey()
         };
 
-        // Aggregate data   
+        // Aggregate data
         let mut data = vec![];
         self.get_account_data(address, &mut data).await;
         self.get_proof_data(address, &mut data).await;
@@ -52,14 +61,14 @@ impl Miner {
         table.with(Style::blank());
         table.section_title(0, "Account");
         table.section_title(3, "Proof");
- 
+
         println!("{table}\n");
     }
 
     async fn get_proof_account(&self, args: AccountArgs) {
         // Parse account address
         let proof_address = if let Some(address) = &args.proof {
-            if let Ok(address) = Pubkey::from_str(&address) {
+            if let Ok(address) = Pubkey::from_str(address) {
                 address
             } else {
                 println!("Invalid address: {:?}", address);
@@ -69,8 +78,10 @@ impl Miner {
             return;
         };
 
-        // Aggregate data   
-        let proof = get_proof(&self.rpc_client, proof_address).await.expect("Failed to fetch proof account");
+        // Aggregate data
+        let proof = get_proof(&self.rpc_client, proof_address)
+            .await
+            .expect("Failed to fetch proof account");
         let mut data = vec![];
         self.get_account_data(proof.authority, &mut data).await;
         self.get_proof_data(proof.authority, &mut data).await;
@@ -82,7 +93,7 @@ impl Miner {
         table.with(Style::blank());
         table.section_title(0, "Account");
         table.section_title(3, "Proof");
- 
+
         println!("{table}\n");
     }
 
@@ -103,7 +114,11 @@ impl Miner {
         };
 
         // Get SOL balance
-        let sol_balance = self.rpc_client.get_balance(&authority).await.expect("Failed to fetch SOL balance");
+        let sol_balance = self
+            .rpc_client
+            .get_balance(&authority)
+            .await
+            .expect("Failed to fetch SOL balance");
 
         // Aggregate data
         data.push(TableData {
@@ -138,10 +153,13 @@ impl Miner {
             data.push(TableData {
                 key: "Balance".to_string(),
                 value: if proof.balance > 0 {
-                    format!("{} ORE", amount_u64_to_f64(proof.balance)).bold().yellow().to_string()
+                    format!("{} ORE", amount_u64_to_f64(proof.balance))
+                        .bold()
+                        .yellow()
+                        .to_string()
                 } else {
                     format!("{} ORE", amount_u64_to_f64(proof.balance))
-                }
+                },
             });
             data.push(TableData {
                 key: "Last hash".to_string(),
@@ -157,7 +175,10 @@ impl Miner {
             });
             data.push(TableData {
                 key: "Lifetime rewards".to_string(),
-                value: format!("{} ORE", amount_to_ui_amount(proof.total_rewards, ore_api::consts::TOKEN_DECIMALS)),
+                value: format!(
+                    "{} ORE",
+                    amount_to_ui_amount(proof.total_rewards, ore_api::consts::TOKEN_DECIMALS)
+                ),
             });
             data.push(TableData {
                 key: "Miner".to_string(),
@@ -174,7 +195,9 @@ impl Miner {
     async fn close(&self, _args: AccountCloseArgs) {
         // Confirm proof exists
         let signer = self.signer();
-        let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey()).await.expect("Failed to fetch proof account");
+        let proof = get_proof_with_authority(&self.rpc_client, signer.pubkey())
+            .await
+            .expect("Failed to fetch proof account");
 
         // Confirm the user wants to close.
         if !ask_confirm(

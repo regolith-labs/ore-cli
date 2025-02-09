@@ -5,23 +5,42 @@ use colored::Colorize;
 use ore_api::event::MineEvent;
 use solana_sdk::signature::Signature;
 use solana_transaction_status::{option_serializer::OptionSerializer, UiTransactionEncoding};
-use tabled::{settings::{object::{Columns, Rows}, Alignment, Remove, Style}, Table};
+use tabled::{
+    settings::{
+        object::{Columns, Rows},
+        Alignment, Remove, Style,
+    },
+    Table,
+};
 
-use crate::{error::Error, utils::{amount_u64_to_string, format_timestamp, TableData, TableSectionTitle}, Miner, TransactionArgs};
+use crate::{
+    error::Error,
+    utils::{amount_u64_to_string, format_timestamp, TableData, TableSectionTitle},
+    Miner, TransactionArgs,
+};
 
 impl Miner {
     pub async fn transaction(&self, args: TransactionArgs) -> Result<(), Error> {
         let signature = args.signature;
         let signature = Signature::from_str(&signature).expect("Failed to parse signature");
-        match self.rpc_client.get_transaction(&signature, UiTransactionEncoding::Json).await {
+        match self
+            .rpc_client
+            .get_transaction(&signature, UiTransactionEncoding::Json)
+            .await
+        {
             Ok(tx) => {
                 let mut data = vec![];
-                
+
                 // Parse transaction response
                 if let Some(meta) = tx.transaction.meta {
                     if let OptionSerializer::Some(log_messages) = meta.log_messages {
-                        if let Some(return_log) = log_messages.iter().find(|log| log.starts_with("Program return: ")) {
-                            if let Some(return_data) = return_log.strip_prefix(&format!("Program return: {} ", ore_api::ID)) {
+                        if let Some(return_log) = log_messages
+                            .iter()
+                            .find(|log| log.starts_with("Program return: "))
+                        {
+                            if let Some(return_data) = return_log
+                                .strip_prefix(&format!("Program return: {} ", ore_api::ID))
+                            {
                                 if let Ok(return_data) = return_data.from_base64() {
                                     let event = MineEvent::from_bytes(&return_data);
                                     data.push(TableData {
@@ -63,7 +82,6 @@ impl Miner {
                                             Err(_e) => "Failed".bold().red().to_string(),
                                         },
                                     });
-
                                 }
                             }
                         }
@@ -72,7 +90,7 @@ impl Miner {
 
                 // Check if data is empty
                 if data.is_empty() {
-                    return Err(Error::Internal("Unknown transaction".to_string())).map_err(From::from);
+                    return Err(Error::Internal("Unknown transaction".to_string()));
                 }
 
                 // Print table

@@ -117,20 +117,19 @@ impl Miner {
             FeeStrategy::Quiknode => response["result"]["per_compute_unit"]["medium"]
                 .as_f64()
                 .map(|fee| fee as u64)
-                .ok_or_else(|| format!("Please enable the Solana Priority Fee API add-on in your QuickNode account.")),
+                .ok_or_else(|| {
+                    "Please enable the Solana Priority Fee API add-on in your QuickNode account."
+                        .to_string()
+                }),
             FeeStrategy::Alchemy => response["result"]
                 .as_array()
-                .and_then(|arr| {
-                    Some(
-                        arr.into_iter()
-                            .map(|v| v["prioritizationFee"].as_u64().unwrap())
-                            .collect::<Vec<u64>>(),
-                    )
+                .map(|arr| {
+                    arr.iter()
+                        .map(|v| v["prioritizationFee"].as_u64().unwrap())
+                        .collect::<Vec<u64>>()
                 })
-                .and_then(|fees| {
-                    Some(
-                        ((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil() * 1.2) as u64,
-                    )
+                .map(|fees| {
+                    ((fees.iter().sum::<u64>() as f32 / fees.len() as f32).ceil() * 1.2) as u64
                 })
                 .ok_or_else(|| format!("Failed to parse priority fee response: {:?}", response)),
             FeeStrategy::Triton => {
@@ -138,17 +137,16 @@ impl Miner {
                     .map(|prioritization_fees| {
                         estimate_prioritization_fee_microlamports(prioritization_fees)
                     })
-                    .or_else(|error: serde_json::Error| {
-                        Err(format!(
+                    .map_err(|error: serde_json::Error| {
+                        format!(
                             "Failed to parse priority fee response: {response:?}, error: {error}"
-                        ))
+                        )
                     })
-            },
-            FeeStrategy::LOCAL => {
-                self.local_dynamic_fee().await.or_else(|err| {
-                    Err(format!("Failed to parse priority fee response: {err}"))
-                })
-            },
+            }
+            FeeStrategy::LOCAL => self
+                .local_dynamic_fee()
+                .await
+                .map_err(|err| format!("Failed to parse priority fee response: {err}")),
         };
 
         // Check if the calculated fee is higher than max
