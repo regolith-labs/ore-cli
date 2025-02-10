@@ -6,6 +6,7 @@ use ore_boost_api::{state::{boost_pda, stake_pda, Boost}, consts::BOOST_DENOMINA
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
+use steel::{AccountMeta, Instruction};
 use tabled::{Table, settings::{Style, Color, Remove, object::{Rows, Columns}, Alignment, Highlight, style::BorderColor, Border}, Tabled};
 
 use crate::{
@@ -436,11 +437,11 @@ impl Miner {
         };
 
         // Migrate stake from solo accounts
-        let mut ixs = vec![];
+        let mut ixs: Vec<Instruction> = vec![];
         println!("{}", "Scanning personal stake accounts...".bold().to_string());
         for mint in boost_mints {
-            let legacy_boost_address = ore_boost_legacy_api::state::boost_pda(mint).0;
-            let legacy_stake_address = ore_boost_legacy_api::state::stake_pda(pubkey, legacy_boost_address).0;
+            let legacy_boost_address = ore_pool_api::state::legacy_boost_pda(mint).0;
+            let legacy_stake_address = ore_pool_api::state::legacy_stake_pda(pubkey, legacy_boost_address).0;
             let new_boost_address = boost_pda(mint).0;
             let new_stake_address = stake_pda(pubkey, new_boost_address).0;
             if let Ok(legacy_stake_account) = get_legacy_stake(&self.rpc_client, legacy_stake_address).await {
@@ -453,13 +454,33 @@ impl Miner {
                         )
                         .as_str(),
                     ) {
-                        ixs.push(ore_boost_legacy_api::sdk::withdraw(pubkey, mint, legacy_stake_account.balance));
+                        let beneficiary_address = spl_associated_token_account::get_associated_token_address(&pubkey, &mint);
+                        let legacy_boost_token_account = spl_associated_token_account::get_associated_token_address(&legacy_boost_address, &mint);
+                        ixs.push(
+                            Instruction {
+                                program_id: ore_pool_api::consts::LEGACY_BOOST_PROGRAM_ID,
+                                accounts: vec![
+                                    AccountMeta::new(pubkey, true),
+                                    AccountMeta::new(beneficiary_address, false),
+                                    AccountMeta::new(legacy_boost_address, false),
+                                    AccountMeta::new(legacy_boost_token_account, false),
+                                    AccountMeta::new_readonly(mint, false),
+                                    AccountMeta::new(legacy_stake_address, false),
+                                    AccountMeta::new_readonly(spl_token::id(), false),
+                                ],
+                                data: [
+                                    [3 as u8].to_vec(),
+                                    bytemuck::bytes_of(&legacy_stake_account.balance).to_vec(),
+                                ]
+                                .concat(),
+                            }
+                        );
                         if self.rpc_client.get_account_data(&new_stake_address).await.is_err() {
                             ixs.push(ore_boost_api::sdk::open(pubkey, pubkey, mint));
                         }
                         ixs.push(ore_boost_api::sdk::deposit(pubkey, mint, legacy_stake_account.balance));
                         println!("Migrating stake...");
-                        self.send_and_confirm(&ixs, ComputeBudget::Fixed(400_000), false).await.ok();
+                        self.send_and_confirm(&ixs.clone(), ComputeBudget::Fixed(400_000), false).await.ok();
                         println!("");
                     }
                 }
@@ -494,7 +515,7 @@ impl Miner {
                             }
                             ixs.push(ore_boost_api::sdk::deposit(signer.pubkey(), mint, share.balance));
                             println!("Migrating stake...");
-                            self.send_and_confirm(&ixs, ComputeBudget::Fixed(400_000), false).await.ok();
+                            self.send_and_confirm(&ixs.clone(), ComputeBudget::Fixed(400_000), false).await.ok();
                             println!("");
                         }
                     }

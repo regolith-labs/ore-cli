@@ -10,13 +10,13 @@ use ore_api::{
 use ore_boost_api::state::{Boost, Reservation, Stake};
 use ore_pool_api::state::{Pool, Member, Share};
 use serde::Deserialize;
-use solana_account_decoder::UiAccountEncoding;
+// use solana_account_decoder::UiAccountEncoding;
 use solana_client::{client_error::{reqwest::StatusCode, ClientError, ClientErrorKind}, rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig}, rpc_filter::{Memcmp, RpcFilterType}};
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_program::{pubkey::Pubkey, sysvar, program_pack::Pack};
 use solana_sdk::{clock::Clock, hash::Hash};
 use spl_token::state::Mint;
-use steel::{AccountDeserialize, Discriminator};
+use steel::{AccountDeserialize, Discriminator, ProgramError, Pod, Zeroable};
 use tokio::time::sleep;
 
 #[cfg(feature = "admin")]
@@ -46,7 +46,7 @@ pub async fn get_program_accounts<T>(client: &RpcClient, program_id: Pubkey, fil
             RpcProgramAccountsConfig {
                 filters: Some(all_filters),
                 account_config: RpcAccountInfoConfig {
-                    encoding: Some(UiAccountEncoding::Base64),
+                    // encoding: Some(UiAccountEncoding::Base64),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -167,11 +167,38 @@ pub async fn get_bus(client: &RpcClient, address: Pubkey) -> Result<Bus, anyhow:
     Ok(*Bus::try_from_bytes(&data)?)
 }
 
-pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> Result<ore_boost_legacy_api::state::Stake, anyhow::Error> {
+pub async fn get_legacy_stake(client: &RpcClient, address: Pubkey) -> Result<LegacyStake, anyhow::Error> {
     let data = client
         .get_account_data(&address)
         .await?;
-    Ok(*ore_boost_legacy_api::state::Stake::try_from_bytes(&data)?)
+    Ok(*LegacyStake::try_from_bytes(&data)?)
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
+pub struct LegacyStake {
+    /// The authority of this stake account.
+    pub authority: Pubkey,
+
+    /// The balance of this stake account.
+    pub balance: u64,
+
+    /// The boost this stake account is associated with.
+    pub boost: Pubkey,
+
+    /// The timestamp of the last time stake was added to this account.
+    pub last_stake_at: i64,
+}
+
+impl LegacyStake {
+    fn try_from_bytes(data: &[u8]) -> Result<&Self, ProgramError> {
+        if 102.ne(&data[0]) {
+            return Err(solana_program::program_error::ProgramError::InvalidAccountData);
+        }
+        bytemuck::try_from_bytes::<LegacyStake>(&data[8..]).or(Err(
+            solana_program::program_error::ProgramError::InvalidAccountData,
+        ))
+    }
 }
 
 pub async fn get_boost_stake_accounts(
@@ -284,10 +311,11 @@ where
     Err(anyhow::anyhow!("Retry failed"))
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct Tip {
     pub time: String,
-    pub landed_tips_25th_percentile: f64,
+    pub _landed_tips_25th_percentile: f64,
     pub landed_tips_50th_percentile: f64,
     pub landed_tips_75th_percentile: f64,
     pub landed_tips_95th_percentile: f64,
