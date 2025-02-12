@@ -27,9 +27,8 @@ impl Miner {
                 std::thread::spawn({
                     move || {
                         let timer = Instant::now();
-                        let first_nonce = u64::MAX
-                            .saturating_div(cores)
-                            .saturating_mul(i.id as u64);
+                        let first_nonce =
+                            u64::MAX.saturating_div(cores).saturating_mul(i.id as u64);
                         let mut nonce = first_nonce;
                         let mut memory = equix::SolverMemory::new();
                         loop {

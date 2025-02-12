@@ -1,6 +1,13 @@
 use colored::Colorize;
 use solana_sdk::signature::Signature;
-use tabled::{Tabled, settings::{object::Rows, style::{BorderColor, LineText}, Color, Border, Highlight, Padding}, Table};
+use tabled::{
+    settings::{
+        object::Rows,
+        style::{BorderColor, LineText},
+        Border, Color, Highlight, Padding,
+    },
+    Table, Tabled,
+};
 
 #[derive(Tabled)]
 pub struct TableData {
@@ -15,7 +22,9 @@ pub trait TableSectionTitle {
 impl TableSectionTitle for Table {
     fn section_title(&mut self, row: usize, title: &str) {
         let title_color = Color::try_from(" ".bold().black().on_white().to_string()).unwrap();
-        self.with(Highlight::new(Rows::single(row)).color(BorderColor::default().top(Color::FG_WHITE)));
+        self.with(
+            Highlight::new(Rows::single(row)).color(BorderColor::default().top(Color::FG_WHITE)),
+        );
         self.with(Highlight::new(Rows::single(row)).border(Border::new().top('━')));
         self.with(LineText::new(title, Rows::single(row)).color(title_color.clone()));
         if row > 0 {
@@ -75,7 +84,6 @@ impl SoloMiningData {
         }
     }
 }
-
 
 #[derive(Clone, Tabled)]
 pub struct PoolMiningData {
