@@ -238,7 +238,6 @@ impl Miner {
             last_hash_at = member_challenge.challenge.lash_hash_at;
 
             // Compute cutoff time
-            println!("challenge: {:?}", member_challenge);
             let cutoff_time = last_hash_at
                 .saturating_add(60)
                 .saturating_sub(args.buffer_time as i64)
@@ -301,7 +300,6 @@ impl Miner {
         nonce_indices: &[u64],
         pool_channel: Option<tokio::sync::mpsc::UnboundedSender<Solution>>,
     ) -> Solution {
-        println!("cutoff time: {:?}", cutoff_time);
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
@@ -454,8 +452,6 @@ impl Miner {
         let clock = get_clock(&self.rpc_client)
             .await
             .expect("Failed to fetch clock account");
-        println!("buffer time: {}", buffer_time);
-        println!("clock: {}", clock.unix_timestamp);
         last_hash_at
             .saturating_add(60)
             .saturating_sub(buffer_time as i64)
