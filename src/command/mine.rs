@@ -1,34 +1,50 @@
 use std::{
+    io::stdout,
     sync::{Arc, RwLock},
-    time::{Instant, Duration},
-    usize, io::stdout, thread::sleep,
+    thread::sleep,
+    time::{Duration, Instant},
+    usize,
 };
 
 use b64::FromBase64;
 use colored::*;
-use crossterm::{execute, terminal::{Clear, ClearType}, cursor::MoveTo};
+use crossterm::{
+    cursor::MoveTo,
+    execute,
+    terminal::{Clear, ClearType},
+};
 use drillx::{
     equix::{self},
     Hash, Solution,
 };
 use ore_api::{
     consts::{BUS_ADDRESSES, BUS_COUNT, EPOCH_DURATION},
-    state::{Bus, Config, proof_pda}, event::MineEvent,
+    event::MineEvent,
+    state::{proof_pda, Bus, Config},
 };
 use ore_boost_api::state::reservation_pda;
 use rand::Rng;
 use solana_program::pubkey::Pubkey;
 use solana_rpc_client::spinner;
-use solana_sdk::{signer::Signer, signature::Signature};
-use solana_transaction_status::{UiTransactionEncoding, option_serializer::OptionSerializer};
+use solana_sdk::{signature::Signature, signer::Signer};
+use solana_transaction_status::{option_serializer::OptionSerializer, UiTransactionEncoding};
 use steel::AccountDeserialize;
-use tabled::{settings::{object::{Columns, Rows}, style::BorderColor, Alignment, Border, Color, Highlight, Remove, Style}, Table};
+use tabled::{
+    settings::{
+        object::{Columns, Rows},
+        style::BorderColor,
+        Alignment, Border, Color, Highlight, Remove, Style,
+    },
+    Table,
+};
 
 use crate::{
     args::MineArgs,
     error::Error,
     utils::{
-        amount_u64_to_f64, format_duration, format_timestamp, get_clock, get_config, get_reservation, get_updated_proof_with_authority, ComputeBudget, PoolMiningData, SoloMiningData
+        amount_u64_to_f64, format_duration, format_timestamp, get_clock, get_config,
+        get_reservation, get_updated_proof_with_authority, ComputeBudget, PoolMiningData,
+        SoloMiningData,
     },
     Miner,
 };
@@ -75,14 +91,13 @@ impl Miner {
 
         // Start mining loop
         let mut last_hash_at = 0;
-        loop {            
+        loop {
             // Fetch accounts
             let config = get_config(&self.rpc_client).await;
-            let proof = get_updated_proof_with_authority(
-                &self.rpc_client, 
-                signer.pubkey(), 
-                last_hash_at
-            ).await.expect("Failed to fetch proof account");
+            let proof =
+                get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
+                    .await
+                    .expect("Failed to fetch proof account");
             let reservation = get_reservation(&self.rpc_client, reservation_address).await;
 
             // Log mining table
@@ -126,10 +141,12 @@ impl Miner {
 
             // Build mine ix
             let boost_address = reservation
-                .map(|r| if r.boost == Pubkey::default() {
-                    None
-                } else {
-                    Some(r.boost)
+                .map(|r| {
+                    if r.boost == Pubkey::default() {
+                        None
+                    } else {
+                        Some(r.boost)
+                    }
                 })
                 .unwrap_or(None);
             let boost_keys = if let Some(boost_address) = boost_address {
@@ -151,15 +168,16 @@ impl Miner {
             ixs.push(rotate_ix);
 
             // Submit transaction
-            match self.send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false).await {
-                Ok(sig) => {
-                    self.fetch_solo_mine_event(sig, verbose).await
-                },
+            match self
+                .send_and_confirm(&ixs, ComputeBudget::Fixed(compute_budget), false)
+                .await
+            {
+                Ok(sig) => self.fetch_solo_mine_event(sig, verbose).await,
                 Err(err) => {
                     let mining_data = SoloMiningData::failed();
                     let mut data = self.solo_mining_data.write().unwrap();
                     data.remove(0);
-                    data.insert(0, mining_data); 
+                    data.insert(0, mining_data);
                     drop(data);
 
                     // Log mining table
@@ -220,12 +238,18 @@ impl Miner {
             last_hash_at = member_challenge.challenge.lash_hash_at;
 
             // Compute cutoff time
-            let cutoff_time = self.get_cutoff(last_hash_at, args.buffer_time).await;
+            println!("challenge: {:?}", member_challenge);
+            let cutoff_time = last_hash_at
+                .saturating_add(60)
+                .saturating_sub(args.buffer_time as i64)
+                .saturating_sub(member_challenge.unix_timestamp)
+                .max(0) as u64;
 
             // Build nonce indices
             let num_total_members = member_challenge.num_total_members.max(1);
             let member_search_space_size = u64::MAX.saturating_div(num_total_members);
-            let device_search_space_size = member_search_space_size.saturating_div(member_challenge.num_devices as u64);
+            let device_search_space_size =
+                member_search_space_size.saturating_div(member_challenge.num_devices as u64);
 
             // Check device id doesn't go beyond pool limit
             if (device_id as u8) > member_challenge.num_devices {
@@ -233,8 +257,8 @@ impl Miner {
             }
 
             // Calculate bounds on nonce space
-            let left_bound =
-                member_search_space_size.saturating_mul(nonce_index) + device_id.saturating_mul(device_search_space_size);
+            let left_bound = member_search_space_size.saturating_mul(nonce_index)
+                + device_id.saturating_mul(device_search_space_size);
 
             // Split nonce-device space for muliple cores
             let range_per_core = device_search_space_size.saturating_div(cores);
@@ -262,7 +286,8 @@ impl Miner {
                     continue;
                 }
                 Ok(()) => {
-                    self.fetch_pool_mine_event(pool, last_hash_at, verbose).await;
+                    self.fetch_pool_mine_event(pool, last_hash_at, verbose)
+                        .await;
                 }
             }
         }
@@ -276,6 +301,7 @@ impl Miner {
         nonce_indices: &[u64],
         pool_channel: Option<tokio::sync::mpsc::UnboundedSender<Solution>>,
     ) -> Solution {
+        println!("cutoff time: {:?}", cutoff_time);
         // Dispatch job to each thread
         let progress_bar = Arc::new(spinner::new_progress_bar());
         let global_best_difficulty = Arc::new(RwLock::new(0u32));
@@ -414,7 +440,9 @@ impl Miner {
     }
 
     async fn should_reset(&self, config: Config) -> bool {
-        let clock = get_clock(&self.rpc_client).await.expect("Failed to fetch clock account");
+        let clock = get_clock(&self.rpc_client)
+            .await
+            .expect("Failed to fetch clock account");
         config
             .last_reset_at
             .saturating_add(EPOCH_DURATION)
@@ -423,7 +451,11 @@ impl Miner {
     }
 
     async fn get_cutoff(&self, last_hash_at: i64, buffer_time: u64) -> u64 {
-        let clock = get_clock(&self.rpc_client).await.expect("Failed to fetch clock account");
+        let clock = get_clock(&self.rpc_client)
+            .await
+            .expect("Failed to fetch clock account");
+        println!("buffer time: {}", buffer_time);
+        println!("clock: {}", clock.unix_timestamp);
         last_hash_at
             .saturating_add(60)
             .saturating_sub(buffer_time as i64)
@@ -454,11 +486,11 @@ impl Miner {
         BUS_ADDRESSES[i]
     }
 
-    async fn fetch_solo_mine_event(&self, sig: Signature, verbose: bool) {        
+    async fn fetch_solo_mine_event(&self, sig: Signature, verbose: bool) {
         // Add loading row
         let mining_data = SoloMiningData::fetching(sig);
         let mut data = self.solo_mining_data.write().unwrap();
-        data.insert(0, mining_data); 
+        data.insert(0, mining_data);
         if data.len() >= 12 {
             data.pop();
         }
@@ -466,12 +498,15 @@ impl Miner {
 
         // Update table
         self.update_solo_mining_table(verbose);
-        
+
         // Poll for transaction
         let mut tx;
         let mut attempts = 0;
         loop {
-            tx = self.rpc_client.get_transaction(&sig, UiTransactionEncoding::Json).await;
+            tx = self
+                .rpc_client
+                .get_transaction(&sig, UiTransactionEncoding::Json)
+                .await;
             if tx.is_ok() {
                 break;
             }
@@ -486,28 +521,40 @@ impl Miner {
         if let Ok(tx) = tx {
             if let Some(meta) = tx.transaction.meta {
                 if let OptionSerializer::Some(log_messages) = meta.log_messages {
-                    if let Some(return_log) = log_messages.iter().find(|log| log.starts_with("Program return: ")) {
-                        if let Some(return_data) = return_log.strip_prefix(&format!("Program return: {} ", ore_api::ID)) {
+                    if let Some(return_log) = log_messages
+                        .iter()
+                        .find(|log| log.starts_with("Program return: "))
+                    {
+                        if let Some(return_data) =
+                            return_log.strip_prefix(&format!("Program return: {} ", ore_api::ID))
+                        {
                             if let Ok(return_data) = return_data.from_base64() {
                                 let mut data = self.solo_mining_data.write().unwrap();
                                 let event = MineEvent::from_bytes(&return_data);
                                 let mining_data = SoloMiningData {
-                                    signature: if verbose { sig.to_string() } else { format!("{}...", sig.to_string()[..8].to_string()) },
+                                    signature: if verbose {
+                                        sig.to_string()
+                                    } else {
+                                        format!("{}...", sig.to_string()[..8].to_string())
+                                    },
                                     block: tx.slot.to_string(),
                                     timestamp: format_timestamp(tx.block_time.unwrap_or_default()),
                                     difficulty: event.difficulty.to_string(),
-                                    base_reward: if event.net_base_reward > 0 { 
-                                        format!("{:#.11}", amount_u64_to_f64(event.net_base_reward)) 
+                                    base_reward: if event.net_base_reward > 0 {
+                                        format!("{:#.11}", amount_u64_to_f64(event.net_base_reward))
                                     } else {
                                         "0".to_string()
                                     },
-                                    boost_reward: if event.net_miner_boost_reward > 0 { 
-                                        format!("{:#.11}", amount_u64_to_f64(event.net_miner_boost_reward)) 
+                                    boost_reward: if event.net_miner_boost_reward > 0 {
+                                        format!(
+                                            "{:#.11}",
+                                            amount_u64_to_f64(event.net_miner_boost_reward)
+                                        )
                                     } else {
                                         "0".to_string()
                                     },
-                                    total_reward: if event.net_reward > 0 { 
-                                        format!("{:#.11}", amount_u64_to_f64(event.net_reward)) 
+                                    total_reward: if event.net_reward > 0 {
+                                        format!("{:#.11}", amount_u64_to_f64(event.net_reward))
                                     } else {
                                         "0".to_string()
                                     },
@@ -525,56 +572,59 @@ impl Miner {
     }
 
     async fn fetch_pool_mine_event(&self, pool: &Pool, last_hash_at: i64, verbose: bool) {
-        let mining_data = match pool.get_latest_pool_event(self.signer().pubkey(), last_hash_at).await {
-            Ok(event) => {
-                PoolMiningData {
-                    signature: if verbose { event.signature.to_string() } else { format!("{}...", event.signature.to_string()[..8].to_string()) },
-                    block: event.block.to_string(),
-                    timestamp: format_timestamp(event.timestamp as i64),
-                    timing: format!("{}s", event.timing),
-                    difficulty: event.difficulty.to_string(),
-                    base_reward: if event.net_base_reward > 0 { 
-                        format!("{:#.11}", amount_u64_to_f64(event.net_base_reward)) 
-                    } else {
-                        "0".to_string()
-                    },
-                    boost_reward: if event.net_miner_boost_reward > 0 { 
-                        format!("{:#.11}", amount_u64_to_f64(event.net_miner_boost_reward)) 
-                    } else {
-                        "0".to_string()
-                    },
-                    total_reward: if event.net_reward > 0 { 
-                        format!("{:#.11}", amount_u64_to_f64(event.net_reward)) 
-                    } else {
-                        "0".to_string()
-                    },
-                    my_difficulty: event.member_difficulty.to_string(),
-                    my_reward: if event.member_reward > 0 { 
-                        format!("{:#.11}", amount_u64_to_f64(event.member_reward)) 
-                    } else {
-                        "0".to_string()
-                    },
-                }
-            }
-            Err(err) => {
-                PoolMiningData {
-                    signature: format!("Failed to fetch event: {:?}", err),
-                    block: "".to_string(),
-                    timestamp: "".to_string(),
-                    timing: "".to_string(),
-                    difficulty: "".to_string(),
-                    base_reward: "".to_string(),
-                    boost_reward: "".to_string(),
-                    total_reward: "".to_string(),
-                    my_difficulty: "".to_string(),
-                    my_reward: "".to_string(),
-                }
-            }
+        let mining_data = match pool
+            .get_latest_pool_event(self.signer().pubkey(), last_hash_at)
+            .await
+        {
+            Ok(event) => PoolMiningData {
+                signature: if verbose {
+                    event.signature.to_string()
+                } else {
+                    format!("{}...", event.signature.to_string()[..8].to_string())
+                },
+                block: event.block.to_string(),
+                timestamp: format_timestamp(event.timestamp as i64),
+                timing: format!("{}s", event.timing),
+                difficulty: event.difficulty.to_string(),
+                base_reward: if event.net_base_reward > 0 {
+                    format!("{:#.11}", amount_u64_to_f64(event.net_base_reward))
+                } else {
+                    "0".to_string()
+                },
+                boost_reward: if event.net_miner_boost_reward > 0 {
+                    format!("{:#.11}", amount_u64_to_f64(event.net_miner_boost_reward))
+                } else {
+                    "0".to_string()
+                },
+                total_reward: if event.net_reward > 0 {
+                    format!("{:#.11}", amount_u64_to_f64(event.net_reward))
+                } else {
+                    "0".to_string()
+                },
+                my_difficulty: event.member_difficulty.to_string(),
+                my_reward: if event.member_reward > 0 {
+                    format!("{:#.11}", amount_u64_to_f64(event.member_reward))
+                } else {
+                    "0".to_string()
+                },
+            },
+            Err(err) => PoolMiningData {
+                signature: format!("Failed to fetch event: {:?}", err),
+                block: "".to_string(),
+                timestamp: "".to_string(),
+                timing: "".to_string(),
+                difficulty: "".to_string(),
+                base_reward: "".to_string(),
+                boost_reward: "".to_string(),
+                total_reward: "".to_string(),
+                my_difficulty: "".to_string(),
+                my_reward: "".to_string(),
+            },
         };
 
         // Add row
         let mut data = self.pool_mining_data.write().unwrap();
-        data.insert(0, mining_data); 
+        data.insert(0, mining_data);
         if data.len() >= 12 {
             data.pop();
         }
@@ -583,14 +633,16 @@ impl Miner {
 
     fn update_solo_mining_table(&self, verbose: bool) {
         execute!(stdout(), Clear(ClearType::All), MoveTo(0, 0)).unwrap();
-        let mut rows: Vec<SoloMiningData>  = vec![];
+        let mut rows: Vec<SoloMiningData> = vec![];
         let data = self.solo_mining_data.read().unwrap();
         rows.extend(data.iter().cloned());
         let mut table = Table::new(&rows);
         table.with(Style::blank());
         table.modify(Columns::new(1..), Alignment::right());
         table.modify(Rows::first(), Color::BOLD);
-        table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(
+            Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)),
+        );
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
         if !verbose {
             table.with(Remove::column(Columns::new(1..3)));
@@ -600,14 +652,16 @@ impl Miner {
 
     fn update_pool_mining_table(&self, verbose: bool) {
         execute!(stdout(), Clear(ClearType::All), MoveTo(0, 0)).unwrap();
-        let mut rows: Vec<PoolMiningData>  = vec![];
+        let mut rows: Vec<PoolMiningData> = vec![];
         let data = self.pool_mining_data.read().unwrap();
         rows.extend(data.iter().cloned());
         let mut table = Table::new(&rows);
         table.with(Style::blank());
         table.modify(Columns::new(1..), Alignment::right());
         table.modify(Rows::first(), Color::BOLD);
-        table.with(Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)));
+        table.with(
+            Highlight::new(Rows::single(1)).color(BorderColor::default().top(Color::FG_WHITE)),
+        );
         table.with(Highlight::new(Rows::single(1)).border(Border::new().top('━')));
         if !verbose {
             table.with(Remove::column(Columns::new(1..3)));
@@ -628,8 +682,14 @@ impl Miner {
 
         // Register reservation
         let reservation_address = reservation_pda(proof_address).0;
-        if self.rpc_client.get_account(&reservation_address).await.is_err() {
-            let ix = ore_boost_api::sdk::register(signer.pubkey(), fee_payer.pubkey(), proof_address);
+        if self
+            .rpc_client
+            .get_account(&reservation_address)
+            .await
+            .is_err()
+        {
+            let ix =
+                ore_boost_api::sdk::register(signer.pubkey(), fee_payer.pubkey(), proof_address);
             ixs.push(ix);
         }
 

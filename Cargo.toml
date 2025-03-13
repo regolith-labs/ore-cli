@@ -38,7 +38,8 @@ num_cpus = "1.16.0"
 ore-api = "3.0"
 ore-boost-api = "1.4"
 ore-pool-api = "1.4"
-ore-pool-types = "1.4"
+# ore-pool-types = "1.4"
+ore-pool-types = { version = "1.2", git = "https://github.com/regolith-labs/ore-pool/", package = "ore-pool-types", rev = "8efb17b" }
 url = "2.5"
 rand = "0.8.4"
 reqwest = { version = "0.12", features = ["json"] }
