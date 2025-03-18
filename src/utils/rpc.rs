@@ -6,7 +6,7 @@ use ore_api::{
     state::{proof_pda, Bus, Config, Proof, Treasury},
 };
 use ore_boost_api::state::{Boost, Stake};
-use ore_pool_api::state::{Member, Pool, Share};
+use ore_pool_api::state::{Member, Pool};
 use serde::Deserialize;
 // use solana_account_decoder::UiAccountEncoding;
 use solana_client::nonblocking::rpc_client::RpcClient;
