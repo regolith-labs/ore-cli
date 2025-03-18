@@ -45,10 +45,6 @@ enum Commands {
     #[command(about = "Benchmark your machine's hashpower")]
     Benchmark(BenchmarkArgs),
 
-    #[cfg(feature = "admin")]
-    #[command(about = "Execute checkpoint operation for a boost")]
-    Checkpoint(CheckpointArgs),
-
     #[command(about = "Claim your mining yield")]
     Claim(ClaimArgs),
 
@@ -236,10 +232,6 @@ async fn main() {
         }
         Commands::Transaction(args) => {
             miner.transaction(args).await.unwrap();
-        }
-        #[cfg(feature = "admin")]
-        Commands::Checkpoint(args) => {
-            miner.checkpoint(args).await.unwrap();
         }
         #[cfg(feature = "admin")]
         Commands::Initialize(_) => {
