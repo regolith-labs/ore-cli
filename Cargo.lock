@@ -3008,7 +3008,7 @@ dependencies = [
 
 [[package]]
 name = "ore-cli"
-version = "3.3.0"
+version = "3.4.0"
 dependencies = [
  "anyhow",
  "b64",
