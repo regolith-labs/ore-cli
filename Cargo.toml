@@ -37,8 +37,8 @@ mpl-token-metadata = "5.1"
 num_cpus = "1.16.0"
 ore-api = "3.2.0-boostv3"
 ore-boost-api = "3.0"
-ore-pool-api = { git = "https://github.com/regolith-labs/ore-pool",  package = "ore-pool-api", rev = "aaff5fab2844" }
-ore-pool-types = { git = "https://github.com/regolith-labs/ore-pool",  package = "ore-pool-types", rev = "aaff5fab2844" }
+ore-pool-api = { version = "1.5.0", git = "https://github.com/regolith-labs/ore-pool",  package = "ore-pool-api", rev = "aaff5fab2844" }
+ore-pool-types = { version = "1.5.0", git = "https://github.com/regolith-labs/ore-pool",  package = "ore-pool-types", rev = "aaff5fab2844" }
 url = "2.5"
 rand = "0.8.4"
 reqwest = { version = "0.12", features = ["json"] }
