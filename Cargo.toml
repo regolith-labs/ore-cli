@@ -1,6 +1,6 @@
 [package]
 name = "ore-cli"
-version = "3.4.0"
+version = "3.4.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "A command line interface for ORE cryptocurrency mining."
@@ -73,4 +73,4 @@ overflow-checks = false
 rustflags = ["-C", "target-cpu=native"]
 
 [patch.crates-io]
-ore-boost-api = { git = "https://github.com/regolith-labs/ore-boost.git", rev = "924105c" }
+ore-boost-api = { git = "https://github.com/regolith-labs/ore-boost.git", rev = "feb9e12" }
