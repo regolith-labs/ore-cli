@@ -108,7 +108,7 @@ impl Miner {
 
         // Send and confirm transaction
         println!("Claiming staking yield...");
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(32_000), false)
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
             .await
             .ok();
 
