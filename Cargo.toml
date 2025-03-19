@@ -1,6 +1,6 @@
 [package]
 name = "ore-cli"
-version = "3.3.0"
+version = "3.4.1"
 edition = "2021"
 license = "Apache-2.0"
 description = "A command line interface for ORE cryptocurrency mining."
@@ -35,10 +35,10 @@ futures = "0.3.30"
 indicatif = "0.17.8"
 mpl-token-metadata = "5.1"
 num_cpus = "1.16.0"
-ore-api = "3.0"
-ore-boost-api = "1.4"
-ore-pool-api = "1.4"
-ore-pool-types = "1.4"
+ore-api = "3.2.0-boostv3"
+ore-boost-api = "3.0"
+ore-pool-api = { version = "1.5.0", git = "https://github.com/regolith-labs/ore-pool",  package = "ore-pool-api", rev = "aaff5fab2844" }
+ore-pool-types = { version = "1.5.0", git = "https://github.com/regolith-labs/ore-pool",  package = "ore-pool-types", rev = "aaff5fab2844" }
 url = "2.5"
 rand = "0.8.4"
 reqwest = { version = "0.12", features = ["json"] }
@@ -53,7 +53,7 @@ serde_json = "1.0"
 spl-token = { version = "^4", features = ["no-entrypoint"] }
 spl-associated-token-account = { version = "^6", features = ["no-entrypoint"] }
 serde = { version = "1.0", features = ["derive"] }
-steel = "3.0"
+steel = "4.0"
 thiserror = "1.0.63"
 tokio = "1.35.1"
 tokio-tungstenite = "0.16"
@@ -71,3 +71,6 @@ overflow-checks = false
 
 [build]
 rustflags = ["-C", "target-cpu=native"]
+
+[patch.crates-io]
+ore-boost-api = { git = "https://github.com/regolith-labs/ore-boost.git", rev = "feb9e12" }

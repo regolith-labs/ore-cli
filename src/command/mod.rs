@@ -1,7 +1,5 @@
 mod account;
 mod benchmark;
-#[cfg(feature = "admin")]
-mod checkpoint;
 mod claim;
 #[cfg(feature = "admin")]
 mod initialize;
