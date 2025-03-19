@@ -97,7 +97,6 @@ impl Miner {
                 get_updated_proof_with_authority(&self.rpc_client, signer.pubkey(), last_hash_at)
                     .await
                     .expect("Failed to fetch proof account");
-            let boost_config = get_boost_config(&self.rpc_client).await;
 
             // Log mining table
             self.update_solo_mining_table(verbose);
@@ -139,6 +138,7 @@ impl Miner {
             }
 
             // Build mine ix
+            let boost_config = get_boost_config(&self.rpc_client).await;
             let boost_address = if boost_config.current == Pubkey::default() {
                 None
             } else {
