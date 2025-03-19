@@ -1,14 +1,15 @@
 use std::str::FromStr;
 
 use colored::*;
-use ore_api::state::proof_pda;
+use ore_api::state::{proof_pda, Proof};
 use ore_boost_api::{
     consts::DENOMINATOR_MULTIPLIER,
-    state::{boost_pda, stake_pda, Boost},
+    state::{boost_pda, stake_pda, Boost, Stake},
 };
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
+use steel::Numeric;
 use tabled::{
     settings::{
         object::{Columns, Rows},
@@ -120,6 +121,10 @@ impl Miner {
         let mint_address = Pubkey::from_str(&mint).expect("Failed to parse mint address");
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
+        let boost_proof_address = proof_pda(boost_address).0;
+        let boost_proof: ore_api::prelude::Proof = get_proof(&self.rpc_client, boost_proof_address)
+            .await
+            .expect("Failed to fetch proof account");
         let boost = get_boost(&self.rpc_client, boost_address)
             .await
             .expect("Failed to fetch boost account");
@@ -145,8 +150,15 @@ impl Miner {
         self.fetch_boost_data(boost_address, boost, mint, symbol.clone(), &mut data)
             .await;
         let len1 = data.len();
-        self.fetch_stake_data(stake_address, boost, mint, symbol.clone(), &mut data)
-            .await;
+        self.fetch_stake_data(
+            stake_address,
+            boost,
+            boost_proof,
+            mint,
+            symbol.clone(),
+            &mut data,
+        )
+        .await;
         let _len2 = data.len();
 
         // Build table
@@ -164,6 +176,7 @@ impl Miner {
         &self,
         address: Pubkey,
         boost: Boost,
+        boost_proof: Proof,
         mint: Mint,
         symbol: String,
         data: &mut Vec<TableData>,
@@ -174,6 +187,7 @@ impl Miner {
             value: address.to_string(),
         });
         if let Ok(stake) = stake {
+            let claimable_yield = calculate_claimable_yield(boost, boost_proof, stake);
             data.push(TableData {
                 key: "Deposits".to_string(),
                 value: format!(
@@ -189,13 +203,13 @@ impl Miner {
             });
             data.push(TableData {
                 key: "Yield".to_string(),
-                value: if stake.rewards > 0 {
-                    format!("{} ORE", amount_u64_to_f64(stake.rewards))
+                value: if claimable_yield > 0 {
+                    format!("{} ORE", amount_u64_to_f64(claimable_yield))
                         .yellow()
                         .bold()
                         .to_string()
                 } else {
-                    format!("{} ORE", amount_u64_to_f64(stake.rewards))
+                    format!("{} ORE", amount_u64_to_f64(claimable_yield))
                 },
             });
         } else {
@@ -274,6 +288,11 @@ impl Miner {
             .expect("Failed to fetch boosts");
         for (address, boost) in boosts {
             // Get relevant accounts
+            let boost_proof_address = proof_pda(address).0;
+            let boost_proof: ore_api::prelude::Proof =
+                get_proof(&self.rpc_client, boost_proof_address)
+                    .await
+                    .expect("Failed to fetch proof account");
             let stake_address = stake_pda(authority, address).0;
             let stake = get_stake(&self.rpc_client, stake_address).await;
             let mint = get_mint(&self.rpc_client, boost.mint)
@@ -295,7 +314,10 @@ impl Miner {
 
             // Parse optional stake data
             let (stake_balance, stake_rewards) = if let Ok(stake) = stake {
-                (stake.balance, stake.rewards)
+                (
+                    stake.balance,
+                    calculate_claimable_yield(boost, boost_proof, stake),
+                )
             } else {
                 (0, 0)
             };
@@ -551,6 +573,20 @@ impl Miner {
         println!("\n{table}\n");
         Ok(())
     }
+}
+
+pub fn calculate_claimable_yield(boost: Boost, boost_proof: Proof, stake: Stake) -> u64 {
+    let mut rewards = stake.rewards;
+    let mut boost_rewards_factor = boost.rewards_factor;
+    if boost_proof.balance > 0 {
+        boost_rewards_factor += Numeric::from_fraction(boost_proof.balance, boost.total_deposits);
+    }
+    if boost_rewards_factor > stake.last_rewards_factor {
+        let accumulated_rewards = boost_rewards_factor - stake.last_rewards_factor;
+        let personal_rewards = accumulated_rewards * Numeric::from_u64(stake.balance);
+        rewards += personal_rewards.to_u64();
+    }
+    rewards
 }
 
 #[derive(Tabled)]
