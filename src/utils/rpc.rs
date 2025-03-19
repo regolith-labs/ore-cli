@@ -8,7 +8,7 @@ use ore_api::{
 use ore_boost_api::state::{Boost, Stake};
 use ore_pool_api::state::{Member, Pool};
 use serde::Deserialize;
-// use solana_account_decoder::UiAccountEncoding;
+use solana_account_decoder::UiAccountEncoding;
 use solana_client::nonblocking::rpc_client::RpcClient;
 use solana_client::{
     client_error::{reqwest::StatusCode, ClientError, ClientErrorKind},
@@ -38,9 +38,9 @@ pub async fn get_program_accounts<T>(
 where
     T: AccountDeserialize + Discriminator + Clone,
 {
-    let mut all_filters = vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
+    let mut all_filters = vec![RpcFilterType::Memcmp(Memcmp::new_base58_encoded(
         0,
-        T::discriminator().to_le_bytes().to_vec(),
+        &T::discriminator().to_le_bytes(),
     ))];
     all_filters.extend(filters);
     let result = client
@@ -49,7 +49,7 @@ where
             RpcProgramAccountsConfig {
                 filters: Some(all_filters),
                 account_config: RpcAccountInfoConfig {
-                    // encoding: Some(UiAccountEncoding::Base64),
+                    encoding: Some(UiAccountEncoding::Base64),
                     ..Default::default()
                 },
                 ..Default::default()
@@ -152,8 +152,7 @@ pub async fn get_boost_stake_accounts(
     rpc_client: &RpcClient,
     boost_address: Pubkey,
 ) -> Result<Vec<(Pubkey, Stake)>, anyhow::Error> {
-    let filter =
-        RpcFilterType::Memcmp(Memcmp::new_raw_bytes(56, boost_address.to_bytes().to_vec()));
+    let filter = RpcFilterType::Memcmp(Memcmp::new_base58_encoded(48, &boost_address.to_bytes()));
     get_program_accounts::<Stake>(rpc_client, ore_boost_api::ID, vec![filter]).await
 }
 
