@@ -2989,13 +2989,14 @@ dependencies = [
 
 [[package]]
 name = "ore-cli"
-version = "3.4.2"
+version = "3.4.3"
 dependencies = [
  "anyhow",
  "b64",
  "bincode",
  "bs58",
  "bytemuck",
+ "bytemuck_derive",
  "cached",
  "chrono",
  "clap 4.5.23",
