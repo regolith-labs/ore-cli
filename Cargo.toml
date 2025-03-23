@@ -1,6 +1,6 @@
 [package]
 name = "ore-cli"
-version = "3.4.5"
+version = "3.4.6"
 edition = "2021"
 license = "Apache-2.0"
 description = "A command line interface for ORE cryptocurrency mining."
@@ -38,8 +38,8 @@ mpl-token-metadata = "5.1"
 num_cpus = "1.16.0"
 ore-api = "3.2.0"
 ore-boost-api = "3.0.1"
-ore-pool-api = "1.5.1"
-ore-pool-types = "1.5.1"
+ore-pool-api = "1.6.1"
+ore-pool-types = "1.6.1"
 url = "2.5"
 rand = "0.8.4"
 reqwest = { version = "0.12", features = ["json"] }

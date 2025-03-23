@@ -2989,7 +2989,7 @@ dependencies = [
 
 [[package]]
 name = "ore-cli"
-version = "3.4.5"
+version = "3.4.6"
 dependencies = [
  "anyhow",
  "b64",
@@ -3035,9 +3035,9 @@ dependencies = [
 
 [[package]]
 name = "ore-pool-api"
-version = "1.5.1"
+version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1082ba64f1a4a04014905f21dab3ae81858c529ccaca20e42e08ec310b97891"
+checksum = "cc20098c4fca711d4445d6eed43673b73ab83375028ba28b61f3dd3231593b17"
 dependencies = [
  "array-const-fn-init",
  "bytemuck",
@@ -3056,9 +3056,9 @@ dependencies = [
 
 [[package]]
 name = "ore-pool-types"
-version = "1.5.1"
+version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac767d8ac6be590891c79d9f51681e455d666000bfb487a8c6ee6f2ada7098d4"
+checksum = "b99a417281da2476b954cb4dea51ccc71f7e43ade4b923e0fbb669a7ca261f98"
 dependencies = [
  "drillx",
  "serde",
