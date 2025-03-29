@@ -139,22 +139,13 @@ impl Miner {
 
             // Build mine ix
             let boost_config = get_boost_config(&self.rpc_client).await;
-            let boost_address = if boost_config.current == Pubkey::default() {
-                None
-            } else {
-                Some(boost_config.current)
-            };
-            let boost_keys = if let Some(boost_address) = boost_address {
-                Some([boost_address, boost_config_address])
-            } else {
-                None
-            };
             let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
-                boost_keys,
+                boost_config.current,
+                boost_config_address,
             );
             ixs.push(mine_ix);
 
