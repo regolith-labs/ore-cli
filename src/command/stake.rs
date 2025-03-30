@@ -3,7 +3,7 @@ use std::str::FromStr;
 use colored::*;
 use ore_api::state::{proof_pda, Proof};
 use ore_boost_api::{
-    consts::DENOMINATOR_MULTIPLIER,
+    consts::DENOMINATOR_BPS,
     state::{boost_pda, stake_pda, Boost, Stake},
 };
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
@@ -245,11 +245,8 @@ impl Miner {
             value: boost.mint.to_string(),
         });
         data.push(TableData {
-            key: "Multiplier".to_string(),
-            value: format!(
-                "{}x",
-                boost.multiplier as f64 / DENOMINATOR_MULTIPLIER as f64
-            ),
+            key: "Basis points".to_string(),
+            value: format!("{} bps", boost.multiplier as f64 / DENOMINATOR_BPS as f64),
         });
         data.push(TableData {
             key: "Pending yield".to_string(),
@@ -326,10 +323,7 @@ impl Miner {
             data.push(StakeTableData {
                 mint: boost.mint.to_string(),
                 symbol,
-                multiplier: format!(
-                    "{}x",
-                    boost.multiplier as f64 / DENOMINATOR_MULTIPLIER as f64
-                ),
+                basis_points: format!("{} bps", boost.multiplier as f64 / DENOMINATOR_BPS as f64),
                 // expires_at: format_timestamp(boost.expires_at),
                 total_deposits: format!(
                     "{}",
@@ -595,8 +589,8 @@ pub struct StakeTableData {
     pub mint: String,
     #[tabled(rename = "Symbol")]
     pub symbol: String,
-    #[tabled(rename = "Multiplier")]
-    pub multiplier: String,
+    #[tabled(rename = "Bps")]
+    pub basis_points: String,
     #[tabled(rename = "Stakers")]
     pub total_stakers: String,
     #[tabled(rename = "Deposits")]
