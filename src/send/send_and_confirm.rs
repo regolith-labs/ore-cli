@@ -31,9 +31,7 @@ const MIN_SOL_BALANCE: f64 = 0.005;
 const RPC_RETRIES: usize = 0;
 const _SIMULATION_RETRIES: usize = 4;
 const GATEWAY_RETRIES: usize = 150;
-const CONFIRM_RETRIES: usize = 8;
 
-const CONFIRM_DELAY: u64 = 500;
 const GATEWAY_DELAY: u64 = 0;
 
 impl Miner {
@@ -89,13 +87,7 @@ impl Miner {
             ];
             final_ixs.push(transfer(
                 &signer.pubkey(),
-                &Pubkey::from_str(
-                    &tip_accounts
-                        .choose(&mut rand::thread_rng())
-                        .unwrap()
-                        .to_string(),
-                )
-                .unwrap(),
+                &Pubkey::from_str(tip_accounts.choose(&mut rand::thread_rng()).unwrap()).unwrap(),
                 jito_tip,
             ));
             progress_bar.println(format!("  Jito tip: {} SOL", lamports_to_sol(jito_tip)));
@@ -165,79 +157,72 @@ impl Miner {
                         return Ok(sig);
                     }
 
-                    // Confirm transaction
-                    'confirm: for _ in 0..CONFIRM_RETRIES {
-                        tokio::time::sleep(Duration::from_millis(CONFIRM_DELAY)).await;
-                        match client.get_signature_statuses(&[sig]).await {
-                            Ok(signature_statuses) => {
-                                for status in signature_statuses.value {
-                                    if let Some(status) = status {
-                                        if let Some(err) = status.err {
-                                            match err {
-                                                // Instruction error
-                                                solana_sdk::transaction::TransactionError::InstructionError(_, err) => {
-                                                    match err {
-                                                        // Custom instruction error, parse into OreError
-                                                        solana_program::instruction::InstructionError::Custom(err_code) => {
-                                                            match err_code {
-                                                                e if e == OreError::NeedsReset as u32 => {
-                                                                    attempts = 0;
-                                                                    log_error(&progress_bar, "Needs reset. Retrying...", false);
-                                                                    break 'confirm;
-                                                                },
-                                                                _ => {
-                                                                    log_error(&progress_bar, &err.to_string(), true);
-                                                                    return Err(ClientError {
-                                                                        request: None,
-                                                                        kind: ClientErrorKind::Custom(err.to_string()),
-                                                                    });
-                                                                }
-                                                            }
-                                                        },
+                    let signature_statuses = match client.get_signature_statuses(&[sig]).await {
+                        Ok(statuses) => statuses,
+                        Err(err) => {
+                            log_error(&progress_bar, &err.kind().to_string(), false);
+                            return Err(ClientError {
+                                request: None,
+                                kind: ClientErrorKind::Custom(err.kind().to_string()),
+                            });
+                        }
+                    };
 
-                                                        // Non custom instruction error, return
-                                                        _ => {
-                                                            log_error(&progress_bar, &err.to_string(), true);
-                                                            return Err(ClientError {
-                                                                request: None,
-                                                                kind: ClientErrorKind::Custom(err.to_string()),
-                                                            });
-                                                        }
-                                                    }
-                                                },
-
-                                                // Non instruction error, return
-                                                _ => {
-                                                    log_error(&progress_bar, &err.to_string(), true);
-                                                    return Err(ClientError {
-                                                        request: None,
-                                                        kind: ClientErrorKind::Custom(err.to_string()),
-                                                    });
-                                                }
-                                            }
-                                        } else if let Some(confirmation) =
-                                            status.confirmation_status
-                                        {
-                                            match confirmation {
-                                                TransactionConfirmationStatus::Processed => {}
-                                                TransactionConfirmationStatus::Confirmed
-                                                | TransactionConfirmationStatus::Finalized => {
-                                                    progress_bar.finish_with_message(format!(
-                                                        "{} {}",
-                                                        "OK".bold().green(),
-                                                        sig
-                                                    ));
-                                                    return Ok(sig);
-                                                }
-                                            }
+                    'confirm: for status in signature_statuses.value.into_iter().flatten() {
+                        if let Some(err) = status.err {
+                            match err {
+                                solana_sdk::transaction::TransactionError::InstructionError(
+                                    _,
+                                    err,
+                                ) => match err {
+                                    solana_program::instruction::InstructionError::Custom(
+                                        err_code,
+                                    ) => match err_code {
+                                        e if e == OreError::NeedsReset as u32 => {
+                                            attempts = 0;
+                                            log_error(
+                                                &progress_bar,
+                                                "Needs reset. Retrying...",
+                                                false,
+                                            );
+                                            break 'confirm;
                                         }
+                                        _ => {
+                                            log_error(&progress_bar, &err.to_string(), true);
+                                            return Err(ClientError {
+                                                request: None,
+                                                kind: ClientErrorKind::Custom(err.to_string()),
+                                            });
+                                        }
+                                    },
+                                    _ => {
+                                        log_error(&progress_bar, &err.to_string(), true);
+                                        return Err(ClientError {
+                                            request: None,
+                                            kind: ClientErrorKind::Custom(err.to_string()),
+                                        });
                                     }
+                                },
+                                _ => {
+                                    log_error(&progress_bar, &err.to_string(), true);
+                                    return Err(ClientError {
+                                        request: None,
+                                        kind: ClientErrorKind::Custom(err.to_string()),
+                                    });
                                 }
                             }
-
-                            // Handle confirmation errors
-                            Err(err) => {
-                                log_error(&progress_bar, &err.kind().to_string(), false);
+                        } else if let Some(confirmation) = status.confirmation_status {
+                            match confirmation {
+                                TransactionConfirmationStatus::Processed => {}
+                                TransactionConfirmationStatus::Confirmed
+                                | TransactionConfirmationStatus::Finalized => {
+                                    progress_bar.finish_with_message(format!(
+                                        "{} {}",
+                                        "OK".bold().green(),
+                                        sig
+                                    ));
+                                    return Ok(sig);
+                                }
                             }
                         }
                     }
