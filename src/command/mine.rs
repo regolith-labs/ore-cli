@@ -162,7 +162,9 @@ impl Miner {
                 Err(err) => {
                     let mining_data = SoloMiningData::failed();
                     let mut data = self.solo_mining_data.write().unwrap();
-                    data.remove(0);
+                    if data.len() >= 0 {
+                        data.remove(0);
+                    }
                     data.insert(0, mining_data);
                     drop(data);
 
