@@ -162,7 +162,7 @@ impl Miner {
                 Err(err) => {
                     let mining_data = SoloMiningData::failed();
                     let mut data = self.solo_mining_data.write().unwrap();
-                    if data.len() >= 0 {
+                    if !data.is_empty() {
                         data.remove(0);
                     }
                     data.insert(0, mining_data);
@@ -471,8 +471,8 @@ impl Miner {
         let mining_data = SoloMiningData::fetching(sig);
         let mut data = self.solo_mining_data.write().unwrap();
         data.insert(0, mining_data);
-        if data.len() >= 12 {
-            data.pop();
+        if !data.is_empty() {
+            data.remove(0);
         }
         drop(data);
 
@@ -541,7 +541,6 @@ impl Miner {
                                     timing: format!("{}s", event.timing),
                                     status: "Confirmed".bold().green().to_string(),
                                 };
-                                data.remove(0);
                                 data.insert(0, mining_data);
                             }
                         }
