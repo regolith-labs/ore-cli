@@ -138,20 +138,14 @@ impl Miner {
             }
 
             // Build mine ix
-            let boost_config = get_boost_config(&self.rpc_client).await;
             let mine_ix = ore_api::sdk::mine(
                 signer.pubkey(),
                 signer.pubkey(),
                 self.find_bus().await,
                 solution,
-                boost_config.current,
                 boost_config_address,
             );
             ixs.push(mine_ix);
-
-            // Build rotation ix
-            let rotate_ix = ore_boost_api::sdk::rotate(signer.pubkey());
-            ixs.push(rotate_ix);
 
             // Submit transaction
             match self

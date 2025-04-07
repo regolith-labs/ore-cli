@@ -2,10 +2,7 @@ use std::str::FromStr;
 
 use colored::*;
 use ore_api::state::{proof_pda, Proof};
-use ore_boost_api::{
-    consts::DENOMINATOR_BPS,
-    state::{boost_pda, stake_pda, Boost, Stake},
-};
+use ore_boost_api::state::{boost_pda, stake_pda, Boost, Config as BoostConfig, Stake};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
 use spl_token::{amount_to_ui_amount, state::Mint};
@@ -23,8 +20,9 @@ use crate::{
     args::{StakeArgs, StakeClaimArgs, StakeCommand, StakeDepositArgs, StakeWithdrawArgs},
     error::Error,
     utils::{
-        amount_u64_to_f64, format_timestamp, get_boost, get_boost_stake_accounts, get_boosts,
-        get_mint, get_proof, get_stake, ComputeBudget, TableData, TableSectionTitle,
+        amount_u64_to_f64, format_timestamp, get_boost, get_boost_config, get_boost_stake_accounts,
+        get_boosts, get_mint, get_proof, get_proof_with_authority, get_stake, ComputeBudget,
+        TableData, TableSectionTitle,
     },
     Miner, StakeAccountsArgs,
 };
@@ -121,10 +119,6 @@ impl Miner {
         let mint_address = Pubkey::from_str(&mint).expect("Failed to parse mint address");
         let boost_address = boost_pda(mint_address).0;
         let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
-        let boost_proof_address = proof_pda(boost_address).0;
-        let boost_proof: ore_api::prelude::Proof = get_proof(&self.rpc_client, boost_proof_address)
-            .await
-            .expect("Failed to fetch proof account");
         let boost = get_boost(&self.rpc_client, boost_address)
             .await
             .expect("Failed to fetch boost account");
@@ -150,15 +144,8 @@ impl Miner {
         self.fetch_boost_data(boost_address, boost, mint, symbol.clone(), &mut data)
             .await;
         let len1 = data.len();
-        self.fetch_stake_data(
-            stake_address,
-            boost,
-            boost_proof,
-            mint,
-            symbol.clone(),
-            &mut data,
-        )
-        .await;
+        self.fetch_stake_data(stake_address, boost, mint, symbol.clone(), &mut data)
+            .await;
         let _len2 = data.len();
 
         // Build table
@@ -176,18 +163,23 @@ impl Miner {
         &self,
         address: Pubkey,
         boost: Boost,
-        boost_proof: Proof,
         mint: Mint,
         symbol: String,
         data: &mut Vec<TableData>,
     ) {
+        let boost_config_address = ore_boost_api::state::config_pda().0;
         let stake = get_stake(&self.rpc_client, address).await;
+        let boost_config = get_boost_config(&self.rpc_client).await;
+        let boost_proof = get_proof_with_authority(&self.rpc_client, boost_config_address)
+            .await
+            .unwrap();
         data.push(TableData {
             key: "Address".to_string(),
             value: address.to_string(),
         });
         if let Ok(stake) = stake {
-            let claimable_yield = calculate_claimable_yield(boost, boost_proof, stake);
+            let claimable_yield =
+                calculate_claimable_yield(boost, boost_config, boost_proof, stake);
             data.push(TableData {
                 key: "Deposits".to_string(),
                 value: format!(
@@ -228,10 +220,6 @@ impl Miner {
         symbol: String,
         data: &mut Vec<TableData>,
     ) {
-        let boost_proof_address = proof_pda(address).0;
-        let boost_proof: ore_api::prelude::Proof = get_proof(&self.rpc_client, boost_proof_address)
-            .await
-            .expect("Failed to fetch proof account");
         data.push(TableData {
             key: "Address".to_string(),
             value: address.to_string(),
@@ -245,15 +233,8 @@ impl Miner {
             value: boost.mint.to_string(),
         });
         data.push(TableData {
-            key: "Basis points".to_string(),
-            value: format!("{} bps", boost.multiplier as f64 / DENOMINATOR_BPS as f64),
-        });
-        data.push(TableData {
-            key: "Pending yield".to_string(),
-            value: format!(
-                "{} ORE",
-                amount_to_ui_amount(boost_proof.balance, ore_api::consts::TOKEN_DECIMALS)
-            ),
+            key: "Weight".to_string(),
+            value: format!("{}", boost.weight),
         });
         data.push(TableData {
             key: "Total deposits".to_string(),
@@ -278,6 +259,12 @@ impl Miner {
             None => self.signer().pubkey(),
         };
 
+        let boost_config_address = ore_boost_api::state::config_pda().0;
+        let boost_config = get_boost_config(&self.rpc_client).await;
+        let boost_proof = get_proof_with_authority(&self.rpc_client, boost_config_address)
+            .await
+            .unwrap();
+
         // Iterate over all boosts
         let mut data = vec![];
         let boosts = get_boosts(&self.rpc_client)
@@ -285,11 +272,6 @@ impl Miner {
             .expect("Failed to fetch boosts");
         for (address, boost) in boosts {
             // Get relevant accounts
-            let boost_proof_address = proof_pda(address).0;
-            let boost_proof: ore_api::prelude::Proof =
-                get_proof(&self.rpc_client, boost_proof_address)
-                    .await
-                    .expect("Failed to fetch proof account");
             let stake_address = stake_pda(authority, address).0;
             let stake = get_stake(&self.rpc_client, stake_address).await;
             let mint = get_mint(&self.rpc_client, boost.mint)
@@ -313,7 +295,7 @@ impl Miner {
             let (stake_balance, stake_rewards) = if let Ok(stake) = stake {
                 (
                     stake.balance,
-                    calculate_claimable_yield(boost, boost_proof, stake),
+                    calculate_claimable_yield(boost, boost_config, boost_proof, stake),
                 )
             } else {
                 (0, 0)
@@ -323,8 +305,7 @@ impl Miner {
             data.push(StakeTableData {
                 mint: boost.mint.to_string(),
                 symbol,
-                basis_points: format!("{} bps", boost.multiplier as f64 / DENOMINATOR_BPS as f64),
-                // expires_at: format_timestamp(boost.expires_at),
+                weight: format!("{}", boost.weight),
                 total_deposits: format!(
                     "{}",
                     amount_to_ui_amount(boost.total_deposits, mint.decimals)
@@ -569,17 +550,33 @@ impl Miner {
     }
 }
 
-pub fn calculate_claimable_yield(boost: Boost, boost_proof: Proof, stake: Stake) -> u64 {
+pub fn calculate_claimable_yield(
+    boost: Boost,
+    boost_config: BoostConfig,
+    boost_proof: Proof,
+    stake: Stake,
+) -> u64 {
     let mut rewards = stake.rewards;
+    let mut config_rewards_factor = boost_config.rewards_factor;
     let mut boost_rewards_factor = boost.rewards_factor;
+
     if boost_proof.balance > 0 {
-        boost_rewards_factor += Numeric::from_fraction(boost_proof.balance, boost.total_deposits);
+        config_rewards_factor +=
+            Numeric::from_fraction(boost_proof.balance, boost_config.total_weight);
     }
+
+    if config_rewards_factor > boost_rewards_factor {
+        let accumulated_rewards = config_rewards_factor - boost_rewards_factor;
+        let boost_rewards = accumulated_rewards * Numeric::from_u64(boost.weight);
+        boost_rewards_factor += boost_rewards / Numeric::from_u64(boost.total_deposits);
+    }
+
     if boost_rewards_factor > stake.last_rewards_factor {
         let accumulated_rewards = boost_rewards_factor - stake.last_rewards_factor;
         let personal_rewards = accumulated_rewards * Numeric::from_u64(stake.balance);
         rewards += personal_rewards.to_u64();
     }
+
     rewards
 }
 
@@ -589,8 +586,8 @@ pub struct StakeTableData {
     pub mint: String,
     #[tabled(rename = "Symbol")]
     pub symbol: String,
-    #[tabled(rename = "Bps")]
-    pub basis_points: String,
+    #[tabled(rename = "Weight")]
+    pub weight: String,
     #[tabled(rename = "Stakers")]
     pub total_stakers: String,
     #[tabled(rename = "Deposits")]
