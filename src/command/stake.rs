@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use colored::*;
-use ore_api::state::{proof_pda, Proof};
+use ore_api::state::Proof;
 use ore_boost_api::state::{boost_pda, stake_pda, Boost, Config as BoostConfig, Stake};
 use solana_program::{program_pack::Pack, pubkey::Pubkey};
 use solana_sdk::signature::Signer;
@@ -21,8 +21,8 @@ use crate::{
     error::Error,
     utils::{
         amount_u64_to_f64, format_timestamp, get_boost, get_boost_config, get_boost_stake_accounts,
-        get_boosts, get_mint, get_proof, get_proof_with_authority, get_stake, ComputeBudget,
-        TableData, TableSectionTitle,
+        get_boosts, get_mint, get_proof_with_authority, get_stake, ComputeBudget, TableData,
+        TableSectionTitle,
     },
     Miner, StakeAccountsArgs,
 };

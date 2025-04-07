@@ -41,9 +41,8 @@ use crate::{
     args::MineArgs,
     error::Error,
     utils::{
-        amount_u64_to_f64, format_duration, format_timestamp, get_boost_config, get_clock,
-        get_config, get_updated_proof_with_authority, ComputeBudget, PoolMiningData,
-        SoloMiningData,
+        amount_u64_to_f64, format_duration, format_timestamp, get_clock, get_config,
+        get_updated_proof_with_authority, ComputeBudget, PoolMiningData, SoloMiningData,
     },
     Miner,
 };
