@@ -42,7 +42,7 @@ impl Miner {
             }
         } else {
             if let Some(mint) = args.mint {
-                self.stake_get(mint).await.unwrap();
+                self.stake_get(mint, args.authority).await.unwrap();
             } else {
                 self.stake_list(args).await.unwrap();
             }
@@ -114,11 +114,16 @@ impl Miner {
         Ok(())
     }
 
-    async fn stake_get(&self, mint: String) -> Result<(), Error> {
+    async fn stake_get(&self, mint: String, authority: Option<String>) -> Result<(), Error> {
         // Fetch onchain data
         let mint_address = Pubkey::from_str(&mint).expect("Failed to parse mint address");
         let boost_address = boost_pda(mint_address).0;
-        let stake_address = stake_pda(self.signer().pubkey(), boost_address).0;
+        let authority = if let Some(authority) = authority {
+            Pubkey::from_str(&authority).expect("Failed to parse authority address")
+        } else {
+            self.signer().pubkey()
+        };
+        let stake_address = stake_pda(authority, boost_address).0;
         let boost = get_boost(&self.rpc_client, boost_address)
             .await
             .expect("Failed to fetch boost account");
@@ -190,8 +195,16 @@ impl Miner {
                 ),
             });
             data.push(TableData {
+                key: "Last claim at".to_string(),
+                value: format_timestamp(stake.last_claim_at),
+            });
+            data.push(TableData {
                 key: "Last deposit at".to_string(),
                 value: format_timestamp(stake.last_deposit_at),
+            });
+            data.push(TableData {
+                key: "Last withdraw at".to_string(),
+                value: format_timestamp(stake.last_withdraw_at),
             });
             data.push(TableData {
                 key: "Yield".to_string(),
@@ -565,8 +578,8 @@ pub fn calculate_claimable_yield(
             Numeric::from_fraction(boost_proof.balance, boost_config.total_weight);
     }
 
-    if config_rewards_factor > boost_rewards_factor {
-        let accumulated_rewards = config_rewards_factor - boost_rewards_factor;
+    if config_rewards_factor > boost.last_rewards_factor {
+        let accumulated_rewards = config_rewards_factor - boost.last_rewards_factor;
         let boost_rewards = accumulated_rewards * Numeric::from_u64(boost.weight);
         boost_rewards_factor += boost_rewards / Numeric::from_u64(boost.total_deposits);
     }
