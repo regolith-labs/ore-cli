@@ -424,7 +424,7 @@ impl Miner {
         // Send tx
         println!("Depositing stake...");
         let ix = ore_boost_api::sdk::deposit(signer.pubkey(), mint_address, amount);
-        self.send_and_confirm(&[ix], ComputeBudget::Fixed(50_000), false)
+        self.send_and_confirm(&[ix], ComputeBudget::Fixed(200_000), false)
             .await
             .ok();
         Ok(())
@@ -502,7 +502,7 @@ impl Miner {
             mint_address,
             amount,
         ));
-        self.send_and_confirm(&ixs, ComputeBudget::Fixed(100_000), false)
+        self.send_and_confirm(&ixs, ComputeBudget::Fixed(200_000), false)
             .await
             .ok();
 
