@@ -74,13 +74,13 @@ where
                     if status_code == StatusCode::GONE {
                         panic!(
                                 "\n{} Your RPC provider does not support the getProgramAccounts endpoint, needed to execute this command. Please use a different RPC provider.\n",
-                                "ERROR".bold().red().to_string()
+                                "ERROR".bold().red()
                             );
                     }
                 }
-                return Err(anyhow::anyhow!("Failed to get program accounts: {}", err));
+                Err(anyhow::anyhow!("Failed to get program accounts: {}", err))
             }
-            _ => return Err(anyhow::anyhow!("Failed to get program accounts: {}", err)),
+            _ => Err(anyhow::anyhow!("Failed to get program accounts: {}", err)),
         },
     }
 }

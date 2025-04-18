@@ -42,12 +42,10 @@ impl Miner {
                     self.pool_commit(args, commit_args).await.unwrap()
                 }
             }
+        } else if let Some(pool_url) = args.pool_url {
+            self.get_pool(pool_url).await.unwrap();
         } else {
-            if let Some(pool_url) = args.pool_url {
-                self.get_pool(pool_url).await.unwrap();
-            } else {
-                self.list_pools(args).await.unwrap();
-            }
+            self.list_pools(args).await.unwrap();
         }
     }
 
@@ -174,7 +172,7 @@ impl Miner {
                     .to_string(),
             });
             // Get offchain data from pool server
-            if let Ok(member_offchain) = pool.get_pool_member(&self).await {
+            if let Ok(member_offchain) = pool.get_pool_member(self).await {
                 let pending_rewards = (member_offchain.total_balance as u64) - member.total_balance;
                 data.push(TableData {
                     key: "Pending rewards".to_string(),
@@ -243,7 +241,7 @@ impl Pool {
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
-                Err(err).map_err(From::from)
+                Err(From::from(err))
             }
             Ok(resp) => resp.json::<Member>().await.map_err(From::from),
         }
@@ -260,7 +258,7 @@ impl Pool {
                 match resp.error_for_status() {
                     Err(err) => {
                         println!("{:?}", err);
-                        Err(err).map_err(From::from)
+                        Err(From::from(err))
                     }
                     Ok(resp) => resp.json::<PoolAddress>().await.map_err(From::from),
                 }
@@ -288,7 +286,7 @@ impl Pool {
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
-                Err(err).map_err(From::from)
+                Err(From::from(err))
             }
             Ok(resp) => resp.json::<Member>().await.map_err(From::from),
         }
@@ -356,7 +354,7 @@ impl Pool {
                 }
                 Ok(resp) => {
                     if let Ok(event) = resp.json::<ore_pool_types::PoolMemberMiningEvent>().await {
-                        if event.last_hash_at as i64 >= last_hash_at {
+                        if event.last_hash_at >= last_hash_at {
                             progress_bar.finish_and_clear();
                             return Ok(event);
                         }
@@ -434,7 +432,7 @@ impl Pool {
                 match resp.error_for_status() {
                     Err(err) => {
                         println!("{:?}", err);
-                        Err(err).map_err(From::from)
+                        Err(From::from(err))
                     }
                     Ok(resp) => {
                         let balance_update = resp.json::<BalanceUpdate>().await;
@@ -458,7 +456,7 @@ impl Pool {
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
-                Err(err).map_err(From::from)
+                Err(From::from(err))
             }
             Ok(resp) => resp.json::<MemberChallenge>().await.map_err(From::from),
         }
@@ -486,7 +484,7 @@ impl Pool {
         match resp.error_for_status() {
             Err(err) => {
                 println!("{:?}", err);
-                Err(err).map_err(From::from)
+                Err(From::from(err))
             }
             Ok(_) => Ok(()),
         }
