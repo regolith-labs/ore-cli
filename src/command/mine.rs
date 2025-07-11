@@ -159,6 +159,9 @@ impl Miner {
                         data.remove(0);
                     }
                     data.insert(0, mining_data);
+                    while data.len() > 10 {
+                        data.remove(10);
+                    }
                     drop(data);
 
                     // Log mining table
