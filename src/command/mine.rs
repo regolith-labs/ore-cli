@@ -316,31 +316,36 @@ impl Miner {
                             // Look for best difficulty score in all hashes
                             for hx in hxs {
                                 let difficulty = hx.difficulty();
-                                if difficulty.gt(&best_difficulty) {
+                                if difficulty == 5 {
                                     best_nonce = nonce;
                                     best_difficulty = difficulty;
                                     best_hash = hx;
-                                    if best_difficulty.gt(&*global_best_difficulty.read().unwrap())
-                                    {
-                                        // Update best global difficulty
-                                        *global_best_difficulty.write().unwrap() = best_difficulty;
-
-                                        // Continuously upload best solution to pool
-                                        if difficulty.ge(&min_difficulty) {
-                                            if let Some(ref ch) = pool_channel {
-                                                let digest = best_hash.d;
-                                                let nonce = nonce.to_le_bytes();
-                                                let solution = Solution {
-                                                    d: digest,
-                                                    n: nonce,
-                                                };
-                                                if let Err(err) = ch.send(solution) {
-                                                    println!("{} {:?}", "ERROR".bold().red(), err);
-                                                }
-                                            }
-                                        }
-                                    }
                                 }
+                                // if difficulty.gt(&best_difficulty) {
+                                //     best_nonce = nonce;
+                                //     best_difficulty = difficulty;
+                                //     best_hash = hx;
+                                //     if best_difficulty.gt(&*global_best_difficulty.read().unwrap())
+                                //     {
+                                //         // Update best global difficulty
+                                //         *global_best_difficulty.write().unwrap() = best_difficulty;
+
+                                //         // Continuously upload best solution to pool
+                                //         if difficulty.ge(&min_difficulty) {
+                                //             if let Some(ref ch) = pool_channel {
+                                //                 let digest = best_hash.d;
+                                //                 let nonce = nonce.to_le_bytes();
+                                //                 let solution = Solution {
+                                //                     d: digest,
+                                //                     n: nonce,
+                                //                 };
+                                //                 if let Err(err) = ch.send(solution) {
+                                //                     println!("{} {:?}", "ERROR".bold().red(), err);
+                                //                 }
+                                //             }
+                                //         }
+                                //     }
+                                // }
                             }
 
                             // Exit if time has elapsed
