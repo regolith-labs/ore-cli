@@ -316,10 +316,11 @@ impl Miner {
                             // Look for best difficulty score in all hashes
                             for hx in hxs {
                                 let difficulty = hx.difficulty();
-                                if difficulty == 5 {
+                                if difficulty == 7 {
                                     best_nonce = nonce;
                                     best_difficulty = difficulty;
                                     best_hash = hx;
+                                    *global_best_difficulty.write().unwrap() = best_difficulty;
                                 }
                                 // if difficulty.gt(&best_difficulty) {
                                 //     best_nonce = nonce;
