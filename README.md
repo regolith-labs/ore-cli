@@ -50,4 +50,71 @@ Add the `-h` flag on any command to pull up a help menu with documentation:
 ore -h
 ```
 
-For support, please [join the Discord](https://discord.gg/7xymAXZP8Y) and ask your question in the Help channel.
+## Running with Docker
+
+Run the Docker image with your wallet mapped:
+
+```sh
+docker run -it \
+  -e RPC=mainnet \
+  -e BUFFER_TIME=5 \
+  -e CORES=4 \
+  -v /local/path/to/id.json:/ore/id.json:ro \
+  ghcr.io/regolith-labs/ore:latest
+```
+
+### Functions
+
+The Docker image supports the following functions:
+
+- `balance`: Fetch an account balance.
+- `benchmark`: Benchmark your hashpower.
+- `busses`: Fetch the bus account balances.
+- `claim`: Claim your mining rewards.
+- `close`: Close your account to recover rent.
+- `config`: Fetch the program config.
+- `mine`: Start mining.
+- `proof`: Fetch a proof account by address.
+- `rewards`: Fetch the current reward rate for each difficulty level.
+- `stake`: Stake to earn a rewards multiplier.
+- `transfer`: Send ORE to anyone, anywhere in the world.
+- `upgrade`: Upgrade your ORE tokens from v1 to v2.
+
+### Environment Variables
+
+- `RPC`: Set the RPC URL (mainnet, devnet, or custom URL). Default is `devnet`.
+- `BUFFER_TIME`: The number of seconds before the deadline to stop mining and start submitting (default: 5).
+- `CORES`: Number of CPU cores to allocate to mining (default: 1).
+- `PRIORITY_FEE`: Price to pay for compute units. If dynamic fee URL is also set, this value will be the max (default: 500000).
+- `DYNAMIC_FEE_URL`: RPC URL to use for dynamic fee estimation.
+- `DYNAMIC_FEE_STRATEGY`: Strategy to use for dynamic fee estimation. Must be one of 'helius' or 'triton'.
+
+### Volumes
+
+To use your wallet files, mount them as volumes:
+
+- Mount your wallet file:
+    ```sh
+    -v /path/to/your/id.json:/ore/id.json
+    ```
+- Mount your payer wallet file, which is used to pay fees for transactions:
+    ```sh
+    -v /path/to/your/payer.json:/ore/payer.json
+    ```
+
+### Examples
+
+- Display balance account:
+    ```sh
+    docker run --rm -it \
+      -v /path/to/your/id.json:/ore/id.json:ro \
+      ghcr.io/regolith-labs/ore:latest balance
+    ```
+- Display help:
+    ```sh
+    docker run --rm -it ghcr.io/regolith-labs/ore:latest --help
+    ```
+- Benchmark your hashpower:
+    ```sh
+    docker run --rm -it ghcr.io/regolith-labs/ore:latest benchmark
+    ```
