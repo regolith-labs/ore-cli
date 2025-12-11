@@ -1,4 +1,4 @@
-# ORE CLI
+# ORE CLI (deprecated)
 
 A command line interface for ORE cryptocurrency mining.
 
