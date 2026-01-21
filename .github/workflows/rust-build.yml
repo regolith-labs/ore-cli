@@ -1,0 +1,254 @@
+name: Rust Build
+
+on:
+  release:
+    types: [published]    
+
+env:
+  CARGO_TERM_COLOR: always
+  BINARY_NAME: ore
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - id: version
+        run: echo version="$(cargo metadata --no-deps --quiet --color never | jq -r '.packages[].version')-$(git describe --always --dirty=_modified)" >> "$GITHUB_OUTPUT"
+
+  build-ubuntu:
+    name: Build on Ubuntu
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64-unknown-linux-gnu, x86_64-pc-windows-gnu]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        run: rustup target add ${{ matrix.target }}
+        
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ${{ matrix.target == 'x86_64-pc-windows-gnu' && 'mingw-w64' || 'openssl pkg-config libssl-dev' }}
+      - name: Configure cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: release-${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+          
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary
+        run: |
+          if [ "${{ matrix.target }}" = "x86_64-pc-windows-gnu" ]; then
+            x86_64-w64-mingw32-strip target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}.exe
+          else
+            strip target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}
+          fi
+        
+      - name: Package
+        run: |
+          rm -rf target/dist
+          mkdir -p target/dist
+          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}${{ matrix.target == 'x86_64-pc-windows-gnu' && '.exe' || '' }} target/dist/${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-${{ matrix.target }}${{ matrix.target == 'x86_64-pc-windows-gnu' && '.exe' || '' }}
+      
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-${{ matrix.target }}
+          path: target/dist/*
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: target/dist/${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-${{ matrix.target }}${{ matrix.target == 'x86_64-pc-windows-gnu' && '.exe' || '' }}
+          asset_name: ${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-${{ matrix.target }}${{ matrix.target == 'x86_64-pc-windows-gnu' && '.exe' || '' }}
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    name: Build on macOS
+    needs: version
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install openssl pkg-config
+
+      - name: Setup Rust
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Configure cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: release-${{ runner.os }}-cargo-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Strip binary
+        run: strip target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}
+
+      - name: Package
+        run: |
+          rm -rf target/dist
+          mkdir -p target/dist
+          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }} target/dist/${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-${{ matrix.target }}
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-${{ matrix.target }}
+          path: target/dist/*
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: target/dist/${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-${{ matrix.target }}
+          asset_name: ${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-${{ matrix.target }}
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows-msvc:
+    name: Build on Windows (MSVC)
+    needs: version
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        run: rustup target add x86_64-pc-windows-msvc
+
+      - name: Configure cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: release-${{ runner.os }}-cargo-x86_64-pc-windows-msvc-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Package
+        run: |
+          if (Test-Path target/dist) { Remove-Item -Recurse -Force target/dist }
+          New-Item -ItemType Directory -Force -Path target/dist
+          Copy-Item target/x86_64-pc-windows-msvc/release/${{ env.BINARY_NAME }}.exe target/dist/${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-x86_64-pc-windows-msvc.exe
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-x86_64-pc-windows-msvc
+          path: target/dist/*
+
+      - name: Upload release asset
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: target/dist/${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-x86_64-pc-windows-msvc.exe
+          asset_name: ${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-x86_64-pc-windows-msvc.exe
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # build-arm64:
+  #   name: Build on ARM64 (Ubuntu 22.04)
+  #   needs: version
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout repository
+  #       uses: actions/checkout@v4
+
+  #     - name: Setup Rust
+  #       run: |
+  #         curl https://sh.rustup.rs -sSf | sh -s -- -y
+  #         source "$HOME/.cargo/env"
+  #         rustup target add aarch64-unknown-linux-gnu
+
+  #     - name: Install dependencies
+  #       run: |
+  #         sudo apt-get update && sudo apt-get install -y \
+  #           musl-tools \
+  #           clang \
+  #           gcc-aarch64-linux-gnu \
+  #           g++-aarch64-linux-gnu \
+  #           libc6-dev \
+  #           libc6-dev-arm64-cross
+
+  #     - name: Configure cache
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/.cargo/bin/
+  #           ~/.cargo/registry/index/
+  #           ~/.cargo/registry/cache/
+  #           ~/.cargo/git/db/
+  #           target/
+  #         key: release-${{ runner.os }}-cargo-aarch64-unknown-linux-gnu-${{ hashFiles('**/Cargo.lock') }}
+
+  #     - name: Build
+  #       run: |
+  #         env BINDGEN_EXTRA_CLANG_ARGS='--sysroot /usr/aarch64-linux-gnu' \
+  #         CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=/usr/bin/aarch64-linux-gnu-gcc \
+  #         cargo build --release --target aarch64-unknown-linux-gnu
+
+  #     - name: Strip binary
+  #       run: strip target/aarch64-unknown-linux-gnu/release/${{ env.BINARY_NAME }}
+
+  #     - name: Package
+  #       run: |
+  #         rm -rf target/dist
+  #         mkdir -p target/dist
+  #         cp target/aarch64-unknown-linux-gnu/release/${{ env.BINARY_NAME }} target/dist/${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-aarch64-unknown-linux-gnu
+
+  #     - name: Upload archive
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: ${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-aarch64-unknown-linux-gnu
+  #         path: target/dist/*
+
+  #     - name: Debug - Check file existence
+  #       run: ls -alh target/dist
+
+  #     - name: Upload release asset
+  #       uses: actions/upload-release-asset@v1
+  #       with:
+  #         upload_url: ${{ github.event.release.upload_url }}
+  #         asset_path: target/dist/${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-aarch64-unknown-linux-gnu
+  #         asset_name: ${{ env.BINARY_NAME }}-${{ needs.version.outputs.version }}-aarch64-unknown-linux-gnu
+  #         asset_content_type: application/octet-stream
+  #       env:
+  #         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
