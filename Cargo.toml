@@ -1,0 +1,32 @@
+[package]
+name = "ore-cli"
+version = "3.5.0"
+edition = "2021"
+license = "MIT"
+
+[[bin]]
+name = "ore"
+path = "src/main.rs"
+
+[dependencies]
+vector-core = { path = "../vector/crates/core" }
+pqcrypto-falcon = "0.3"
+pqcrypto-traits = "0.3"
+solana-sdk = "2.2"
+solana-client = "2.2"
+solana-address = { version = "2.6", features = ["decode"] }
+spl-token = { version = "7", features = ["no-entrypoint"] }
+spl-associated-token-account = { version = "6", features = ["no-entrypoint"] }
+clap = { version = "4", features = ["derive"] }
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+dirs = "6"
+sha2 = "0.10"
+bs58 = "0.5"
+anyhow = "1"
+indicatif = "0.17"
+qr2term = "0.3"
+solana-instruction = "3.4"
+ore-stake-api = { path = "../ore-stake/api" }
+steel = "4.0.4"
+bincode = "1"
