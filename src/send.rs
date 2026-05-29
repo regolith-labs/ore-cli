@@ -8,7 +8,7 @@ use solana_sdk::{
     transaction::Transaction,
 };
 use spl_associated_token_account::get_associated_token_address;
-use vector_core::{
+use crate::vector::{
     advance_vector_digest, create_advance_instruction, create_passthrough_instruction,
     FALCON512, FALCON512_SIGNATURE_LEN, VectorAccount,
 };

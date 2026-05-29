@@ -51,7 +51,7 @@ pub fn run() -> anyhow::Result<()> {
     let vector_account = rpc.get_account(&vector_pubkey);
     if vector_account.is_err() {
         let payer_addr = solana_address::Address::new_from_array(fee_payer.pubkey().to_bytes());
-        let init_ix = vector_core::create_initialize_falcon512(&payer_addr, &wire);
+        let init_ix = crate::vector::create_initialize_falcon512(&payer_addr, &wire);
         let ix = to_sdk_instruction(init_ix);
 
         let recent_blockhash = rpc.get_latest_blockhash()?;

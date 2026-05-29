@@ -7,7 +7,7 @@ use solana_sdk::{
     signer::keypair::read_keypair_file,
 };
 use spl_associated_token_account::get_associated_token_address;
-use vector_core::{
+use crate::vector::{
     advance_vector_digest, create_advance_instruction, create_passthrough_instruction,
     FALCON512, FALCON512_SIGNATURE_LEN, VectorAccount,
 };
@@ -99,7 +99,7 @@ fn sign_and_send(
         .map_err(|e| anyhow::anyhow!("failed to read fee payer keypair: {e}"))?;
     let rpc = RpcClient::new(cfg.rpc_url());
 
-    let (vector_addr, _bump) = vector_core::find_vector_pda(&FALCON512, identity);
+    let (vector_addr, _bump) = crate::vector::find_vector_pda(&FALCON512, identity);
     let vector_pubkey = Pubkey::new_from_array(vector_addr.to_bytes());
 
     // Fetch current nonce

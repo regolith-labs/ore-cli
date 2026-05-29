@@ -4,7 +4,7 @@ use std::path::Path;
 use pqcrypto_falcon::falcon512;
 use pqcrypto_traits::sign::{PublicKey, SecretKey};
 use sha2::{Digest, Sha256};
-use vector_core::{find_vector_pda, FALCON512};
+use crate::vector::{find_vector_pda, FALCON512};
 
 pub const FALCON512_WIRE_PUBKEY_LEN: usize = 897;
 pub const FALCON512_SECRET_KEY_LEN: usize = 1281;

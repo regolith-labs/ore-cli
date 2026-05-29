@@ -6,6 +6,7 @@ mod send;
 mod lookup_table;
 mod stake;
 mod tx;
+mod vector;
 mod keypair;
 
 use clap::{Parser, Subcommand};
