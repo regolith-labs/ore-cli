@@ -3,6 +3,9 @@ name = "ore-cli"
 version = "3.5.0"
 edition = "2021"
 license = "MIT"
+description = "ORE quantum secure smart wallet"
+homepage = "https://ore.supply"
+repository = "https://github.com/regolith-labs/ore-cli"
 
 [[bin]]
 name = "ore"
