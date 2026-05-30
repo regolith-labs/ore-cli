@@ -2,6 +2,15 @@
 
 ORE quantum-safe smart wallet. Built on [Solana](https://solana.com) with [Vector](https://github.com/blueshift-gg/vector), using [Falcon-512](https://falcon-sign.info/) post-quantum signatures.
 
+## How it works
+
+ORE uses [Vector](https://github.com/blueshift-gg/vector) smart wallets to protect your funds against quantum attacks. Instead of holding tokens in a standard Solana keypair, your ORE is stored in an on-chain smart wallet that requires **two signatures** to move funds:
+
+1. **Ed25519** — A standard Solana signature from your fee-payer keypair. This pays for transaction fees and is verified by the Solana runtime as usual.
+2. **Falcon-512** — A post-quantum signature verified by the Vector program on-chain. This is what actually authorizes transfers out of your smart wallet.
+
+Even if an attacker could break Ed25519 with a quantum computer, they still cannot move your funds without also forging a Falcon-512 signature — which is designed to be resistant to quantum attacks. Your Falcon-512 private key never touches the Solana runtime and is only used locally to sign transaction digests.
+
 ## Install
 
 ```sh
