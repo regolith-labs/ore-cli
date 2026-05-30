@@ -2,6 +2,9 @@ mod config;
 mod init;
 mod address;
 mod balance;
+mod pay;
+mod signer;
+mod wallet;
 mod send;
 mod lookup_table;
 mod stake;
@@ -12,7 +15,7 @@ mod keypair;
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "ore", about = "ORE smart wallet with post-quantum security")]
+#[command(name = "ore", about = "ORE quantum-safe smart wallet")]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -27,10 +30,19 @@ enum Commands {
     },
     /// Initialize a new smart wallet
     Init,
+    /// Print wallet summary
+    Wallet,
     /// Print smart wallet address
     Address,
+    /// Print signer address and SOL balance
+    Signer,
     /// Show ORE token balance
     Balance,
+    /// Display QR code for receiving ORE payments
+    Pay {
+        /// Amount of ORE to request (optional)
+        amount: Option<String>,
+    },
     /// Transfer ORE to a recipient
     Transfer {
         /// Amount of ORE to transfer (e.g., "1.5")
@@ -79,8 +91,11 @@ fn main() {
     let result = match cli.command {
         Commands::Config { action } => config::run(action),
         Commands::Init => init::run(),
+        Commands::Wallet => wallet::run(),
         Commands::Address => address::run(),
+        Commands::Signer => signer::run(),
         Commands::Balance => balance::run(),
+        Commands::Pay { amount } => pay::run(amount),
         Commands::Transfer { amount, recipient } => send::run(&amount, &recipient),
         Commands::Stake { action } => match action {
             StakeAction::Deposit { amount } => stake::run_deposit(&amount),

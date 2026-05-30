@@ -1,9 +1,9 @@
 [package]
 name = "ore-cli"
-version = "3.5.0"
+version = "3.5.1"
 edition = "2021"
 license = "MIT"
-description = "ORE quantum secure smart wallet"
+description = "ORE quantum-safe smart wallet"
 homepage = "https://ore.supply"
 repository = "https://github.com/regolith-labs/ore-cli"
 
@@ -33,3 +33,4 @@ solana-instruction = "3.4"
 ore-stake-api = "0.2.5"
 steel = "4.0.4"
 bincode = "1"
+ore-mint-api = "0.1.3"

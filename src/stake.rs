@@ -12,12 +12,11 @@ use crate::vector::{
     FALCON512, FALCON512_SIGNATURE_LEN, VectorAccount,
 };
 
+use ore_mint_api::consts::{MINT_ADDRESS, TOKEN_DECIMALS};
+
 use crate::config::OreConfig;
 use crate::init::to_sdk_instruction;
 use crate::keypair::{load_keypair, falcon_identity, vector_pda};
-
-const ORE_MINT: &str = "oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp";
-const ORE_DECIMALS: u8 = 11;
 const ORE_STAKE_PROGRAM: &str = "STkEAu2cEyQp5ktgUauRVq8es6mEP2w6ixw4NEd5tDJ";
 const STAKE_SEED: &[u8] = b"stake";
 const TREASURY_SEED: &[u8] = b"treasury";
@@ -45,12 +44,12 @@ fn vesting_pda() -> Pubkey {
 }
 
 fn format_ore(amount: u64) -> String {
-    let whole = amount / 10u64.pow(ORE_DECIMALS as u32);
-    let frac = amount % 10u64.pow(ORE_DECIMALS as u32);
+    let whole = amount / 10u64.pow(TOKEN_DECIMALS as u32);
+    let frac = amount % 10u64.pow(TOKEN_DECIMALS as u32);
     if frac == 0 {
         format!("{whole} ORE")
     } else {
-        let frac_str = format!("{frac:0>width$}", width = ORE_DECIMALS as usize);
+        let frac_str = format!("{frac:0>width$}", width = TOKEN_DECIMALS as usize);
         let trimmed = frac_str.trim_end_matches('0');
         format!("{whole}.{trimmed} ORE")
     }
@@ -67,21 +66,21 @@ fn parse_ore_amount(s: &str) -> anyhow::Result<u64> {
     match parts.len() {
         1 => {
             let whole: u64 = parts[0].parse()?;
-            Ok(whole * 10u64.pow(ORE_DECIMALS as u32))
+            Ok(whole * 10u64.pow(TOKEN_DECIMALS as u32))
         }
         2 => {
             let whole: u64 = parts[0].parse()?;
             let frac_str = parts[1];
-            if frac_str.len() > ORE_DECIMALS as usize {
-                anyhow::bail!("too many decimal places (max {ORE_DECIMALS})");
+            if frac_str.len() > TOKEN_DECIMALS as usize {
+                anyhow::bail!("too many decimal places (max {TOKEN_DECIMALS})");
             }
             let frac: u64 = if frac_str.is_empty() {
                 0
             } else {
-                let padded = format!("{:0<width$}", frac_str, width = ORE_DECIMALS as usize);
+                let padded = format!("{:0<width$}", frac_str, width = TOKEN_DECIMALS as usize);
                 padded.parse()?
             };
-            Ok(whole * 10u64.pow(ORE_DECIMALS as u32) + frac)
+            Ok(whole * 10u64.pow(TOKEN_DECIMALS as u32) + frac)
         }
         _ => anyhow::bail!("invalid amount format: {s}"),
     }
@@ -164,7 +163,7 @@ fn build_deposit_ix(
     compound_fee: u64,
     compound_fee_deposit: u64,
 ) -> solana_instruction::Instruction {
-    let ore_mint: Pubkey = ORE_MINT.parse().unwrap();
+    let ore_mint = Pubkey::new_from_array(MINT_ADDRESS.to_bytes());
     let stake = stake_pda(wallet);
     let stake_tokens = get_associated_token_address(&stake, &ore_mint);
     let sender_ata = get_associated_token_address(wallet, &ore_mint);
@@ -201,7 +200,7 @@ fn build_deposit_ix(
 
 /// Build the ore-stake withdraw instruction as a solana_instruction::Instruction.
 fn build_withdraw_ix(wallet: &Pubkey, amount: u64) -> solana_instruction::Instruction {
-    let ore_mint: Pubkey = ORE_MINT.parse().unwrap();
+    let ore_mint = Pubkey::new_from_array(MINT_ADDRESS.to_bytes());
     let stake = stake_pda(wallet);
     let stake_tokens = get_associated_token_address(&stake, &ore_mint);
     let recipient_ata = get_associated_token_address(wallet, &ore_mint);
@@ -235,7 +234,7 @@ fn build_withdraw_ix(wallet: &Pubkey, amount: u64) -> solana_instruction::Instru
 
 /// Build the ore-stake claim instruction.
 fn build_claim_ix(wallet: &Pubkey, amount: u64) -> solana_instruction::Instruction {
-    let ore_mint: Pubkey = ORE_MINT.parse().unwrap();
+    let ore_mint = Pubkey::new_from_array(MINT_ADDRESS.to_bytes());
     let stake = stake_pda(wallet);
     let recipient_ata = get_associated_token_address(wallet, &ore_mint);
     let treasury = treasury_pda();

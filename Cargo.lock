@@ -2516,7 +2516,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "ore-cli"
-version = "3.5.0"
+version = "3.5.1"
 dependencies = [
  "anyhow",
  "bincode",
@@ -2524,6 +2524,7 @@ dependencies = [
  "clap",
  "dirs",
  "indicatif",
+ "ore-mint-api",
  "ore-stake-api",
  "pqcrypto-falcon",
  "pqcrypto-traits",

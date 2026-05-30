@@ -11,11 +11,11 @@ use spl_associated_token_account::{
     instruction::create_associated_token_account,
 };
 
+use ore_mint_api::consts::MINT_ADDRESS;
+
 use crate::config::OreConfig;
 use crate::keypair::{save_keypair, vector_pda, wire_pubkey};
 use crate::tx::send_and_confirm;
-
-const ORE_MINT: &str = "oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp";
 
 pub fn run() -> anyhow::Result<()> {
     let cfg = OreConfig::load();
@@ -38,7 +38,7 @@ pub fn run() -> anyhow::Result<()> {
 
     // Convert vector-core Address to solana-sdk Pubkey
     let vector_pubkey = Pubkey::new_from_array(vector_addr.to_bytes());
-    let ore_mint = ORE_MINT.parse::<Pubkey>()?;
+    let ore_mint = Pubkey::new_from_array(MINT_ADDRESS.to_bytes());
 
     println!("Smart wallet: {vector_pubkey}");
 

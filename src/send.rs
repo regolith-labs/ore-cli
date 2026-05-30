@@ -13,12 +13,11 @@ use crate::vector::{
     FALCON512, FALCON512_SIGNATURE_LEN, VectorAccount,
 };
 
+use ore_mint_api::consts::{MINT_ADDRESS, TOKEN_DECIMALS};
+
 use crate::config::OreConfig;
 use crate::init::to_sdk_instruction;
 use crate::keypair::{load_keypair, falcon_identity, vector_pda};
-
-const ORE_MINT: &str = "oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp";
-const ORE_DECIMALS: u8 = 11;
 
 pub fn run(amount_str: &str, recipient_str: &str) -> anyhow::Result<()> {
     let cfg = OreConfig::load();
@@ -42,7 +41,7 @@ pub fn run(amount_str: &str, recipient_str: &str) -> anyhow::Result<()> {
     let identity = falcon_identity(&pk);
     let (vector_addr, _bump) = vector_pda(&pk);
     let vector_pubkey = Pubkey::new_from_array(vector_addr.to_bytes());
-    let ore_mint = ORE_MINT.parse::<Pubkey>()?;
+    let ore_mint = Pubkey::new_from_array(MINT_ADDRESS.to_bytes());
     let source_ata = get_associated_token_address(&vector_pubkey, &ore_mint);
 
     // The recipient could be a wallet address or a token account.
@@ -78,7 +77,7 @@ pub fn run(amount_str: &str, recipient_str: &str) -> anyhow::Result<()> {
         &dest_ata,
         &vector_pubkey,
         amount,
-        ORE_DECIMALS,
+        TOKEN_DECIMALS,
     );
 
     // Build the passthrough instruction (wraps the SPL transfer under the Vector PDA's authority)
@@ -132,21 +131,21 @@ fn parse_ore_amount(s: &str) -> anyhow::Result<u64> {
     match parts.len() {
         1 => {
             let whole: u64 = parts[0].parse()?;
-            Ok(whole * 10u64.pow(ORE_DECIMALS as u32))
+            Ok(whole * 10u64.pow(TOKEN_DECIMALS as u32))
         }
         2 => {
             let whole: u64 = parts[0].parse()?;
             let frac_str = parts[1];
-            if frac_str.len() > ORE_DECIMALS as usize {
-                anyhow::bail!("too many decimal places (max {ORE_DECIMALS})");
+            if frac_str.len() > TOKEN_DECIMALS as usize {
+                anyhow::bail!("too many decimal places (max {TOKEN_DECIMALS})");
             }
             let frac: u64 = if frac_str.is_empty() {
                 0
             } else {
-                let padded = format!("{:0<width$}", frac_str, width = ORE_DECIMALS as usize);
+                let padded = format!("{:0<width$}", frac_str, width = TOKEN_DECIMALS as usize);
                 padded.parse()?
             };
-            Ok(whole * 10u64.pow(ORE_DECIMALS as u32) + frac)
+            Ok(whole * 10u64.pow(TOKEN_DECIMALS as u32) + frac)
         }
         _ => anyhow::bail!("invalid amount format: {s}"),
     }
